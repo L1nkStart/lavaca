@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { CreatorSidebar } from "@/components/creator-sidebar";
-import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText } from 'lucide-react';
 import Link from "next/link";
 
 // Mock data

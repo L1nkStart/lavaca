@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -12,7 +12,7 @@ import { Eye, EyeOff, Loader2, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Checkbox } from '@/components/ui/checkbox'
 
-export default function RegisterPage() {
+function RegisterForm() {
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -391,5 +391,32 @@ export default function RegisterPage() {
                 </CardFooter>
             </Card>
         </div>
+    )
+}
+
+export default function RegisterPage() {
+    return (
+        <Suspense fallback={
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 to-accent/10 p-4">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="space-y-1">
+                        <div className="flex items-center justify-center mb-4">
+                            <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-lg">
+                                LV
+                            </div>
+                        </div>
+                        <CardTitle className="text-2xl text-center">Crear cuenta</CardTitle>
+                        <CardDescription className="text-center">
+                            Cargando...
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin" />
+                    </CardContent>
+                </Card>
+            </div>
+        }>
+            <RegisterForm />
+        </Suspense>
     )
 }

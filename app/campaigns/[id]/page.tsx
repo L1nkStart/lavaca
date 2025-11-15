@@ -178,7 +178,7 @@ export default function CampaignPage() {
                   </div>
                 </CardContent>
               </Card>
-            </Card>
+            </div>
 
             {/* Title and Badges */}
             <div className="space-y-4">
