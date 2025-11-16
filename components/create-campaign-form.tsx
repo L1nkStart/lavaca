@@ -37,7 +37,7 @@ interface Profile {
 interface Category {
     id: string
     name: string
-    description: string | null
+    description: string | "En desarrollo"
     icon: string | null
 }
 
@@ -56,6 +56,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const [formData, setFormData] = useState({
         title: '',
         category_id: '',
+        description: '',
         goal_amount_usd: '',
         story: '',
         location: '',
@@ -244,6 +245,10 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
 
             // Create campaign
             const slug = generateSlug(formData.title)
+
+            // Determine initial status based on KYC status
+            const initialStatus = profile.kyc_status === 'verified' ? 'active' : 'draft'
+
             const { data: campaign, error: campaignError } = await supabase
                 .from('campaigns')
                 .insert({
@@ -251,13 +256,16 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                     title: formData.title,
                     slug: slug,
                     story: formData.story,
+                    description: 'descripción en desarrollo',
+                    category: 'no necesario',
                     goal_amount_usd: parseFloat(formData.goal_amount_usd),
                     current_amount_usd: 0,
                     category_id: formData.category_id,
                     location: formData.location || null,
                     urgency_level: formData.urgency_level,
                     main_image_url: mainImageUrl,
-                    status: 'pending_review'
+                    featured_image_url: mainImageUrl,
+                    status: initialStatus
                 })
                 .select()
                 .single()
@@ -273,7 +281,8 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 .insert({
                     campaign_id: campaign.id,
                     gallery_images: galleryUrls,
-                    support_documents: documentUrls
+                    support_documents: documentUrls,
+                    full_story: formData.story,
                 })
 
             if (detailsError) {
@@ -281,7 +290,12 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 return
             }
 
-            setSuccess('¡Campaña creada exitosamente! Está siendo revisada por nuestro equipo.')
+            // Set success message based on status
+            if (initialStatus === 'draft') {
+                setSuccess('¡Campaña guardada como borrador! Para publicarla, debes verificar tu identidad en tu perfil.')
+            } else {
+                setSuccess('¡Campaña creada y publicada exitosamente! Ya está disponible para recibir donaciones.')
+            }
 
             // Redirect after success
             setTimeout(() => {

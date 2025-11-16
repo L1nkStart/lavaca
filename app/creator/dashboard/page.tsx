@@ -170,7 +170,7 @@ export default function CreatorDashboard() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">Mis Campañas</h2>
               <Button size="sm" className="bg-primary" asChild>
-                <Link href="/creator/campaigns/new">
+                <Link href="/creator/campaigns/create">
                   <PlusCircle className="w-4 h-4 mr-2" />
                   Nueva campaña
                 </Link>

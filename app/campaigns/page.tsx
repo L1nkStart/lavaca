@@ -1,126 +1,147 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CampaignCard } from "@/components/campaign-card";
 import { CampaignFilters, FilterState } from "@/components/campaign-filters";
-import { Search, ArrowLeft } from 'lucide-react';
+import { Search, ArrowLeft, Loader2 } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
-// Mock data
-const ALL_CAMPAIGNS = [
-  {
-    id: "1",
-    title: "Cirugía urgente - Niño con malformación cardíaca",
-    description:
-      "Necesitamos $15,000 para una cirugía de corazón abierto para salvar la vida de un niño de 8 años.",
-    image: "/medical-surgery-child.jpg",
-    goalAmount: 15000,
-    raisedAmount: 12500,
-    category: "Salud",
-    creator: "Fundación Salud Infantil",
-    verified: true,
-    guarantor: "Hospital Metropolitano",
-    donorCount: 487,
-  },
-  {
-    id: "2",
-    title: "Educación superior para jóvenes de bajos recursos",
-    description:
-      "Becas completas para 50 estudiantes de comunidades vulnerables.",
-    image:
-      "/students-education-classroom.jpg",
-    goalAmount: 50000,
-    raisedAmount: 23400,
-    category: "Educación",
-    creator: "Fundación Educativa Venezuela",
-    verified: true,
-    donorCount: 892,
-  },
-  {
-    id: "3",
-    title: "Microempresa de mujeres emprendedoras",
-    description: "Capital inicial para 20 mujeres de comunidades marginadas.",
-    image:
-      "/women-business-entrepreneurship.jpg",
-    goalAmount: 25000,
-    raisedAmount: 8900,
-    category: "Emprendimiento",
-    creator: "Red de Mujeres Emprendedoras",
-    verified: true,
-    donorCount: 234,
-  },
-  {
-    id: "4",
-    title: "Agua potable para comunidad indígena",
-    description: "Sistema de purificación de agua para 500 personas.",
-    image: "/water-community-indigenous.jpg",
-    goalAmount: 12000,
-    raisedAmount: 7200,
-    category: "Comunitaria",
-    creator: "ONG Agua Pura",
-    verified: true,
-    donorCount: 156,
-  },
-  {
-    id: "5",
-    title: "Medicinas para hospital comunitario",
-    description: "Medicamentos urgentes para atender emergencias médicas.",
-    image: "/hospital-medical-supplies.jpg",
-    goalAmount: 8000,
-    raisedAmount: 6400,
-    category: "Salud",
-    creator: "Clínica Comunitaria Bolívar",
-    verified: false,
-    donorCount: 98,
-  },
-  {
-    id: "6",
-    title: "Biblioteca rural en comunidad lejana",
-    description: "Construcción de biblioteca y sala de estudios.",
-    image: "/library-rural-education.jpg",
-    goalAmount: 18000,
-    raisedAmount: 9500,
-    category: "Educación",
-    creator: "Fundación Lectura Venezuela",
-    verified: true,
-    guarantor: "Ministerio de Educación",
-    donorCount: 340,
-  },
-];
+interface Campaign {
+  id: string;
+  title: string;
+  story: string;
+  goal_amount_usd: number;
+  current_amount_usd: number;
+  main_image_url: string | null;
+  status: string;
+  created_at: string;
+  location: string | null;
+  categories: {
+    name: string;
+    icon: string | null;
+  } | null;
+  users: {
+    full_name: string;
+    kyc_status: string;
+  };
+  guarantor?: {
+    full_name: string;
+  };
+  donation_count?: number;
+}
 
 export default function CampaignsPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<FilterState>({});
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const supabase = createClient();
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select(`
+          *,
+          categories (
+            name,
+            icon
+          ),
+          users!campaigns_creator_id_fkey (
+            full_name,
+            kyc_status
+          ),
+          guarantor:users!campaigns_guarantor_id_fkey (
+            full_name
+          )
+        `)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      // Get donation counts
+      const campaignsWithCounts = await Promise.all(
+        (data || []).map(async (campaign) => {
+          const { count } = await supabase
+            .from('donations')
+            .select('*', { count: 'exact', head: true })
+            .eq('campaign_id', campaign.id)
+            .eq('status', 'completed');
+
+          return {
+            ...campaign,
+            donation_count: count || 0
+          };
+        })
+      );
+
+      setCampaigns(campaignsWithCounts);
+    } catch (err) {
+      console.error('Error fetching campaigns:', err);
+      setError('Error al cargar las campañas');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredCampaigns = useMemo(() => {
-    return ALL_CAMPAIGNS.filter((campaign) => {
+    return campaigns.filter((campaign) => {
       // Search filter
       if (
         searchTerm &&
         !campaign.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !campaign.description
+        !campaign.story
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) &&
-        !campaign.creator.toLowerCase().includes(searchTerm.toLowerCase())
+        !campaign.users.full_name.toLowerCase().includes(searchTerm.toLowerCase())
       ) {
         return false;
       }
 
       // Category filter
-      if (filters.category && campaign.category !== filters.category) {
+      if (filters.category && campaign.categories?.name !== filters.category) {
         return false;
       }
 
-      // Verified filter
-      if (filters.verified && !campaign.verified) {
+      // Verified filter (campaigns from KYC verified creators)
+      if (filters.verified && campaign.users.kyc_status !== 'verified') {
         return false;
       }
 
       return true;
     });
-  }, [searchTerm, filters]);
+  }, [searchTerm, filters, campaigns]);
+
+  // Convert to CampaignCard format
+  const campaignCards = filteredCampaigns.map((campaign) => ({
+    id: campaign.id,
+    title: campaign.title,
+    description: campaign.story.length > 150
+      ? campaign.story.substring(0, 150) + '...'
+      : campaign.story,
+    image: campaign.main_image_url || '/placeholder.jpg',
+    goalAmount: campaign.goal_amount_usd,
+    raisedAmount: campaign.current_amount_usd,
+    category: campaign.categories?.name || 'Sin categoría',
+    creator: campaign.users.full_name,
+    verified: campaign.users.kyc_status === 'verified',
+    guarantor: campaign.guarantor?.full_name,
+    donorCount: campaign.donation_count || 0,
+  }));
 
   return (
     <main className="flex flex-col min-h-screen bg-background">
@@ -161,25 +182,43 @@ export default function CampaignsPage() {
               />
             </div>
 
+            {/* Error State */}
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
+            {/* Loading State */}
+            {loading && (
+              <div className="flex justify-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin" />
+              </div>
+            )}
+
             {/* Campaigns Grid */}
-            {filteredCampaigns.length > 0 ? (
-              <div className="grid md:grid-cols-2 gap-6">
-                {filteredCampaigns.map((campaign) => (
-                  <CampaignCard key={campaign.id} {...campaign} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16">
-                <p className="text-muted-foreground text-lg mb-4">
-                  No se encontraron campañas
-                </p>
-                <Button variant="outline" onClick={() => {
-                  setSearchTerm("");
-                  setFilters({});
-                }}>
-                  Limpiar búsqueda
-                </Button>
-              </div>
+            {!loading && !error && (
+              <>
+                {campaignCards.length > 0 ? (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {campaignCards.map((campaign) => (
+                      <CampaignCard key={campaign.id} {...campaign} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-16">
+                    <p className="text-muted-foreground text-lg mb-4">
+                      No se encontraron campañas
+                    </p>
+                    <Button variant="outline" onClick={() => {
+                      setSearchTerm("");
+                      setFilters({});
+                    }}>
+                      Limpiar búsqueda
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

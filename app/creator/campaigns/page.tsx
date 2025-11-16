@@ -36,7 +36,7 @@ interface Campaign {
   updated_at: string
   categories: {
     name: string
-    icon: string | null
+    icon_emoji: string | null
   } | null
 }
 
@@ -77,7 +77,7 @@ export default async function CreatorCampaignsPage() {
             *,
             categories (
                 name,
-                icon
+                icon_emoji
             )
         `)
     .eq('creator_id', user.id)
@@ -255,7 +255,7 @@ export default async function CreatorCampaignsPage() {
 
                                 {campaign.categories && (
                                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                    {campaign.categories.icon && <span>{campaign.categories.icon}</span>}
+                                    {campaign.categories.icon_emoji && <span>{campaign.categories.icon_emoji}</span>}
                                     <span>{campaign.categories.name}</span>
                                   </div>
                                 )}

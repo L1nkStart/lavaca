@@ -31,21 +31,21 @@ CREATE POLICY "Authenticated users can upload campaign images" ON storage.object
 FOR INSERT WITH CHECK (
   bucket_id = 'campaigns' 
   AND auth.role() = 'authenticated'
-  AND (storage.foldername(name))[1] IN ('main-images', 'gallery')
+  AND (name LIKE 'main-images/' || auth.uid()::text || '_%' OR name LIKE 'gallery/' || auth.uid()::text || '_%')
 );
 
 -- Allow users to update their own campaign images
 CREATE POLICY "Users can update own campaign images" ON storage.objects 
 FOR UPDATE USING (
   bucket_id = 'campaigns' 
-  AND auth.uid()::text = (storage.foldername(name))[2]
+  AND (name LIKE 'main-images/' || auth.uid()::text || '_%' OR name LIKE 'gallery/' || auth.uid()::text || '_%')
 );
 
 -- Allow users to delete their own campaign images
 CREATE POLICY "Users can delete own campaign images" ON storage.objects 
 FOR DELETE USING (
   bucket_id = 'campaigns' 
-  AND auth.uid()::text = (storage.foldername(name))[2]
+  AND (name LIKE 'main-images/' || auth.uid()::text || '_%' OR name LIKE 'gallery/' || auth.uid()::text || '_%')
 );
 
 -- ============================================================================
@@ -56,7 +56,7 @@ FOR DELETE USING (
 CREATE POLICY "Users can view own support documents" ON storage.objects 
 FOR SELECT USING (
   bucket_id = 'campaign-support'
-  AND auth.uid()::text = (storage.foldername(name))[2]
+  AND name LIKE 'documents/' || auth.uid()::text || '_%'
 );
 
 -- Allow authenticated users to upload support documents
@@ -64,21 +64,32 @@ CREATE POLICY "Authenticated users can upload support documents" ON storage.obje
 FOR INSERT WITH CHECK (
   bucket_id = 'campaign-support' 
   AND auth.role() = 'authenticated'
-  AND auth.uid()::text = (storage.foldername(name))[2]
+  AND name LIKE 'documents/' || auth.uid()::text || '_%'
 );
 
 -- Allow users to update their own support documents
 CREATE POLICY "Users can update own support documents" ON storage.objects 
 FOR UPDATE USING (
   bucket_id = 'campaign-support' 
-  AND auth.uid()::text = (storage.foldername(name))[2]
+  AND name LIKE 'documents/' || auth.uid()::text || '_%'
 );
 
 -- Allow users to delete their own support documents
 CREATE POLICY "Users can delete own support documents" ON storage.objects 
 FOR DELETE USING (
   bucket_id = 'campaign-support' 
-  AND auth.uid()::text = (storage.foldername(name))[2]
+  AND name LIKE 'documents/' || auth.uid()::text || '_%'
+);
+
+-- Allow admin users to view all campaign support documents for verification
+CREATE POLICY "Admin users can view all support documents" ON storage.objects 
+FOR SELECT USING (
+  bucket_id = 'campaign-support'
+  AND EXISTS (
+    SELECT 1 FROM users 
+    WHERE id = auth.uid() 
+    AND role = 'admin'
+  )
 );
 
 -- ============================================================================

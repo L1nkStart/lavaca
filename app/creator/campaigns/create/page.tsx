@@ -26,14 +26,11 @@ export default async function CreateCampaignPage() {
         redirect('/auth/login')
     }
 
-    // Check if user is verified and can create campaigns
-    if (profile.kyc_status !== 'verified') {
-        redirect('/profile?verify=true&becomeCreator=true')
-    }
+    // Users can create campaigns without KYC verification
+    // But they need to be verified to publish them
 
-    if (profile.role !== 'creator' && profile.role !== 'admin') {
-        redirect('/profile?becomeCreator=true')
-    }
+    // No role restriction - any user can create campaigns
+    // They will be created as drafts initially
 
     // Get categories for the form
     const { data: categories } = await supabase

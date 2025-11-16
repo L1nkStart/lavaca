@@ -2,54 +2,55 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Heart, Shield, TrendingUp } from 'lucide-react';
 import { CampaignCard } from "@/components/campaign-card";
+import { createClient } from "@/lib/supabase/server";
 import Image from "next/image";
 
-// Mock data - Replace with real data from API
-const FEATURED_CAMPAIGNS = [
-  {
-    id: "1",
-    title: "Cirugía urgente - Niño con malformación cardíaca",
-    description:
-      "Necesitamos $15,000 para una cirugía de corazón abierto para salvar la vida de un niño de 8 años.",
-    image: "/medical-surgery-child.jpg",
-    goalAmount: 15000,
-    raisedAmount: 12500,
-    category: "Salud",
-    creator: "Fundación Salud Infantil",
-    verified: true,
-    guarantor: "Hospital Metropolitano",
-    donorCount: 487,
-  },
-  {
-    id: "2",
-    title: "Educación superior para jóvenes de bajos recursos",
-    description:
-      "Becas completas para 50 estudiantes de comunidades vulnerables.",
-    image:
-      "/students-education-classroom.jpg",
-    goalAmount: 50000,
-    raisedAmount: 23400,
-    category: "Educación",
-    creator: "Fundación Educativa Venezuela",
-    verified: true,
-    donorCount: 892,
-  },
-  {
-    id: "3",
-    title: "Microempresa de mujeres emprendedoras",
-    description: "Capital inicial para 20 mujeres de comunidades marginadas.",
-    image:
-      "/women-business-entrepreneurship.jpg",
-    goalAmount: 25000,
-    raisedAmount: 8900,
-    category: "Emprendimiento",
-    creator: "Red de Mujeres Emprendedoras",
-    verified: true,
-    donorCount: 234,
-  },
-];
+interface Campaign {
+  id: string
+  title: string
+  story: string
+  main_image_url: string | null
+  goal_amount_usd: number
+  current_amount_usd: number
+  slug: string
+  categories: {
+    name: string
+    icon_emoji: string | null
+  }[]
+  users: {
+    full_name: string
+    kyc_status: string
+  }[]
+}
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient()
+
+  // Get active campaigns for homepage
+  const { data: campaigns, error: campaignsError } = await supabase
+    .from('campaigns')
+    .select(`
+      id,
+      title,
+      story,
+      main_image_url,
+      goal_amount_usd,
+      current_amount_usd,
+      slug,
+      categories (
+        name,
+        icon_emoji
+      ),
+      users (
+        full_name,
+        kyc_status
+      )
+    `)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(3)
+
+  const featuredCampaigns = campaigns || []
   return (
     <main className="flex flex-col min-h-screen">
       {/* Navigation */}
@@ -192,8 +193,20 @@ export default function Home() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-            {FEATURED_CAMPAIGNS.map((campaign) => (
-              <CampaignCard key={campaign.id} {...campaign} />
+            {featuredCampaigns.map((campaign: Campaign) => (
+              <CampaignCard
+                key={campaign.id}
+                id={campaign.id}
+                title={campaign.title}
+                description={campaign.story}
+                image={campaign.main_image_url || '/placeholder.svg'}
+                goalAmount={campaign.goal_amount_usd}
+                raisedAmount={campaign.current_amount_usd}
+                category={campaign.categories?.[0]?.name || 'General'}
+                creator={campaign.users?.[0]?.full_name || 'Creador anónimo'}
+                verified={campaign.users?.[0]?.kyc_status === 'verified'}
+                donorCount={0}
+              />
             ))}
           </div>
         </div>

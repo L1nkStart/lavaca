@@ -47,11 +47,10 @@ export function CreatorSidebar() {
             return (
               <Link key={item.href} href={item.href}>
                 <div
-                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-                    isActive
+                  className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${isActive
                       ? "bg-primary text-primary-foreground"
                       : "text-foreground hover:bg-muted"
-                  }`}
+                    }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="text-sm font-medium">{item.label}</span>
@@ -64,7 +63,7 @@ export function CreatorSidebar() {
         {/* Create Campaign Button */}
         <div className="p-6 border-t border-border space-y-3">
           <Button size="sm" className="w-full bg-primary" asChild>
-            <Link href="/creator/campaigns/new">
+            <Link href="/creator/campaigns/create">
               <Plus className="w-4 h-4 mr-2" />
               Nueva campaña
             </Link>
