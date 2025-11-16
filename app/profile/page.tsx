@@ -12,8 +12,10 @@ import { Shield, User, CreditCard, Info } from 'lucide-react'
 export default async function ProfilePage({
     searchParams
 }: {
-    searchParams: { verify?: string; becomeCreator?: string }
+    searchParams: Promise<{ verify?: string; becomeCreator?: string }>
 }) {
+    // Await the searchParams Promise
+    const params = await searchParams
     const supabase = await createClient()
 
     const { data: { user }, error: authError } = await supabase.auth.getUser()
@@ -82,8 +84,8 @@ export default async function ProfilePage({
         }
     }
 
-    const showVerificationAlert = searchParams.verify === 'true'
-    const showCreatorAlert = searchParams.becomeCreator === 'true'
+    const showVerificationAlert = params.verify === 'true'
+    const showCreatorAlert = params.becomeCreator === 'true'
 
     return (
         <div className="min-h-screen bg-background p-4">

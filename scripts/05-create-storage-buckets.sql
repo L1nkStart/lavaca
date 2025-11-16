@@ -1,6 +1,6 @@
 -- ============================================================================
--- Create Storage Buckets for Campaign Files - LaVaca Database
--- This script creates the necessary storage buckets for campaigns
+-- Create Storage Buckets - LaVaca Database
+-- This script creates the necessary storage buckets for campaigns and KYC documents
 -- ============================================================================
 
 -- Create campaigns bucket for images
@@ -11,6 +11,11 @@ ON CONFLICT (id) DO NOTHING;
 -- Create campaign-support bucket for documents  
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('campaign-support', 'campaign-support', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Create kyc-documents bucket for identity verification documents
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('kyc-documents', 'kyc-documents', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -74,6 +79,50 @@ CREATE POLICY "Users can delete own support documents" ON storage.objects
 FOR DELETE USING (
   bucket_id = 'campaign-support' 
   AND auth.uid()::text = (storage.foldername(name))[2]
+);
+
+-- ============================================================================
+-- Storage Policies for kyc-documents bucket (private documents)
+-- ============================================================================
+
+-- Allow users to view their own KYC documents
+CREATE POLICY "Users can view own KYC documents" ON storage.objects 
+FOR SELECT USING (
+  bucket_id = 'kyc-documents'
+  AND name LIKE 'kyc-documents/' || auth.uid()::text || '_%'
+);
+
+-- Allow authenticated users to upload their own KYC documents
+CREATE POLICY "Users can upload own KYC documents" ON storage.objects 
+FOR INSERT WITH CHECK (
+  bucket_id = 'kyc-documents' 
+  AND auth.role() = 'authenticated'
+  AND name LIKE 'kyc-documents/' || auth.uid()::text || '_%'
+);
+
+-- Allow users to update their own KYC documents
+CREATE POLICY "Users can update own KYC documents" ON storage.objects 
+FOR UPDATE USING (
+  bucket_id = 'kyc-documents' 
+  AND name LIKE 'kyc-documents/' || auth.uid()::text || '_%'
+);
+
+-- Allow users to delete their own KYC documents  
+CREATE POLICY "Users can delete own KYC documents" ON storage.objects 
+FOR DELETE USING (
+  bucket_id = 'kyc-documents' 
+  AND name LIKE 'kyc-documents/' || auth.uid()::text || '_%'
+);
+
+-- Allow admin users to view all KYC documents for verification
+CREATE POLICY "Admin users can view all KYC documents" ON storage.objects 
+FOR SELECT USING (
+  bucket_id = 'kyc-documents'
+  AND EXISTS (
+    SELECT 1 FROM users 
+    WHERE id = auth.uid() 
+    AND role = 'admin'
+  )
 );
 
 -- ============================================================================
