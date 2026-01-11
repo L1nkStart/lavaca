@@ -45,11 +45,11 @@ export async function updateSession(request: NextRequest) {
     '/blog',
     '/contact',
     '/privacy',
-    '/terms'
+    '/terms',
+    '/auth/login',
+    '/auth/register'
   ];
 
-  // Auth routes (should redirect logged users away)
-  const authRoutes = ['/auth/login', '/auth/register'];
 
   // Protected routes that require authentication
   const protectedRoutes = [
@@ -68,24 +68,10 @@ export async function updateSession(request: NextRequest) {
   // Admin routes
   const adminRoutes = ['/admin'];
 
-  // If user is logged in and trying to access auth pages, redirect to dashboard
-  if (user && authRoutes.some(route => path.startsWith(route))) {
+  // If user is logged in and trying to access login/register pages, redirect to home
+  if (user && (path === '/auth/login' || path === '/auth/register')) {
     const url = request.nextUrl.clone();
-
-    // Get user profile to determine redirect
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role, kyc_status')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.role === 'admin') {
-      url.pathname = '/admin/dashboard';
-    } else if (profile?.role === 'creator') {
-      url.pathname = '/creator/dashboard';
-    } else {
-      url.pathname = '/profile';
-    }
+    url.pathname = '/';
     return NextResponse.redirect(url);
   }
 
