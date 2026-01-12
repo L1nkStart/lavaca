@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,8 @@ import { DonationMethodSelector, PaymentMethod } from "./donation-method-selecto
 import { DonationAmountInput } from "./donation-amount-input";
 import { PagoMovilForm } from "./payment-forms/pagomovil-form";
 import { ManualPaymentForm } from "./payment-forms/manual-payment-form";
-import { Loader2 } from 'lucide-react';
+import { Loader2, Clock, TrendingUp } from 'lucide-react';
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface DonationCheckoutProps {
   campaignId: string;
@@ -39,7 +40,61 @@ export function DonationCheckout({
     proofDescription: "",
   });
 
-  const exchangeRate = 41.25; // Should be fetched from API
+  // Exchange rate state
+  const [exchangeRate, setExchangeRate] = useState<number | null>(null);
+  const [rateExpiresAt, setRateExpiresAt] = useState<string | null>(null);
+  const [rateLoading, setRateLoading] = useState(true);
+  const [timeRemaining, setTimeRemaining] = useState<string>("");
+
+  // Fetch exchange rate on mount
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      try {
+        const response = await fetch('/api/exchange-rate');
+        const data = await response.json();
+
+        if (response.ok) {
+          setExchangeRate(data.rate);
+          setRateExpiresAt(data.expiresAt);
+        } else {
+          console.error('Failed to fetch exchange rate:', data);
+          setExchangeRate(43.02); // Fallback rate
+        }
+      } catch (error) {
+        console.error('Error fetching exchange rate:', error);
+        setExchangeRate(43.02); // Fallback rate
+      } finally {
+        setRateLoading(false);
+      }
+    };
+
+    fetchExchangeRate();
+  }, []);
+
+  // Update countdown timer
+  useEffect(() => {
+    if (!rateExpiresAt) return;
+
+    const updateTimer = () => {
+      const now = new Date().getTime();
+      const expiry = new Date(rateExpiresAt).getTime();
+      const diff = expiry - now;
+
+      if (diff <= 0) {
+        setTimeRemaining("Tasa expirada - Recarga la página");
+        return;
+      }
+
+      const minutes = Math.floor(diff / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeRemaining(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [rateExpiresAt]);
 
   const handleDonate = async () => {
     setIsLoading(true);
@@ -120,17 +175,40 @@ export function DonationCheckout({
 
   return (
     <div className="space-y-6">
+      {/* Exchange Rate Info */}
+      {exchangeRate && rateExpiresAt && (
+        <Alert className="bg-primary/5 border-primary/20">
+          <TrendingUp className="h-4 w-4 text-primary" />
+          <AlertDescription className="flex items-center justify-between">
+            <span className="text-sm">
+              <strong>Tasa BCV:</strong> {exchangeRate.toFixed(2)} Bs/USD
+            </span>
+            <span className="text-xs flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              Válida por: <strong>{timeRemaining}</strong>
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Donación para: {campaignTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Amount Input */}
-          <DonationAmountInput
-            amountUSD={amountUSD}
-            onAmountChange={setAmountUSD}
-            exchangeRate={exchangeRate}
-          />
+          {rateLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">Cargando tasa de cambio...</span>
+            </div>
+          ) : (
+            <DonationAmountInput
+              amountUSD={amountUSD}
+              onAmountChange={setAmountUSD}
+              exchangeRate={exchangeRate || 43.02}
+            />
+          )}
 
           {/* Payment Method Selector */}
           <DonationMethodSelector value={paymentMethod} onChange={setPaymentMethod} />
@@ -197,7 +275,7 @@ export function DonationCheckout({
         size="lg"
         className="w-full bg-primary hover:bg-primary/90 h-12 text-base"
         onClick={handleDonate}
-        disabled={isLoading}
+        disabled={isLoading || rateLoading}
       >
         {isLoading ? (
           <>
@@ -205,7 +283,14 @@ export function DonationCheckout({
             Procesando...
           </>
         ) : (
-          `Donar $${amountUSD.toFixed(2)}`
+          <>
+            Donar ${amountUSD.toFixed(2)} USD
+            {exchangeRate && (
+              <span className="ml-2 opacity-75">
+                ≈ {(amountUSD * exchangeRate).toFixed(2)} Bs
+              </span>
+            )}
+          </>
         )}
       </Button>
 
