@@ -86,20 +86,36 @@ export async function POST(request: NextRequest) {
       });
 
       // Update donation with payment result
+      console.log('🔍 Payment Result:', {
+        success: paymentResult.success,
+        status: paymentResult.status,
+        transactionId: paymentResult.transactionId,
+      });
+
       if (paymentResult.success) {
-        const { error: updateError } = await supabase
+        console.log(`✅ Payment successful, updating donation to: ${paymentResult.status}`);
+
+        const { data: updateData, error: updateError, count } = await supabase
           .from("donations")
           .update({
             payment_status: paymentResult.status,
             completed_at: paymentResult.status === 'completed' ? new Date().toISOString() : null,
           })
-          .eq("id", donation.id);
+          .eq("id", donation.id)
+          .select();
 
         if (updateError) {
-          console.error('Error updating donation status:', updateError);
+          console.error('❌ Error updating donation status:', updateError);
+        } else if (!updateData || updateData.length === 0) {
+          console.error('⚠️ UPDATE executed but NO ROWS affected - RLS Policy blocking!');
+          console.error('Donation ID:', donation.id);
+          console.error('This means RLS policies are blocking the UPDATE');
         } else {
-          console.log('✅ Donation updated to:', paymentResult.status);
+          console.log(`✅ Donation ${donation.id} updated to: ${paymentResult.status}`);
+          console.log('Updated data:', updateData);
         }
+      } else {
+        console.warn('⚠️ Payment not successful:', paymentResult.error);
       }
 
       return NextResponse.json({

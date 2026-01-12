@@ -120,7 +120,7 @@ export default function CampaignPage() {
       setCampaign(campaignData);
 
       // Fetch donations
-      const { data: donationsData } = await supabase
+      const { data: donationsData, error: donationsError } = await supabase
         .from('donations')
         .select('*')
         .eq('campaign_id', campaignId)
@@ -128,6 +128,11 @@ export default function CampaignPage() {
         .order('created_at', { ascending: false })
         .limit(20);
 
+      if (donationsError) {
+        console.error('Error fetching donations:', donationsError);
+      }
+
+      console.log('Donations fetched:', donationsData?.length || 0);
       setDonations(donationsData || []);
 
       // Fetch updates
@@ -333,8 +338,8 @@ export default function CampaignPage() {
                   </div>
                   <Progress value={Math.min(progressPercent, 100)} className="h-2" />
                   <p className="text-sm text-muted-foreground mt-2">
-                    {Math.round(progressPercent)}% del objetivo alcanzado •{" "}
-                    {donations.length} donantes
+                    {Math.round(progressPercent)}% del objetivo alcanzado
+                    {donations.length > 0 && ` • ${donations.length} ${donations.length === 1 ? 'donante' : 'donantes'}`}
                   </p>
                 </div>
 

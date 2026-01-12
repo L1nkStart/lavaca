@@ -128,10 +128,10 @@ BEGIN
     
     -- Verificar si ya tiene una tasa congelada válida
     IF EXISTS (
-        SELECT 1 FROM frozen_exchange_rates
-        WHERE session_id = p_session_id
-        AND expires_at > NOW()
-        AND NOT used
+        SELECT 1 FROM frozen_exchange_rates fr
+        WHERE fr.session_id = p_session_id
+        AND fr.expires_at > NOW()
+        AND NOT fr.used
     ) THEN
         -- Devolver la existente
         RETURN QUERY
@@ -153,7 +153,7 @@ BEGIN
             expiry_time
         );
         
-        RETURN QUERY SELECT current_rate, expiry_time;
+        RETURN QUERY SELECT current_rate AS rate, expiry_time AS expires_at;
     END IF;
 END;
 $$ LANGUAGE plpgsql;
