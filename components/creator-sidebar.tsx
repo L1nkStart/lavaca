@@ -31,7 +31,7 @@ export function CreatorSidebar() {
       <div className="flex flex-col h-screen">
         {/* Logo */}
         <div className="p-6 border-b border-border">
-          <Link href="/creator/dashboard" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold">
               LV
             </div>
@@ -48,8 +48,8 @@ export function CreatorSidebar() {
               <Link key={item.href} href={item.href}>
                 <div
                   className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-muted"
                     }`}
                 >
                   <Icon className="w-5 h-5" />

@@ -429,14 +429,6 @@ export default async function ProfilePage({
                                         </Button>
                                     )}
 
-                                    {profile.role === 'creator' && (
-                                        <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
-                                            <Link href="/creator/dashboard">
-                                                <TrendingUp className="h-6 w-6" />
-                                                <span>Dashboard creador</span>
-                                            </Link>
-                                        </Button>
-                                    )}
                                 </div>
                             </CardContent>
                         </Card>
