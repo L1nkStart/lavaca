@@ -29,15 +29,7 @@ export function CreatorSidebar() {
   return (
     <aside className="w-64 border-r border-border bg-card">
       <div className="flex flex-col h-screen">
-        {/* Logo */}
-        <div className="p-6 border-b border-border">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold">
-              LV
-            </div>
-            <span className="font-bold">LaVaca</span>
-          </Link>
-        </div>
+
 
         {/* Menu */}
         <nav className="flex-1 p-6 space-y-2">

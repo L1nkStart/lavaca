@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { ProfileForm } from '@/components/profile-form'
-import { KYCForm } from '@/components/kyc-form'
+import { KYCFormImproved } from '@/components/kyc-form-improved'
 import { WithdrawalAccountsForm } from '@/components/withdrawal-accounts-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -609,7 +609,7 @@ export default async function ProfilePage({
                                 </CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <KYCForm profile={profile} />
+                                <KYCFormImproved />
                             </CardContent>
                         </Card>
                     </TabsContent>

@@ -54,6 +54,28 @@ export default async function Home() {
     .limit(3)
 
   const featuredCampaigns = campaigns || []
+
+  // Get real stats from database
+  const [donationsResult, campaignsCountResult, donorsResult] = await Promise.all([
+    // Total amount raised from all donations (completed or pending)
+    supabase
+      .from('donations')
+      .select('amount_usd, status'),
+
+    // Total campaigns (all statuses)
+    supabase
+      .from('campaigns')
+      .select('id', { count: 'exact', head: true }),
+
+    // Unique donors count (all donations)
+    supabase
+      .from('donations')
+      .select('donor_id')
+  ])
+
+  const totalRaised = donationsResult.data?.reduce((sum, d) => sum + (d.amount_usd || 0), 0) || 0
+  const totalCampaigns = campaignsCountResult.count || 0
+  const uniqueDonors = new Set(donorsResult.data?.map(d => d.donor_id).filter(id => id)).size || 0
   return (
     <main className="flex flex-col min-h-screen">
 
@@ -90,15 +112,27 @@ export default async function Home() {
               {/* Stats */}
               <div className="grid grid-cols-3 gap-4 pt-4">
                 <div>
-                  <div className="text-2xl font-bold text-primary">$2.3M</div>
+                  <div className="text-2xl font-bold text-primary">
+                    ${totalRaised >= 1000000
+                      ? `${(totalRaised / 1000000).toFixed(1)}M`
+                      : totalRaised >= 1000
+                        ? `${(totalRaised / 1000).toFixed(1)}K`
+                        : totalRaised.toLocaleString()
+                    }
+                  </div>
                   <div className="text-sm text-muted-foreground">Recaudados</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-primary">12,400+</div>
+                  <div className="text-2xl font-bold text-primary">
+                    {uniqueDonors >= 1000
+                      ? `${(uniqueDonors / 1000).toFixed(1)}K+`
+                      : `${uniqueDonors}+`
+                    }
+                  </div>
                   <div className="text-sm text-muted-foreground">Donantes</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-primary">340+</div>
+                  <div className="text-2xl font-bold text-primary">{totalCampaigns}+</div>
                   <div className="text-sm text-muted-foreground">Campañas</div>
                 </div>
               </div>

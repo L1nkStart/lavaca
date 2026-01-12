@@ -203,6 +203,29 @@ CREATE TABLE public.donations (
   CONSTRAINT donations_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id),
   CONSTRAINT donations_donor_id_fkey FOREIGN KEY (donor_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.exchange_rates (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  rate numeric NOT NULL,
+  raw_rate numeric NOT NULL,
+  margin_percentage numeric NOT NULL DEFAULT 4.3,
+  source text NOT NULL DEFAULT 'binance_p2p'::text,
+  is_active boolean DEFAULT true,
+  metadata jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone NOT NULL,
+  CONSTRAINT exchange_rates_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.frozen_exchange_rates (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  session_id text NOT NULL,
+  rate numeric NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  expires_at timestamp with time zone NOT NULL,
+  used boolean DEFAULT false,
+  donation_id uuid,
+  CONSTRAINT frozen_exchange_rates_pkey PRIMARY KEY (id),
+  CONSTRAINT frozen_exchange_rates_donation_id_fkey FOREIGN KEY (donation_id) REFERENCES public.donations(id)
+);
 CREATE TABLE public.guarantors (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL UNIQUE,
@@ -230,8 +253,27 @@ CREATE TABLE public.notifications (
   data jsonb,
   created_at timestamp with time zone DEFAULT now(),
   read_at timestamp with time zone,
+  campaign_id uuid,
+  related_id uuid,
   CONSTRAINT notifications_pkey PRIMARY KEY (id),
-  CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES public.users(id)
+  CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT notifications_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id)
+);
+CREATE TABLE public.payment_transactions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  donation_id uuid NOT NULL,
+  provider text NOT NULL,
+  status text NOT NULL,
+  amount_usd numeric NOT NULL,
+  amount_bs numeric,
+  external_id text,
+  provider_data jsonb,
+  error text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  completed_at timestamp with time zone,
+  CONSTRAINT payment_transactions_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_transactions_donation_id_fkey FOREIGN KEY (donation_id) REFERENCES public.donations(id)
 );
 CREATE TABLE public.users (
   id uuid NOT NULL,
