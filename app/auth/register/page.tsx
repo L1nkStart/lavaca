@@ -28,7 +28,7 @@ function RegisterForm() {
 
     const router = useRouter()
     const searchParams = useSearchParams()
-    const redirectTo = searchParams.get('redirectTo') || '/profile'
+    const redirectTo = searchParams.get('redirectTo') || '/'
 
     const supabase = createClient()
 

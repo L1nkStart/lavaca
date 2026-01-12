@@ -13,6 +13,10 @@ import { CampaignGallery } from "@/components/campaign-gallery";
 import { CampaignUpdates } from "@/components/campaign-updates";
 import { CampaignDonorsList } from "@/components/campaign-donors-list";
 import { CampaignShare } from "@/components/campaign-share";
+import { CampaignComments } from "@/components/campaign-comments";
+import { CampaignReactions } from "@/components/campaign-reactions";
+import { CampaignFollow } from "@/components/campaign-follow";
+import { CampaignReport } from "@/components/campaign-report";
 import { CheckCircle2, MapPin, User, FileText, ArrowLeft, Heart, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -31,7 +35,7 @@ interface Campaign {
   urgency_level: string;
   categories: {
     name: string;
-    icon: string | null;
+    icon_emoji: string | null;
   } | null;
   users: {
     full_name: string;
@@ -91,14 +95,11 @@ export default function CampaignPage() {
           *,
           categories (
             name,
-            icon
+            icon_emoji
           ),
           users!campaigns_creator_id_fkey (
             full_name,
             kyc_status
-          ),
-          guarantor:users!campaigns_guarantor_id_fkey (
-            full_name
           ),
           campaign_details (
             gallery_images,
@@ -123,7 +124,7 @@ export default function CampaignPage() {
         .from('donations')
         .select('*')
         .eq('campaign_id', campaignId)
-        .eq('status', 'completed')
+        .eq('payment_status', 'completed')
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -204,7 +205,7 @@ export default function CampaignPage() {
     title: update.title,
     content: update.content,
     date: new Date(update.created_at),
-    image: update.image_url
+    image: update.image_url || undefined
   }));
 
   const getUrgencyBadge = (level: string) => {
@@ -286,7 +287,7 @@ export default function CampaignPage() {
                 <h1 className="text-3xl md:text-4xl font-bold mb-4 text-pretty">
                   {campaign.title}
                 </h1>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2 mb-4">
                   <Badge>{campaign.categories?.name || 'Sin categoría'}</Badge>
                   {getUrgencyBadge(campaign.urgency_level)}
                   {campaign.users.kyc_status === 'verified' && (
@@ -295,12 +296,16 @@ export default function CampaignPage() {
                       Verificado
                     </Badge>
                   )}
-                  {campaign.guarantor && (
-                    <Badge className="bg-accent">
-                      <Heart className="w-3 h-3 mr-1" />
-                      Avalado: {campaign.guarantor.full_name}
-                    </Badge>
-                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <CampaignReactions
+                    campaignId={campaign.id}
+                    initialCount={0}
+                  />
+                  <CampaignFollow campaignId={campaign.id} />
+                  <CampaignReport campaignId={campaign.id} />
                 </div>
               </div>
             </div>
@@ -354,12 +359,13 @@ export default function CampaignPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="story">Historia</TabsTrigger>
                 <TabsTrigger value="updates">
                   Actualizaciones {updates.length > 0 && `(${updates.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="documents">Documentos</TabsTrigger>
+                <TabsTrigger value="comments">Comentarios</TabsTrigger>
               </TabsList>
 
               <TabsContent value="story" className="mt-6">
@@ -411,6 +417,13 @@ export default function CampaignPage() {
                     )}
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="comments" className="mt-6">
+                <CampaignComments
+                  campaignId={campaign.id}
+                  campaignSlug={campaign.slug}
+                />
               </TabsContent>
             </Tabs>
           </div>

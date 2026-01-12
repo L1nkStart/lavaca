@@ -80,21 +80,35 @@ export function DonationCheckout({
         }),
       });
 
-      if (!response.ok) throw new Error("Error creating donation");
+      const result = await response.json();
 
-      const donation = await response.json();
+      if (!response.ok) {
+        throw new Error(result.details || result.error || "Error creating donation");
+      }
 
-      // Redirect based on payment method
-      if (paymentMethod === "card") {
-        // Redirect to Stripe checkout
-        window.location.href = `/api/checkout?donationId=${donation.id}`;
-      } else if (paymentMethod === "paypal") {
-        // Redirect to PayPal
-        window.location.href = `/api/paypal/create?donationId=${donation.id}`;
+      // Check payment result
+      if (result.payment && result.payment.success) {
+        // Payment was successful (completed immediately in test mode)
+        alert(
+          "✅ ¡Donación exitosa!\n\n" +
+          "Gracias por tu apoyo. Tu donación ha sido confirmada.\n\n" +
+          (result.payment.status === 'completed'
+            ? "El pago fue procesado exitosamente."
+            : "Estamos procesando tu pago.")
+        );
+        window.location.href = `/campaigns/${campaignId}?donation=success`;
+      } else if (result.payment && result.payment.externalId) {
+        // Payment needs external processing (Stripe, PayPal, etc.)
+        // Redirect to external payment page
+        window.location.href = result.payment.metadata?.checkoutUrl || `/campaigns/${campaignId}`;
       } else {
-        // Show success for manual/automatic methods
-        alert("¡Gracias por tu donación! Te enviaremos una confirmación por correo.");
-        window.location.href = `/campaigns/${campaignId}`;
+        // Payment failed or pending manual approval
+        alert(
+          "⏳ Donación registrada\n\n" +
+          "Tu donación ha sido registrada y está pendiente de confirmación.\n" +
+          "Te notificaremos cuando se complete el proceso."
+        );
+        window.location.href = `/campaigns/${campaignId}?donation=pending`;
       }
     } catch (error) {
       console.error("Error:", error);
@@ -137,7 +151,7 @@ export function DonationCheckout({
           {/* Donor Info */}
           <div className="space-y-3 border-t border-border pt-4">
             <h4 className="font-semibold">Información del donante</h4>
-            
+
             <div className="flex items-center gap-3">
               <Checkbox
                 id="anonymous"

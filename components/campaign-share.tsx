@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Share2, MessageCircle, Mail, Copy, Check } from 'lucide-react';
 import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 interface CampaignShareProps {
   campaignId: string;
@@ -26,10 +27,26 @@ export function CampaignShare({
   const shareText = `Ayuda con esta campaña urgente: ${campaignTitle}. Únete a nosotros en LaVaca para marcar la diferencia.`;
   const shareUrl = campaignUrl;
 
+  const trackShare = async (platform: string) => {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    try {
+      await supabase.from('campaign_shares').insert({
+        campaign_id: campaignId,
+        user_id: user?.id || null,
+        platform: platform
+      });
+    } catch (error) {
+      console.error('Error tracking share:', error);
+    }
+  };
+
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+    trackShare('link');
   };
 
   const handleWhatsApp = () => {
@@ -40,6 +57,7 @@ export function CampaignShare({
       `https://wa.me/?text=${encodedText}`,
       "_blank"
     );
+    trackShare('whatsapp');
   };
 
   const handleEmail = () => {
@@ -49,6 +67,7 @@ export function CampaignShare({
       `mailto:?subject=${subject}&body=${body}`,
       "_blank"
     );
+    trackShare('email');
   };
 
   const handleX = () => {
@@ -59,6 +78,7 @@ export function CampaignShare({
       `https://x.com/intent/tweet?text=${encodedText}`,
       "_blank"
     );
+    trackShare('twitter');
   };
 
   return (

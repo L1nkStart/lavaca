@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { PaymentManager } from "@/lib/payments/payment-manager";
+import { PaymentProvider, PaymentType } from "@/lib/payments/types";
+import { initializePayments } from "@/lib/payments/config";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,20 +24,21 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    // Initialize payment system
+    initializePayments();
+
     // Create donation record
     const { data: donation, error } = await supabase
       .from("donations")
       .insert({
         campaign_id: campaignId,
         donor_id: user?.id || null,
+        email: donorEmail || 'anonymous@lavaca.app',
         amount_usd: amountUSD,
-        amount_vef: amountUSD * 41.25, // Should get live rate
+        amount_bs: amountUSD * 41.25, // Should get live rate
         payment_method: paymentMethod,
-        status: paymentMethod === "card" || paymentMethod === "paypal" 
-          ? "pending" 
-          : "pending",
-        anonymous: isAnonymous,
-        donor_email: isAnonymous ? null : donorEmail,
+        payment_status: "pending",
+        is_anonymous: isAnonymous,
         donor_name: isAnonymous ? null : donorEmail?.split("@")[0],
       })
       .select()
@@ -42,25 +46,89 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error;
 
-    // If manual payment, create manual payment record
-    if (["zelle", "transfer", "crypto"].includes(paymentMethod)) {
-      const { error: manualError } = await supabase
-        .from("manual_payments")
-        .insert({
-          donation_id: donation.id,
-          payment_type: paymentMethod,
-          transaction_reference: manualPaymentData?.reference,
-          status: "pending_approval",
-        });
+    // Map payment method to provider
+    const providerMap: Record<string, PaymentProvider> = {
+      card: PaymentProvider.STRIPE,
+      paypal: PaymentProvider.PAYPAL,
+      crypto: PaymentProvider.BINANCE,
+      zelle: PaymentProvider.ZELLE,
+      pagomovil: PaymentProvider.PAGO_MOVIL,
+    };
 
-      if (manualError) throw manualError;
+    const provider = providerMap[paymentMethod] || PaymentProvider.STRIPE;
+
+    // Process payment through PaymentManager
+    try {
+      const paymentResult = await PaymentManager.processPayment({
+        amount: {
+          usd: amountUSD,
+          bs: amountUSD * 41.25,
+        },
+        provider,
+        paymentType: PaymentType.CARD,
+        metadata: {
+          campaignId,
+          donationId: donation.id,
+          donorId: user?.id,
+          donorEmail: donorEmail || 'anonymous@lavaca.app',
+          isAnonymous,
+        },
+        customerInfo: {
+          email: donorEmail || 'anonymous@lavaca.app',
+          name: donation.donor_name || undefined,
+        },
+        returnUrl: `${process.env.NEXT_PUBLIC_URL}/campaigns/${campaignId}?donation=success`,
+        cancelUrl: `${process.env.NEXT_PUBLIC_URL}/campaigns/${campaignId}/donate?donation=cancelled`,
+        providerSpecificData: {
+          pagoMovilData,
+          manualPaymentData,
+        },
+      });
+
+      // Update donation with payment result
+      if (paymentResult.success) {
+        const { error: updateError } = await supabase
+          .from("donations")
+          .update({
+            payment_status: paymentResult.status,
+            completed_at: paymentResult.status === 'completed' ? new Date().toISOString() : null,
+          })
+          .eq("id", donation.id);
+
+        if (updateError) {
+          console.error('Error updating donation status:', updateError);
+        } else {
+          console.log('✅ Donation updated to:', paymentResult.status);
+        }
+      }
+
+      return NextResponse.json({
+        donation,
+        payment: paymentResult,
+      });
+    } catch (paymentError: any) {
+      console.error("Payment processing error:", paymentError);
+
+      // Update donation as failed
+      await supabase
+        .from("donations")
+        .update({
+          payment_status: "failed",
+        })
+        .eq("id", donation.id);
+
+      return NextResponse.json({
+        donation,
+        payment: {
+          success: false,
+          error: paymentError.message,
+        },
+      });
     }
-
-    return NextResponse.json(donation);
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating donation:", error);
     return NextResponse.json(
-      { error: "Failed to create donation" },
+      { error: "Failed to create donation", details: error.message },
       { status: 500 }
     );
   }

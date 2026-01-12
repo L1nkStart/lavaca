@@ -22,14 +22,11 @@ interface Campaign {
   location: string | null;
   categories: {
     name: string;
-    icon: string | null;
+    icon_emoji: string | null;
   } | null;
   users: {
     full_name: string;
     kyc_status: string;
-  };
-  guarantor?: {
-    full_name: string;
   };
   donation_count?: number;
 }
@@ -50,37 +47,47 @@ export default function CampaignsPage() {
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Iniciando fetchCampaigns...');
+
       const { data, error } = await supabase
         .from('campaigns')
         .select(`
           *,
           categories (
             name,
-            icon
+            icon_emoji
           ),
           users!campaigns_creator_id_fkey (
             full_name,
             kyc_status
-          ),
-          guarantor:users!campaigns_guarantor_id_fkey (
-            full_name
           )
         `)
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
+      console.log('📊 Resultado de la query:');
+      console.log('- Data:', data);
+      console.log('- Error:', error);
+      console.log('- Número de campañas:', data?.length || 0);
+
       if (error) {
+        console.error('❌ Error en la query principal:', error);
         throw error;
       }
 
       // Get donation counts
+      console.log('💰 Obteniendo contadores de donaciones...');
       const campaignsWithCounts = await Promise.all(
-        (data || []).map(async (campaign) => {
-          const { count } = await supabase
+        (data || []).map(async (campaign, index) => {
+          const { count, error: countError } = await supabase
             .from('donations')
             .select('*', { count: 'exact', head: true })
             .eq('campaign_id', campaign.id)
-            .eq('status', 'completed');
+            .eq('payment_status', 'completed');
+
+          if (countError) {
+            console.warn(`⚠️ Error contando donaciones para campaña ${index}:`, countError);
+          }
 
           return {
             ...campaign,
@@ -89,10 +96,15 @@ export default function CampaignsPage() {
         })
       );
 
+      console.log('✅ Campañas con contadores:', campaignsWithCounts.length);
       setCampaigns(campaignsWithCounts);
-    } catch (err) {
-      console.error('Error fetching campaigns:', err);
-      setError('Error al cargar las campañas');
+    } catch (err: any) {
+      console.error('❌ Error completo en fetchCampaigns:', err);
+      console.error('- Message:', err.message);
+      console.error('- Code:', err.code);
+      console.error('- Details:', err.details);
+      console.error('- Hint:', err.hint);
+      setError(`Error al cargar las campañas: ${err.message || 'Error desconocido'}`);
     } finally {
       setLoading(false);
     }
@@ -139,30 +151,20 @@ export default function CampaignsPage() {
     category: campaign.categories?.name || 'Sin categoría',
     creator: campaign.users.full_name,
     verified: campaign.users.kyc_status === 'verified',
-    guarantor: campaign.guarantor?.full_name,
+    guarantor: undefined,
     donorCount: campaign.donation_count || 0,
   }));
 
   return (
     <main className="flex flex-col min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card sticky top-20 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver
-          </Link>
-          <h1 className="text-3xl font-bold mb-4">Todas las campañas</h1>
-          <p className="text-muted-foreground">
-            {filteredCampaigns.length} campañas encontradas
+      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Descubre campañas</h1>
+          <p className="text-muted-foreground text-lg">
+            {filteredCampaigns.length} campañas activas
           </p>
         </div>
-      </div>
-
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
         <div className="grid lg:grid-cols-4 gap-8">
           {/* Sidebar */}
           <div className="lg:col-span-1">

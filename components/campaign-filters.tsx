@@ -71,11 +71,11 @@ export function CampaignFilters({ onFilterChange }: CampaignFiltersProps) {
             Categoría
           </label>
           <Select
-            value={filters.category || ""}
+            value={filters.category || "all"}
             onValueChange={(value) =>
               handleFilterChange({
                 ...filters,
-                category: value || undefined,
+                category: value === "all" ? undefined : value,
               })
             }
           >
@@ -83,7 +83,7 @@ export function CampaignFilters({ onFilterChange }: CampaignFiltersProps) {
               <SelectValue placeholder="Todas las categorías" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
               {CATEGORIES.map((cat) => (
                 <SelectItem key={cat} value={cat}>
                   {cat}
@@ -99,11 +99,11 @@ export function CampaignFilters({ onFilterChange }: CampaignFiltersProps) {
             Ubicación
           </label>
           <Select
-            value={filters.location || ""}
+            value={filters.location || "all"}
             onValueChange={(value) =>
               handleFilterChange({
                 ...filters,
-                location: value || undefined,
+                location: value === "all" ? undefined : value,
               })
             }
           >
@@ -111,7 +111,7 @@ export function CampaignFilters({ onFilterChange }: CampaignFiltersProps) {
               <SelectValue placeholder="Todas las ubicaciones" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
               {LOCATIONS.map((loc) => (
                 <SelectItem key={loc} value={loc}>
                   {loc}
@@ -127,11 +127,11 @@ export function CampaignFilters({ onFilterChange }: CampaignFiltersProps) {
             Estado
           </label>
           <Select
-            value={filters.status || ""}
+            value={filters.status || "all"}
             onValueChange={(value) =>
               handleFilterChange({
                 ...filters,
-                status: value || undefined,
+                status: value === "all" ? undefined : value,
               })
             }
           >
@@ -139,7 +139,7 @@ export function CampaignFilters({ onFilterChange }: CampaignFiltersProps) {
               <SelectValue placeholder="Todas" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
               <SelectItem value="active">En recaudación</SelectItem>
               <SelectItem value="urgent">Urgentes</SelectItem>
             </SelectContent>

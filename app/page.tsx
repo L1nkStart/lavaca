@@ -26,6 +26,9 @@ interface Campaign {
 export default async function Home() {
   const supabase = await createClient()
 
+  // Verificar si el usuario está logueado
+  const { data: { user } } = await supabase.auth.getUser()
+
   // Get active campaigns for homepage
   const { data: campaigns, error: campaignsError } = await supabase
     .from('campaigns')
@@ -53,36 +56,6 @@ export default async function Home() {
   const featuredCampaigns = campaigns || []
   return (
     <main className="flex flex-col min-h-screen">
-      {/* Navigation */}
-      <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b border-border">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">
-              LV
-            </div>
-            <span className="font-bold text-lg">LaVaca</span>
-          </div>
-          <div className="hidden md:flex items-center gap-6">
-            <Link href="/campaigns" className="text-sm hover:text-primary">
-              Campañas
-            </Link>
-            <Link href="/how-it-works" className="text-sm hover:text-primary">
-              Cómo funciona
-            </Link>
-            <Link href="/about" className="text-sm hover:text-primary">
-              Acerca de
-            </Link>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/auth/login">Iniciar sesión</Link>
-            </Button>
-            <Button size="sm" asChild className="bg-primary">
-              <Link href="/auth/sign-up">Registrarse</Link>
-            </Button>
-          </div>
-        </div>
-      </nav>
 
       {/* Hero Section */}
       <section className="relative py-20 px-4 bg-gradient-to-br from-primary/10 to-accent/10 border-b border-border">
@@ -99,13 +72,19 @@ export default async function Home() {
               <div className="flex flex-col sm:flex-row gap-4">
                 <Button size="lg" className="bg-primary hover:bg-primary/90" asChild>
                   <Link href="/campaigns">
-                    Ver campaña
+                    Ver campañas
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" asChild>
-                  <Link href="/create-campaign">Crear campaña</Link>
-                </Button>
+                {user ? (
+                  <Button size="lg" variant="outline" asChild>
+                    <Link href="/creator/campaigns/create">Crear campaña</Link>
+                  </Button>
+                ) : (
+                  <Button size="lg" variant="outline" asChild>
+                    <Link href="/auth/register">Comenzar ahora</Link>
+                  </Button>
+                )}
               </div>
 
               {/* Stats */}
@@ -222,120 +201,26 @@ export default async function Home() {
             Crea tu campaña en LaVaca. Es rápido, fácil y completamente transparente.
             Verificamos tu identidad y tu campaña se publica inmediatamente.
           </p>
-          <Button
-            size="lg"
-            className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
-            asChild
-          >
-            <Link href="/auth/sign-up">Crear mi campaña ahora</Link>
-          </Button>
+          {user ? (
+            <Button
+              size="lg"
+              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+              asChild
+            >
+              <Link href="/creator/campaigns/create">Crear mi campaña ahora</Link>
+            </Button>
+          ) : (
+            <Button
+              size="lg"
+              className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+              asChild
+            >
+              <Link href="/auth/register">Crear mi campaña ahora</Link>
+            </Button>
+          )}
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-border bg-card py-12 px-4">
-        <div className="max-w-7xl mx-auto grid md:grid-cols-4 gap-8 mb-8">
-          <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                LV
-              </div>
-              <span className="font-bold">LaVaca</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Crowdfunding transparente para Venezuela.
-            </p>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Plataforma</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/campaigns"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Campañas
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/how-it-works"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Cómo funciona
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/faq"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Preguntas frecuentes
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Empresa</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/about"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Acerca de
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/blog"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Blog
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/contact"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Contacto
-                </Link>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <h4 className="font-semibold mb-4">Legal</h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link
-                  href="/privacy"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Privacidad
-                </Link>
-              </li>
-              <li>
-                <Link
-                  href="/terms"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  Términos
-                </Link>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="border-t border-border pt-8 text-center text-sm text-muted-foreground">
-          <p>
-            {new Date().getFullYear()} LaVaca. Todos los derechos reservados.
-          </p>
-        </div>
-      </footer>
     </main>
   );
 }

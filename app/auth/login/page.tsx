@@ -21,7 +21,7 @@ function LoginForm() {
 
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') || '/profile'
+  const redirectTo = searchParams.get('redirectTo') || '/'
 
   const supabase = createClient()
 
@@ -43,20 +43,9 @@ function LoginForm() {
       }
 
       if (data.user) {
-        // Get user profile to determine redirect
-        const { data: profile } = await supabase
-          .from('users')
-          .select('role, kyc_status')
-          .eq('id', data.user.id)
-          .single()
-
-        if (profile?.role === 'admin') {
-          router.push('/admin/dashboard')
-        } else if (profile?.role === 'creator') {
-          router.push('/creator/dashboard')
-        } else {
-          router.push(redirectTo)
-        }
+        // Redirect to home after successful login (like GoFundMe)
+        router.push(redirectTo)
+        router.refresh()
       }
     } catch (err) {
       setError('Ocurrió un error inesperado')
