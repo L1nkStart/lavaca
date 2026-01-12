@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import Link from "next/link";
-import { DonationCheckout } from "@/components/donation-checkout";
+import { DonationCheckout } from "@/components/donation-checkout-improved";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from 'lucide-react';
 
@@ -35,7 +35,7 @@ export default function DonatePage() {
 
       <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">Realizar donación</h1>
-        
+
         <DonationCheckout
           campaignId={campaignId}
           campaignTitle={campaignTitle}
