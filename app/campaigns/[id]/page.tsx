@@ -48,11 +48,7 @@ interface Campaign {
     gallery_images: string[] | null;
     support_documents: string[] | null;
     support_documents_urls?: string[] | null;
-  } | {
-    gallery_images: string[] | null;
-    support_documents: string[] | null;
-    support_documents_urls?: string[] | null;
-  }[];
+  } | null;
 }
 
 interface Donation {
@@ -110,11 +106,6 @@ export default function CampaignPage() {
           users!campaigns_creator_id_fkey (
             full_name,
             kyc_status
-          ),
-          campaign_details (
-            gallery_images,
-            support_documents,
-            support_documents_urls
           )
         `)
         .eq('id', campaignId)
@@ -128,11 +119,15 @@ export default function CampaignPage() {
         throw campaignError;
       }
 
+      const { data: campaignDetailsData } = await supabase
+        .from('campaign_details')
+        .select('gallery_images, support_documents, support_documents_urls')
+        .eq('campaign_id', campaignId)
+        .maybeSingle()
+
       const normalizedCampaignData = {
         ...campaignData,
-        campaign_details: Array.isArray(campaignData.campaign_details)
-          ? campaignData.campaign_details[0] || null
-          : campaignData.campaign_details
+        campaign_details: campaignDetailsData || null
       }
 
       setCampaign(normalizedCampaignData as Campaign);
@@ -222,9 +217,7 @@ export default function CampaignPage() {
     (new Date().getTime() - new Date(campaign.created_at).getTime()) / (1000 * 60 * 60 * 24)
   );
 
-  const campaignDetails = Array.isArray(campaign.campaign_details)
-    ? campaign.campaign_details[0]
-    : campaign.campaign_details
+  const campaignDetails = campaign.campaign_details
 
   const galleryImages = [
     ...(campaign.main_image_url ? [campaign.main_image_url] : []),

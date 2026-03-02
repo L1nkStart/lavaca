@@ -36,12 +36,15 @@ interface EditCampaignFormProps {
         goal_amount_usd: number
         urgency_level: string
         category_id: string | null
+        main_image_url?: string | null
         campaign_details?: {
             support_documents: string[] | null
             support_documents_urls?: string[] | null
+            gallery_images?: string[] | null
         } | {
             support_documents: string[] | null
             support_documents_urls?: string[] | null
+            gallery_images?: string[] | null
         }[] | null
     }
     categories: Category[]
@@ -53,6 +56,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
 
     const [loading, setLoading] = useState(false)
     const [savingDocs, setSavingDocs] = useState(false)
+    const [savingGallery, setSavingGallery] = useState(false)
     const [publishingUpdate, setPublishingUpdate] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
@@ -70,9 +74,12 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
 
     const initialSupportDocuments =
         campaignDetails?.support_documents || campaignDetails?.support_documents_urls || []
+    const initialGalleryImages = campaignDetails?.gallery_images || []
 
     const [existingDocuments, setExistingDocuments] = useState<string[]>(initialSupportDocuments)
     const [newDocumentFiles, setNewDocumentFiles] = useState<File[]>([])
+    const [existingGalleryImages, setExistingGalleryImages] = useState<string[]>(initialGalleryImages)
+    const [newGalleryFiles, setNewGalleryFiles] = useState<File[]>([])
 
     const [updates, setUpdates] = useState<CampaignUpdate[]>([])
     const [updatesCount, setUpdatesCount] = useState(0)
@@ -126,20 +133,13 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
         try {
             const goal = parseFloat(goalAmountUsd)
 
-            if (!title.trim()) throw new Error('El título es obligatorio')
-            if (!story.trim() || story.trim().length < 50) throw new Error('La historia debe tener al menos 50 caracteres')
-            if (!categoryId) throw new Error('Debes seleccionar una categoría')
             if (Number.isNaN(goal) || goal < 10) throw new Error('La meta debe ser de al menos $10 USD')
 
             const { error: updateError } = await supabase
                 .from('campaigns')
                 .update({
-                    title: title.trim(),
-                    story: story.trim(),
-                    location: location.trim() || null,
                     goal_amount_usd: goal,
                     urgency_level: urgencyLevel,
-                    category_id: categoryId,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', campaign.id)
@@ -153,6 +153,79 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
             setError(err.message || 'No se pudo actualizar la campaña')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const upsertCampaignDetailsGalleryImages = async (galleryImages: string[]) => {
+        const { data: existingDetails } = await supabase
+            .from('campaign_details')
+            .select('id')
+            .eq('campaign_id', campaign.id)
+            .maybeSingle()
+
+        if (existingDetails?.id) {
+            const { error } = await supabase
+                .from('campaign_details')
+                .update({
+                    gallery_images: galleryImages,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('campaign_id', campaign.id)
+
+            if (error) throw error
+            return
+        }
+
+        const { error } = await supabase
+            .from('campaign_details')
+            .insert({
+                campaign_id: campaign.id,
+                full_story: story,
+                gallery_images: galleryImages,
+                support_documents: existingDocuments
+            })
+
+        if (error) {
+            const shouldFallbackToLegacyColumn =
+                error.message?.toLowerCase().includes('support_documents')
+
+            if (!shouldFallbackToLegacyColumn) throw error
+
+            const { error: legacyInsertError } = await supabase
+                .from('campaign_details')
+                .insert({
+                    campaign_id: campaign.id,
+                    full_story: story,
+                    gallery_images: galleryImages,
+                    support_documents_urls: existingDocuments
+                })
+
+            if (legacyInsertError) throw legacyInsertError
+        }
+    }
+
+    const handleUploadGalleryImages = async () => {
+        if (newGalleryFiles.length === 0) return
+
+        setSavingGallery(true)
+        setError(null)
+        setSuccess(null)
+
+        try {
+            const uploadedUrls = await Promise.all(
+                newGalleryFiles.map((file) => uploadFile(file, 'campaigns', 'gallery'))
+            )
+
+            const merged = [...existingGalleryImages, ...uploadedUrls]
+            await upsertCampaignDetailsGalleryImages(merged)
+
+            setExistingGalleryImages(merged)
+            setNewGalleryFiles([])
+            setSuccess('Imágenes de galería agregadas correctamente')
+        } catch (err: any) {
+            setError(err.message || 'No se pudieron subir las imágenes de galería')
+        } finally {
+            setSavingGallery(false)
         }
     }
 
@@ -334,13 +407,13 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
             <Card>
                 <CardHeader>
                     <CardTitle>Editar campaña</CardTitle>
-                    <CardDescription>Actualiza historia, meta, categoría y datos de tu campaña.</CardDescription>
+                    <CardDescription>Por seguridad solo puedes editar meta y urgencia.</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSaveCampaign} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="title">Título</Label>
-                            <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={loading} />
+                            <Input id="title" value={title} disabled />
                         </div>
 
                         <div className="space-y-2">
@@ -349,8 +422,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                                 id="story"
                                 rows={8}
                                 value={story}
-                                onChange={(e) => setStory(e.target.value)}
-                                disabled={loading}
+                                disabled
                             />
                         </div>
 
@@ -373,8 +445,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                                 <Input
                                     id="location"
                                     value={location}
-                                    onChange={(e) => setLocation(e.target.value)}
-                                    disabled={loading}
+                                    disabled
                                 />
                             </div>
                         </div>
@@ -382,7 +453,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label>Categoría</Label>
-                                <Select value={categoryId} onValueChange={setCategoryId} disabled={loading}>
+                                <Select value={categoryId} disabled>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Selecciona una categoría" />
                                     </SelectTrigger>
@@ -420,9 +491,53 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
 
                         <Button type="submit" disabled={loading}>
                             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                            Guardar cambios
+                            Guardar meta y urgencia
                         </Button>
                     </form>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Galería de imágenes</CardTitle>
+                    <CardDescription>Puedes añadir nuevas imágenes. Las existentes no se pueden eliminar desde aquí.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={(e) => setNewGalleryFiles(Array.from(e.target.files || []))}
+                            disabled={savingGallery}
+                        />
+                        <Button type="button" onClick={handleUploadGalleryImages} disabled={savingGallery || newGalleryFiles.length === 0}>
+                            {savingGallery ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                            Añadir imágenes a la galería
+                        </Button>
+                    </div>
+
+                    {existingGalleryImages.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No hay imágenes de galería asociadas.</p>
+                    ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {existingGalleryImages.map((imageUrl, index) => (
+                                <a
+                                    key={imageUrl}
+                                    href={imageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block rounded-md border border-border p-2 hover:bg-muted"
+                                >
+                                    <img
+                                        src={imageUrl}
+                                        alt={`Imagen de galería ${index + 1}`}
+                                        className="w-full h-28 object-cover rounded"
+                                    />
+                                </a>
+                            ))}
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

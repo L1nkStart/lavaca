@@ -30,11 +30,7 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
       location,
       goal_amount_usd,
       urgency_level,
-      category_id,
-      campaign_details (
-                support_documents,
-                support_documents_urls
-      )
+            category_id
     `)
         .eq('id', id)
         .eq('creator_id', user.id)
@@ -42,6 +38,17 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
 
     if (campaignError || !campaign) {
         redirect('/creator/campaigns')
+    }
+
+    const { data: campaignDetails } = await supabase
+        .from('campaign_details')
+        .select('support_documents, support_documents_urls, gallery_images')
+        .eq('campaign_id', id)
+        .maybeSingle()
+
+    const campaignWithDetails = {
+        ...campaign,
+        campaign_details: campaignDetails || null
     }
 
     const { data: categories } = await supabase
@@ -73,7 +80,7 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
                     </CardHeader>
                     <CardContent>
                         <EditCampaignForm
-                            campaign={campaign as any}
+                            campaign={campaignWithDetails as any}
                             categories={categories || []}
                             currentUserId={user.id}
                         />
