@@ -246,8 +246,8 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
             // Create campaign
             const slug = generateSlug(formData.title)
 
-            // Determine initial status based on KYC status
-            const initialStatus = profile.kyc_status === 'verified' ? 'active' : 'draft'
+            // All campaigns must pass manual underwriting review before publication
+            const initialStatus = 'under_review'
 
             const { data: campaign, error: campaignError } = await supabase
                 .from('campaigns')
@@ -290,12 +290,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 return
             }
 
-            // Set success message based on status
-            if (initialStatus === 'draft') {
-                setSuccess('¡Campaña guardada como borrador! Para publicarla, debes verificar tu identidad en tu perfil.')
-            } else {
-                setSuccess('¡Campaña creada y publicada exitosamente! Ya está disponible para recibir donaciones.')
-            }
+            setSuccess('Tu campaña fue enviada a revisión de seguridad. Este proceso toma entre 24 y 48 horas antes de activarse para donaciones.')
 
             // Redirect after success
             setTimeout(() => {
@@ -772,7 +767,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                     {uploading ? 'Subiendo...' : 'Creando...'}
                                 </>
                             ) : (
-                                'Crear Campaña'
+                                'Enviar a revisión'
                             )}
                         </Button>
                     )}

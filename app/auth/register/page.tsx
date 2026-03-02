@@ -13,6 +13,8 @@ import { createClient } from '@/lib/supabase/client'
 import { Checkbox } from '@/components/ui/checkbox'
 
 function RegisterForm() {
+    const CURRENT_TERMS_VERSION = 'v1.0'
+
     const [formData, setFormData] = useState({
         fullName: '',
         email: '',
@@ -102,6 +104,8 @@ function RegisterForm() {
                         full_name: formData.fullName,
                         role: 'donor', // Default role
                         kyc_status: 'pending',
+                        terms_version_accepted: CURRENT_TERMS_VERSION,
+                        terms_accepted_at: new Date().toISOString(),
                     })
 
                 if (profileError) {

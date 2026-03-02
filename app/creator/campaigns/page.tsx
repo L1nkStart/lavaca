@@ -28,7 +28,7 @@ interface Campaign {
   story: string
   goal_amount_usd: number
   current_amount_usd: number
-  status: 'draft' | 'pending_review' | 'active' | 'paused' | 'closed'
+  status: 'draft' | 'under_review' | 'active' | 'suspended' | 'completed'
   urgency_level: 'low' | 'medium' | 'high' | 'critical'
   main_image_url: string | null
   location: string | null
@@ -91,17 +91,17 @@ export default async function CreatorCampaignsPage() {
   const stats = {
     total: campaigns?.length || 0,
     active: campaigns?.filter(c => c.status === 'active').length || 0,
-    pending: campaigns?.filter(c => c.status === 'pending_review').length || 0,
+    pending: campaigns?.filter(c => c.status === 'under_review').length || 0,
     totalRaised: campaigns?.reduce((sum, c) => sum + c.current_amount_usd, 0) || 0
   }
 
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'active': return 'default'
-      case 'pending_review': return 'secondary'
+      case 'under_review': return 'secondary'
       case 'draft': return 'outline'
-      case 'closed': return 'outline'
-      case 'paused': return 'destructive'
+      case 'completed': return 'outline'
+      case 'suspended': return 'destructive'
       default: return 'outline'
     }
   }
@@ -109,10 +109,10 @@ export default async function CreatorCampaignsPage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'active': return 'Activa'
-      case 'pending_review': return 'En Revisión'
+      case 'under_review': return 'En Revisión'
       case 'draft': return 'Borrador'
-      case 'closed': return 'Finalizada'
-      case 'paused': return 'Pausada'
+      case 'completed': return 'Finalizada'
+      case 'suspended': return 'Suspendida'
       default: return status
     }
   }
@@ -120,10 +120,10 @@ export default async function CreatorCampaignsPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'active': return <CheckCircle className="h-4 w-4" />
-      case 'pending_review': return <Clock className="h-4 w-4" />
+      case 'under_review': return <Clock className="h-4 w-4" />
       case 'draft': return <Edit className="h-4 w-4" />
-      case 'closed': return <XCircle className="h-4 w-4" />
-      case 'paused': return <AlertCircle className="h-4 w-4" />
+      case 'completed': return <XCircle className="h-4 w-4" />
+      case 'suspended': return <AlertCircle className="h-4 w-4" />
       default: return null
     }
   }

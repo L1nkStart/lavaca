@@ -105,7 +105,7 @@ export function Footer() {
                                 href="/privacy"
                                 className="text-muted-foreground hover:text-foreground"
                             >
-                                Privacidad
+                                Política de privacidad
                             </Link>
                         </li>
                         <li>
@@ -113,7 +113,23 @@ export function Footer() {
                                 href="/terms"
                                 className="text-muted-foreground hover:text-foreground"
                             >
-                                Términos
+                                Términos y condiciones
+                            </Link>
+                        </li>
+                        <li>
+                            <Link
+                                href="/refund-policy"
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                Política de reembolso
+                            </Link>
+                        </li>
+                        <li>
+                            <Link
+                                href="/acceptable-use-policy"
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                Actividades prohibidas
                             </Link>
                         </li>
                     </ul>

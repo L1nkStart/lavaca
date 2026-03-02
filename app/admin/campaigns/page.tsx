@@ -35,6 +35,9 @@ interface Campaign {
     created_at: string
     updated_at: string
     creator_id: string
+    reviewed_by: string | null
+    review_notes: string | null
+    reviewed_at: string | null
     users: {
         full_name: string
         email: string
@@ -111,20 +114,81 @@ export default function AdminCampaignsPage() {
         setFilteredCampaigns(filtered)
     }
 
-    const handleStatusChange = async (campaignId: string, newStatus: string) => {
+    const handleStatusChange = async (campaignId: string, currentStatus: string, newStatus: string, creatorId: string) => {
         if (!confirm(`¿Estás seguro de cambiar el estado a "${newStatus}"?`)) return
 
         try {
             setProcessing(campaignId)
+
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (!user) {
+                alert('No se pudo identificar el administrador autenticado.')
+                return
+            }
+
+            const requiresReviewNotes =
+                currentStatus === 'under_review' && ['active', 'suspended', 'completed'].includes(newStatus)
+
+            let reviewNotes: string | null = null
+            if (requiresReviewNotes) {
+                const inputNotes = window.prompt(
+                    'Agrega notas internas de revisión (obligatorio para auditoría):',
+                    ''
+                )
+
+                if (inputNotes === null) return
+
+                reviewNotes = inputNotes.trim()
+
+                if (!reviewNotes) {
+                    alert('Debes agregar notas de revisión para continuar.')
+                    return
+                }
+            }
+
+            const updatePayload: Record<string, any> = {
+                status: newStatus,
+                updated_at: new Date().toISOString()
+            }
+
+            if (requiresReviewNotes) {
+                updatePayload.reviewed_by = user.id
+                updatePayload.review_notes = reviewNotes
+                updatePayload.reviewed_at = new Date().toISOString()
+            }
+
             const { error: updateError } = await supabase
                 .from('campaigns')
-                .update({
-                    status: newStatus,
-                    updated_at: new Date().toISOString()
-                })
+                .update(updatePayload)
                 .eq('id', campaignId)
 
             if (updateError) throw updateError
+
+            if (requiresReviewNotes) {
+                const notificationType = newStatus === 'active' ? 'campaign_approved' : 'campaign_rejected'
+                const notificationTitle = newStatus === 'active'
+                    ? 'Campaña aprobada'
+                    : 'Campaña no aprobada'
+                const notificationMessage = newStatus === 'active'
+                    ? 'Tu campaña fue aprobada y ya puede recibir donaciones.'
+                    : 'Tu campaña requiere ajustes. Revisa las observaciones del equipo de seguridad.'
+
+                await supabase
+                    .from('notifications')
+                    .insert({
+                        user_id: creatorId,
+                        type: notificationType,
+                        title: notificationTitle,
+                        message: notificationMessage,
+                        link: '/creator/campaigns',
+                        data: {
+                            campaign_id: campaignId,
+                            review_notes: reviewNotes,
+                            reviewed_by: user.id
+                        }
+                    })
+            }
 
             alert(`✅ Campaña ${newStatus === 'active' ? 'activada' : 'suspendida'} exitosamente`)
             fetchCampaigns()
@@ -349,7 +413,7 @@ export default function AdminCampaignsPage() {
                                                             size="sm"
                                                             variant="outline"
                                                             className="text-green-600 hover:text-green-700"
-                                                            onClick={() => handleStatusChange(campaign.id, 'active')}
+                                                            onClick={() => handleStatusChange(campaign.id, campaign.status, 'active', campaign.creator_id)}
                                                             disabled={processing === campaign.id}
                                                         >
                                                             {processing === campaign.id ? (
@@ -367,7 +431,7 @@ export default function AdminCampaignsPage() {
                                                             size="sm"
                                                             variant="outline"
                                                             className="text-yellow-600 hover:text-yellow-700"
-                                                            onClick={() => handleStatusChange(campaign.id, 'suspended')}
+                                                            onClick={() => handleStatusChange(campaign.id, campaign.status, 'suspended', campaign.creator_id)}
                                                             disabled={processing === campaign.id}
                                                         >
                                                             {processing === campaign.id ? (
