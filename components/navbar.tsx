@@ -6,23 +6,41 @@ import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { NotificationsDropdown } from '@/components/notifications-dropdown'
 import { createClient } from '@/lib/supabase/client'
-import { Heart, Menu, X, Search, User } from 'lucide-react'
+import { Heart, Menu, X, Search, User, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Navbar() {
     const [user, setUser] = useState<any>(null)
+    const [authLoading, setAuthLoading] = useState(true)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const pathname = usePathname()
     const supabase = createClient()
 
     useEffect(() => {
-        checkUser()
-    }, [])
+        let isMounted = true
 
-    const checkUser = async () => {
-        const { data: { user } } = await supabase.auth.getUser()
-        setUser(user)
-    }
+        const checkUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (isMounted) {
+                setUser(user)
+                setAuthLoading(false)
+            }
+        }
+
+        checkUser()
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (isMounted) {
+                setUser(session?.user ?? null)
+                setAuthLoading(false)
+            }
+        })
+
+        return () => {
+            isMounted = false
+            subscription.unsubscribe()
+        }
+    }, [])
 
     const isActive = (path: string) => pathname === path
 
@@ -74,7 +92,11 @@ export function Navbar() {
                             </Link>
                         </Button>
 
-                        {user ? (
+                        {authLoading ? (
+                            <Button variant="ghost" size="sm" disabled>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            </Button>
+                        ) : user ? (
                             <>
                                 {/* Notifications */}
                                 <NotificationsDropdown />
@@ -145,7 +167,7 @@ export function Navbar() {
                         >
                             Cómo funciona
                         </Link>
-                        {user && (
+                        {!authLoading && user && (
                             <Link
                                 href="/profile"
                                 className="block px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
