@@ -56,11 +56,11 @@ export default async function Home() {
   const featuredCampaigns = campaigns || []
 
   // Get real stats from database
-  const [donationsResult, campaignsCountResult, donorsResult] = await Promise.all([
-    // Total amount raised from all donations (completed or pending)
+  const [campaignsResult, campaignsCountResult, donorsResult] = await Promise.all([
+    // Total amount raised from campaigns current_amount_usd
     supabase
-      .from('donations')
-      .select('amount_usd, status'),
+      .from('campaigns')
+      .select('current_amount_usd'),
 
     // Total campaigns (all statuses)
     supabase
@@ -73,7 +73,7 @@ export default async function Home() {
       .select('donor_id')
   ])
 
-  const totalRaised = donationsResult.data?.reduce((sum, d) => sum + (d.amount_usd || 0), 0) || 0
+  const totalRaised = campaignsResult.data?.reduce((sum, c) => sum + (c.current_amount_usd || 0), 0) || 0
   const totalCampaigns = campaignsCountResult.count || 0
   const uniqueDonors = new Set(donorsResult.data?.map(d => d.donor_id).filter(id => id)).size || 0
   return (

@@ -96,9 +96,9 @@ export default function AdminDashboard() {
       const activeCampaigns = campaignsResult.data?.filter(c => c.status === 'active').length || 0
       const totalDonations = donationsResult.count || 0
 
-      const totalDonationAmount = donationsResult.data
-        ?.filter(d => d.status === 'completed')
-        .reduce((sum, d) => sum + (d.amount_usd || 0), 0) || 0
+      // Sum from campaigns.current_amount_usd instead of donations
+      const totalDonationAmount = campaignsResult.data
+        ?.reduce((sum, c) => sum + (c.current_amount_usd || 0), 0) || 0
 
       const platformFees = totalDonationAmount * 0.02 // 2% platform fee
 
