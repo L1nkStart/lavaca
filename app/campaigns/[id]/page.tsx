@@ -47,7 +47,12 @@ interface Campaign {
   campaign_details?: {
     gallery_images: string[] | null;
     support_documents: string[] | null;
-  };
+    support_documents_urls?: string[] | null;
+  } | {
+    gallery_images: string[] | null;
+    support_documents: string[] | null;
+    support_documents_urls?: string[] | null;
+  }[];
 }
 
 interface Donation {
@@ -108,7 +113,8 @@ export default function CampaignPage() {
           ),
           campaign_details (
             gallery_images,
-            support_documents
+            support_documents,
+            support_documents_urls
           )
         `)
         .eq('id', campaignId)
@@ -122,7 +128,14 @@ export default function CampaignPage() {
         throw campaignError;
       }
 
-      setCampaign(campaignData);
+      const normalizedCampaignData = {
+        ...campaignData,
+        campaign_details: Array.isArray(campaignData.campaign_details)
+          ? campaignData.campaign_details[0] || null
+          : campaignData.campaign_details
+      }
+
+      setCampaign(normalizedCampaignData as Campaign);
 
       // Fetch donations
       const { data: donationsData, error: donationsError } = await supabase
@@ -209,12 +222,18 @@ export default function CampaignPage() {
     (new Date().getTime() - new Date(campaign.created_at).getTime()) / (1000 * 60 * 60 * 24)
   );
 
+  const campaignDetails = Array.isArray(campaign.campaign_details)
+    ? campaign.campaign_details[0]
+    : campaign.campaign_details
+
   const galleryImages = [
     ...(campaign.main_image_url ? [campaign.main_image_url] : []),
-    ...(campaign.campaign_details?.gallery_images || [])
+    ...(campaignDetails?.gallery_images || [])
   ];
 
-  const supportDocuments = (campaign.campaign_details?.support_documents || []).map((url, index) => ({
+  const supportDocumentUrls = campaignDetails?.support_documents || campaignDetails?.support_documents_urls || []
+
+  const supportDocuments = supportDocumentUrls.map((url, index) => ({
     id: index.toString(),
     name: `Documento ${index + 1}`,
     url: url,
@@ -416,7 +435,7 @@ export default function CampaignPage() {
                   </div>
                 ) : (
                   <>
-                <CampaignUpdates updates={updatesList} />
+                    <CampaignUpdates updates={updatesList} />
                     {updatesCount > UPDATES_PAGE_SIZE && (
                       <div className="mt-4 flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">

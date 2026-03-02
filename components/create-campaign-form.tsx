@@ -234,15 +234,6 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 )
             )
 
-            // Upload support documents
-            const documentUrls = await Promise.all(
-                formData.support_documents.map(file =>
-                    handleFileUpload(file, 'campaign-support', 'documents')
-                )
-            )
-
-            setUploading(false)
-
             // Create campaign
             const slug = generateSlug(formData.title)
 
@@ -275,7 +266,16 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 return
             }
 
-            // Create campaign details
+            // Upload support documents in dedicated documents/<campaignId>/ folder
+            const documentUrls = await Promise.all(
+                formData.support_documents.map(file =>
+                    handleFileUpload(file, 'campaigns', `documents/${campaign.id}`)
+                )
+            )
+
+            setUploading(false)
+
+            // Create campaign details (compatible with both support_documents and support_documents_urls schemas)
             const { error: detailsError } = await supabase
                 .from('campaign_details')
                 .insert({
@@ -286,8 +286,27 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 })
 
             if (detailsError) {
-                setError(detailsError.message)
-                return
+                const shouldFallbackToLegacyColumn =
+                    detailsError.message?.toLowerCase().includes('support_documents')
+
+                if (!shouldFallbackToLegacyColumn) {
+                    setError(detailsError.message)
+                    return
+                }
+
+                const { error: detailsLegacyError } = await supabase
+                    .from('campaign_details')
+                    .insert({
+                        campaign_id: campaign.id,
+                        gallery_images: galleryUrls,
+                        support_documents_urls: documentUrls,
+                        full_story: formData.story,
+                    })
+
+                if (detailsLegacyError) {
+                    setError(detailsLegacyError.message)
+                    return
+                }
             }
 
             setSuccess('Tu campaña fue enviada a revisión de seguridad. Este proceso toma entre 24 y 48 horas antes de activarse para donaciones.')

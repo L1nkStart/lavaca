@@ -281,7 +281,7 @@ export default async function CreatorCampaignsPage() {
                               </Button>
                               {campaign.status === 'active' && (
                                 <Button size="sm" variant="outline" asChild>
-                                  <Link href={`/campaigns/${campaign.slug}`} target="_blank">
+                                  <Link href={`/campaigns/${campaign.id}`} target="_blank">
                                     <ExternalLink className="h-4 w-4 mr-1" />
                                     Ver
                                   </Link>
