@@ -40,6 +40,8 @@ export default function AdminVerificationsPage() {
   const [verifications, setVerifications] = useState<VerificationRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [actionMessageType, setActionMessageType] = useState<'success' | 'error'>('success')
   const [rejectionReason, setRejectionReason] = useState("")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [processing, setProcessing] = useState(false)
@@ -143,10 +145,9 @@ export default function AdminVerificationsPage() {
   }
 
   const handleApprove = async (id: string) => {
-    if (!confirm('¿Estás seguro de aprobar esta verificación?')) return
-
     try {
       setProcessing(true)
+      setActionMessage(null)
       const response = await fetch(`/api/admin/verifications/${id}/decision`, {
         method: 'POST',
         headers: {
@@ -161,11 +162,13 @@ export default function AdminVerificationsPage() {
         throw new Error(result?.error || result?.details || 'No se pudo aprobar la verificación')
       }
 
-      alert('✅ Verificación aprobada exitosamente')
+      setActionMessageType('success')
+      setActionMessage('Verificación aprobada exitosamente.')
       fetchVerifications()
     } catch (err: any) {
       console.error('Error approving:', err)
-      alert('Error al aprobar: ' + err.message)
+      setActionMessageType('error')
+      setActionMessage('Error al aprobar: ' + err.message)
     } finally {
       setProcessing(false)
     }
@@ -173,16 +176,14 @@ export default function AdminVerificationsPage() {
 
   const handleReject = async (id: string) => {
     if (!rejectionReason.trim()) {
-      alert('Por favor ingresa una razón para el rechazo')
-      return
-    }
-
-    if (!confirm('⚠️ ATENCIÓN: Esto causará:\n- Suspensión permanente del usuario\n- Suspensión de todas sus campañas\n- Congelamiento de fondos\n\n¿Continuar?')) {
+      setActionMessageType('error')
+      setActionMessage('Debes ingresar una razón para el rechazo.')
       return
     }
 
     try {
       setProcessing(true)
+      setActionMessage(null)
       const response = await fetch(`/api/admin/verifications/${id}/decision`, {
         method: 'POST',
         headers: {
@@ -200,13 +201,15 @@ export default function AdminVerificationsPage() {
         throw new Error(result?.error || result?.details || 'No se pudo rechazar la verificación')
       }
 
-      alert('❌ Verificación rechazada. El sistema automáticamente:\n- Suspendió al usuario\n- Suspendió sus campañas\n- Congeló los fondos')
+      setActionMessageType('success')
+      setActionMessage('Verificación rechazada. El motivo fue guardado y el usuario podrá enviar una nueva solicitud.')
       setRejectionReason('')
       setSelectedId(null)
       fetchVerifications()
     } catch (err: any) {
       console.error('Error rejecting:', err)
-      alert('Error al rechazar: ' + err.message)
+      setActionMessageType('error')
+      setActionMessage('Error al rechazar: ' + err.message)
     } finally {
       setProcessing(false)
     }
@@ -276,6 +279,17 @@ export default function AdminVerificationsPage() {
         </div>
 
         <div className="p-8 space-y-4">
+          {actionMessage && (
+            <Alert variant={actionMessageType === 'error' ? 'destructive' : 'default'}>
+              {actionMessageType === 'error' ? (
+                <AlertCircle className="h-4 w-4" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4" />
+              )}
+              <AlertDescription>{actionMessage}</AlertDescription>
+            </Alert>
+          )}
+
           {verifications.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
@@ -509,12 +523,7 @@ export default function AdminVerificationsPage() {
                                 <Alert variant="destructive">
                                   <AlertCircle className="h-4 w-4" />
                                   <AlertDescription>
-                                    Al rechazar, el sistema automáticamente:
-                                    <ul className="list-disc list-inside mt-2 text-sm">
-                                      <li>Suspenderá al usuario permanentemente</li>
-                                      <li>Suspenderá todas sus campañas</li>
-                                      <li>Congelará todos los fondos</li>
-                                    </ul>
+                                    Esta acción marcará la verificación como rechazada y guardará el motivo para que el usuario pueda corregir y reenviar su solicitud.
                                   </AlertDescription>
                                 </Alert>
                                 <Textarea

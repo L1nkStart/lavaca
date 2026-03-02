@@ -51,6 +51,7 @@ export function KYCFormImproved() {
     const [error, setError] = useState<string | null>(null)
     const [checkingExistingRequest, setCheckingExistingRequest] = useState(true)
     const [existingRequestStatus, setExistingRequestStatus] = useState<string | null>(null)
+    const [rejectionReason, setRejectionReason] = useState<string | null>(null)
     const [accountEmail, setAccountEmail] = useState('')
     const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
 
@@ -93,7 +94,7 @@ export function KYCFormImproved() {
 
                 const { data: latestRequest } = await supabase
                     .from('verification_requests')
-                    .select('status, created_at')
+                    .select('status, rejection_reason, created_at')
                     .eq('user_id', user.id)
                     .order('created_at', { ascending: false })
                     .limit(1)
@@ -101,6 +102,11 @@ export function KYCFormImproved() {
 
                 if (latestRequest && ['pending', 'under_review'].includes(latestRequest.status)) {
                     setExistingRequestStatus(latestRequest.status)
+                }
+
+                if (latestRequest?.status === 'rejected') {
+                    setRejectionReason(latestRequest.rejection_reason || 'Tu solicitud fue rechazada. Revisa y corrige la información antes de reenviar.')
+                    setExistingRequestStatus(null)
                 }
             } catch (err: any) {
                 setError(err.message || 'No se pudo cargar la información de verificación')
@@ -307,6 +313,15 @@ export function KYCFormImproved() {
                     <AlertDescription>
                         Ya tienes una solicitud de verificación {existingRequestStatus === 'under_review' ? 'en revisión' : 'pendiente'}.
                         Debes esperar a que sea aprobada o rechazada para enviar una nueva.
+                    </AlertDescription>
+                </Alert>
+            )}
+
+            {rejectionReason && (
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                        <strong>Tu verificación fue rechazada.</strong> Motivo: {rejectionReason}
                     </AlertDescription>
                 </Alert>
             )}

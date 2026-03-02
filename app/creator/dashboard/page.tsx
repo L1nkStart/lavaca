@@ -134,6 +134,7 @@ export default async function CreatorDashboard() {
 
   const verificationStatus = profile?.kyc_status || 'pending'
   const profileVerified = verificationStatus === 'verified'
+  const canCreateCampaign = profileVerified
 
   const getCampaignDonorCount = (campaign: CampaignRow) => {
     return donorCountByCampaign.get(campaign.id) ?? campaign.donor_count ?? 0
@@ -157,8 +158,8 @@ export default async function CreatorDashboard() {
       case 'completed':
       case 'closed':
         return <Badge variant="secondary">Finalizada</Badge>
-      case 'suspended':
-        return <Badge variant="destructive">Suspendida</Badge>
+      case 'rejected':
+        return <Badge variant="destructive">Rechazada</Badge>
       default:
         return <Badge variant="outline">Borrador</Badge>
     }
@@ -188,12 +189,23 @@ export default async function CreatorDashboard() {
                   Revisa tus métricas, campañas y donaciones recientes.
                 </p>
               </div>
-              <Button asChild>
-                <Link href="/creator/campaigns/create">
+              {canCreateCampaign ? (
+                <Button asChild>
+                  <Link href="/creator/campaigns/create">
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Nueva campaña
+                  </Link>
+                </Button>
+              ) : (
+                <Button
+                  disabled
+                  variant="outline"
+                  className="text-muted-foreground border-muted-foreground/30"
+                >
                   <PlusCircle className="w-4 h-4 mr-2" />
                   Nueva campaña
-                </Link>
-              </Button>
+                </Button>
+              )}
             </div>
           </div>
         </div>

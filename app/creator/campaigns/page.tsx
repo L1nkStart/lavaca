@@ -27,7 +27,7 @@ interface Campaign {
   story: string
   goal_amount_usd: number
   current_amount_usd: number
-  status: 'draft' | 'under_review' | 'active' | 'suspended' | 'completed'
+  status: 'draft' | 'under_review' | 'pending_review' | 'active' | 'closed' | 'completed' | 'rejected'
   urgency_level: 'low' | 'medium' | 'high' | 'critical'
   main_image_url: string | null
   location: string | null
@@ -98,9 +98,11 @@ export default async function CreatorCampaignsPage() {
     switch (status) {
       case 'active': return 'default'
       case 'under_review': return 'secondary'
+      case 'pending_review': return 'secondary'
       case 'draft': return 'outline'
       case 'completed': return 'outline'
-      case 'suspended': return 'destructive'
+      case 'closed': return 'outline'
+      case 'rejected': return 'destructive'
       default: return 'outline'
     }
   }
@@ -109,9 +111,11 @@ export default async function CreatorCampaignsPage() {
     switch (status) {
       case 'active': return 'Activa'
       case 'under_review': return 'En Revisión'
+      case 'pending_review': return 'En Revisión'
       case 'draft': return 'Borrador'
       case 'completed': return 'Finalizada'
-      case 'suspended': return 'Suspendida'
+      case 'closed': return 'Cerrada'
+      case 'rejected': return 'Rechazada'
       default: return status
     }
   }
@@ -120,9 +124,11 @@ export default async function CreatorCampaignsPage() {
     switch (status) {
       case 'active': return <CheckCircle className="h-4 w-4" />
       case 'under_review': return <Clock className="h-4 w-4" />
+      case 'pending_review': return <Clock className="h-4 w-4" />
       case 'draft': return <Edit className="h-4 w-4" />
       case 'completed': return <XCircle className="h-4 w-4" />
-      case 'suspended': return <AlertCircle className="h-4 w-4" />
+      case 'closed': return <XCircle className="h-4 w-4" />
+      case 'rejected': return <AlertCircle className="h-4 w-4" />
       default: return null
     }
   }

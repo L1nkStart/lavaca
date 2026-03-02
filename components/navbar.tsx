@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils'
 export function Navbar() {
     const [user, setUser] = useState<any>(null)
     const [userRole, setUserRole] = useState<string | null>(null)
+    const [userKycStatus, setUserKycStatus] = useState<string | null>(null)
     const [authLoading, setAuthLoading] = useState(true)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const pathname = usePathname()
@@ -31,12 +32,13 @@ export function Navbar() {
         const loadUserRole = async (userId: string) => {
             const { data } = await supabase
                 .from('users')
-                .select('role')
+                .select('role, kyc_status')
                 .eq('id', userId)
                 .single()
 
             if (isMounted) {
                 setUserRole(data?.role || null)
+                setUserKycStatus(data?.kyc_status || null)
             }
         }
 
@@ -49,6 +51,7 @@ export function Navbar() {
                     await loadUserRole(user.id)
                 } else {
                     setUserRole(null)
+                    setUserKycStatus(null)
                 }
 
                 setAuthLoading(false)
@@ -66,6 +69,7 @@ export function Navbar() {
                         await loadUserRole(session.user.id)
                     } else {
                         setUserRole(null)
+                        setUserKycStatus(null)
                     }
 
                     setAuthLoading(false)
@@ -91,6 +95,8 @@ export function Navbar() {
     const creatorNavValue = creatorNavOptions.some((option) => option.value === pathname)
         ? pathname
         : undefined
+
+    const canCreateCampaign = userKycStatus === 'verified'
 
     return (
         <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -205,7 +211,12 @@ export function Navbar() {
                                 )}
 
                                 {/* Start Campaign Button */}
-                                <Button size="sm" asChild>
+                                <Button
+                                    size="sm"
+                                    variant={canCreateCampaign ? 'default' : 'outline'}
+                                    className={!canCreateCampaign ? 'text-muted-foreground border-muted-foreground/30' : undefined}
+                                    asChild
+                                >
                                     <Link href="/creator/campaigns/create">
                                         Crear campaña
                                     </Link>
