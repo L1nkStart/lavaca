@@ -1,91 +1,206 @@
-"use client";
-
+import { redirect } from 'next/navigation'
+import Link from "next/link";
+import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { CreatorSidebar } from "@/components/creator-sidebar";
-import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText } from 'lucide-react';
-import Link from "next/link";
+import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart } from 'lucide-react';
 
-// Mock data
-const DASHBOARD_STATS = {
-  totalRaised: 45300,
-  totalCampaigns: 3,
-  activeCampaigns: 1,
-  totalDonors: 1240,
-  profileVerified: true,
-  verificationStatus: "verified",
-};
+type CampaignRow = {
+  id: string
+  title: string
+  status: string
+  current_amount_usd: number
+  goal_amount_usd: number
+  donor_count: number | null
+  view_count: number | null
+  created_at: string
+  updated_at: string
+}
 
-const RECENT_CAMPAIGNS = [
-  {
-    id: "1",
-    title: "Cirugía urgente - Niño con malformación cardíaca",
-    status: "active",
-    raised: 12500,
-    goal: 15000,
-    donors: 487,
-    days_left: 45,
-    views: 2340,
-  },
-  {
-    id: "2",
-    title: "Campaña finalizada - Educación",
-    status: "closed",
-    raised: 32800,
-    goal: 30000,
-    donors: 753,
-    views: 5200,
-  },
-];
+type DonationAggregateRow = {
+  id: string
+  campaign_id: string
+  donor_id: string | null
+  email: string | null
+  is_anonymous: boolean
+}
 
-const RECENT_DONATIONS = [
-  {
-    id: "1",
-    amount: 500,
-    donor: "Ana García",
-    campaign: "Cirugía urgente...",
-    date: new Date("2025-11-12"),
-    method: "Tarjeta",
-  },
-  {
-    id: "2",
-    amount: 1000,
-    donor: "Anónimo",
-    campaign: "Cirugía urgente...",
-    date: new Date("2025-11-11"),
-    method: "PayPal",
-  },
-  {
-    id: "3",
-    amount: 250,
-    donor: "Carlos López",
-    campaign: "Cirugía urgente...",
-    date: new Date("2025-11-10"),
-    method: "PagoMóvil",
-  },
-];
+type ViewAggregateRow = {
+  campaign_id: string
+}
 
-export default function CreatorDashboard() {
+export default async function CreatorDashboard() {
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    redirect('/auth/login')
+  }
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('kyc_status')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const { data: allCampaignsRaw } = await supabase
+    .from('campaigns')
+    .select('id, title, status, current_amount_usd, goal_amount_usd, donor_count, view_count, created_at, updated_at')
+    .eq('creator_id', user.id)
+    .order('created_at', { ascending: false })
+
+  const allCampaigns = (allCampaignsRaw || []) as CampaignRow[]
+  const recentCampaigns = allCampaigns.slice(0, 5)
+
+  const campaignIds = allCampaigns.map(campaign => campaign.id)
+
+  const { data: donationAggregateRows } = campaignIds.length > 0
+    ? await supabase
+      .from('donations')
+      .select('id, campaign_id, donor_id, email, is_anonymous')
+      .in('campaign_id', campaignIds)
+      .eq('payment_status', 'completed')
+    : { data: [] as DonationAggregateRow[] }
+
+  const donorCountByCampaign = new Map<string, number>()
+  const donorIdentitiesByCampaign = new Map<string, Set<string>>()
+
+  for (const donation of (donationAggregateRows || []) as DonationAggregateRow[]) {
+    const campaignId = donation.campaign_id
+
+    if (donation.is_anonymous) {
+      donorCountByCampaign.set(campaignId, (donorCountByCampaign.get(campaignId) || 0) + 1)
+      continue
+    }
+
+    const identity = donation.donor_id || donation.email || donation.id
+
+    if (!donorIdentitiesByCampaign.has(campaignId)) {
+      donorIdentitiesByCampaign.set(campaignId, new Set<string>())
+    }
+
+    donorIdentitiesByCampaign.get(campaignId)!.add(identity)
+  }
+
+  for (const [campaignId, identities] of donorIdentitiesByCampaign.entries()) {
+    donorCountByCampaign.set(campaignId, (donorCountByCampaign.get(campaignId) || 0) + identities.size)
+  }
+
+  const { data: viewRows, error: viewRowsError } = campaignIds.length > 0
+    ? await supabase
+      .from('campaign_views')
+      .select('campaign_id')
+      .in('campaign_id', campaignIds)
+    : { data: [] as ViewAggregateRow[], error: null }
+
+  const viewCountByCampaign = new Map<string, number>()
+
+  if (!viewRowsError) {
+    for (const row of (viewRows || []) as ViewAggregateRow[]) {
+      viewCountByCampaign.set(row.campaign_id, (viewCountByCampaign.get(row.campaign_id) || 0) + 1)
+    }
+  }
+
+  const totalRaised = allCampaigns.reduce((sum, campaign) => sum + (campaign.current_amount_usd || 0), 0)
+  const totalCampaigns = allCampaigns.length
+  const activeCampaigns = allCampaigns.filter(campaign => campaign.status === 'active').length
+  const totalDonors = allCampaigns.reduce((sum, campaign) => {
+    const donorsFromDonations = donorCountByCampaign.get(campaign.id)
+    return sum + (donorsFromDonations ?? campaign.donor_count ?? 0)
+  }, 0)
+
+  const { data: recentDonations } = campaignIds.length > 0
+    ? await supabase
+      .from('donations')
+      .select(`
+          id,
+          amount_usd,
+          donor_name,
+          is_anonymous,
+          payment_method,
+          created_at,
+          campaigns (
+            title
+          )
+        `)
+      .in('campaign_id', campaignIds)
+      .eq('payment_status', 'completed')
+      .order('created_at', { ascending: false })
+      .limit(8)
+    : { data: [] as any[] }
+
+  const verificationStatus = profile?.kyc_status || 'pending'
+  const profileVerified = verificationStatus === 'verified'
+
+  const getCampaignDonorCount = (campaign: CampaignRow) => {
+    return donorCountByCampaign.get(campaign.id) ?? campaign.donor_count ?? 0
+  }
+
+  const getCampaignViewCount = (campaign: CampaignRow) => {
+    if (!viewRowsError) {
+      return viewCountByCampaign.get(campaign.id) ?? 0
+    }
+
+    return campaign.view_count ?? 0
+  }
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'active':
+        return <Badge>En recaudación</Badge>
+      case 'under_review':
+      case 'pending_review':
+        return <Badge variant="secondary">En revisión</Badge>
+      case 'completed':
+      case 'closed':
+        return <Badge variant="secondary">Finalizada</Badge>
+      case 'suspended':
+        return <Badge variant="destructive">Suspendida</Badge>
+      default:
+        return <Badge variant="outline">Borrador</Badge>
+    }
+  }
+
+  const formatPaymentMethod = (paymentMethod: string) => {
+    switch (paymentMethod) {
+      case 'card': return 'Tarjeta'
+      case 'paypal': return 'PayPal'
+      case 'pagomovil': return 'PagoMóvil'
+      case 'zelle': return 'Zelle'
+      case 'transfer': return 'Transferencia'
+      case 'crypto': return 'Cripto'
+      default: return paymentMethod
+    }
+  }
+
   return (
-    <div className="flex min-h-screen bg-background">
-      <CreatorSidebar />
-
-      <main className="flex-1 overflow-auto">
-        {/* Header */}
-        <div className="border-b border-border bg-card sticky top-0 z-40">
-          <div className="px-8 py-6">
-            <h1 className="text-3xl font-bold">Panel de Control</h1>
-            <p className="text-muted-foreground mt-1">
-              Bienvenido de nuevo. Aquí puedes ver tus campañas y estadísticas.
-            </p>
+    <div className="min-h-screen bg-muted/30">
+      <main>
+        <div className="bg-gradient-to-br from-primary/10 to-accent/10 border-b">
+          <div className="max-w-7xl mx-auto px-4 py-8">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold">Panel de Control</h1>
+                <p className="text-muted-foreground mt-1">
+                  Revisa tus métricas, campañas y donaciones recientes.
+                </p>
+              </div>
+              <Button asChild>
+                <Link href="/creator/campaigns/create">
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  Nueva campaña
+                </Link>
+              </Button>
+            </div>
           </div>
         </div>
 
-        <div className="p-8 space-y-8">
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
           {/* Status Cards */}
-          {!DASHBOARD_STATS.profileVerified && (
+          {!profileVerified && (
             <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
               <CardContent className="pt-6 flex items-start gap-4">
                 <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
@@ -97,7 +212,7 @@ export default function CreatorDashboard() {
                     Completa tu perfil y verifica tu identidad para crear campañas.
                   </p>
                   <Button size="sm" className="mt-3" asChild>
-                    <Link href="/creator/profile">Completar ahora</Link>
+                    <Link href="/profile">Completar ahora</Link>
                   </Button>
                 </div>
               </CardContent>
@@ -105,62 +220,59 @@ export default function CreatorDashboard() {
           )}
 
           {/* Stats Grid */}
-          <div className="grid md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <DollarSign className="w-4 h-4" />
-                  Total Recaudado
-                </CardTitle>
-              </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">${DASHBOARD_STATS.totalRaised.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground mt-1">En todas las campañas</p>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total recaudado</p>
+                    <p className="text-2xl font-bold">${totalRaised.toFixed(2)}</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-primary" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Mis Campañas
-                </CardTitle>
-              </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{DASHBOARD_STATS.totalCampaigns}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {DASHBOARD_STATS.activeCampaigns} activa
-                </p>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Mis campañas</p>
+                    <p className="text-2xl font-bold">{totalCampaigns}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {activeCampaigns} activa{activeCampaigns === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <FileText className="h-8 w-8 text-blue-500" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Users className="w-4 h-4" />
-                  Donantes
-                </CardTitle>
-              </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold">{DASHBOARD_STATS.totalDonors}</p>
-                <p className="text-xs text-muted-foreground mt-1">Personas que donaron</p>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Donantes</p>
+                    <p className="text-2xl font-bold">{totalDonors}</p>
+                  </div>
+                  <Heart className="h-8 w-8 text-green-500" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
-                  Verificación
-                </CardTitle>
-              </CardHeader>
               <CardContent>
-                <Badge className="bg-primary">
-                  {DASHBOARD_STATS.verificationStatus === "verified"
-                    ? "Verificado"
-                    : "Pendiente"}
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-2">Tu perfil</p>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Verificación</p>
+                    <Badge className="bg-primary mt-1">
+                      {verificationStatus === "verified"
+                        ? "Verificado"
+                        : "Pendiente"}
+                    </Badge>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-purple-500" />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -169,7 +281,7 @@ export default function CreatorDashboard() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold">Mis Campañas</h2>
-              <Button size="sm" className="bg-primary" asChild>
+              <Button size="sm" variant="outline" asChild>
                 <Link href="/creator/campaigns/create">
                   <PlusCircle className="w-4 h-4 mr-2" />
                   Nueva campaña
@@ -178,7 +290,13 @@ export default function CreatorDashboard() {
             </div>
 
             <div className="grid gap-4">
-              {RECENT_CAMPAIGNS.map((campaign) => (
+              {recentCampaigns.length === 0 ? (
+                <Card>
+                  <CardContent className="py-10 text-center text-muted-foreground">
+                    Aún no tienes campañas creadas.
+                  </CardContent>
+                </Card>
+              ) : recentCampaigns.map((campaign) => (
                 <Card key={campaign.id}>
                   <CardContent className="pt-6">
                     <div className="flex items-start justify-between mb-4">
@@ -187,23 +305,17 @@ export default function CreatorDashboard() {
                           {campaign.title}
                         </h3>
                         <div className="flex items-center gap-2 mt-2">
-                          <Badge
-                            variant={campaign.status === "active" ? "default" : "secondary"}
-                          >
-                            {campaign.status === "active"
-                              ? "En recaudación"
-                              : "Finalizada"}
-                          </Badge>
+                          {getStatusBadge(campaign.status)}
                           {campaign.status === "active" && (
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Clock className="w-3 h-3" />
-                              {campaign.days_left} días
+                              Activa
                             </span>
                           )}
                         </div>
                       </div>
                       <Button variant="outline" size="sm" asChild>
-                        <Link href={`/creator/campaigns/${campaign.id}`}>
+                        <Link href={`/creator/campaigns/${campaign.id}/edit`}>
                           Editar
                         </Link>
                       </Button>
@@ -214,14 +326,14 @@ export default function CreatorDashboard() {
                       <div>
                         <div className="flex justify-between text-sm mb-2">
                           <span className="font-semibold text-primary">
-                            ${campaign.raised.toFixed(2)}
+                            ${campaign.current_amount_usd.toFixed(2)}
                           </span>
                           <span className="text-muted-foreground">
-                            de ${campaign.goal.toFixed(2)}
+                            de ${campaign.goal_amount_usd.toFixed(2)}
                           </span>
                         </div>
                         <Progress
-                          value={(campaign.raised / campaign.goal) * 100}
+                          value={campaign.goal_amount_usd > 0 ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100 : 0}
                           className="h-2"
                         />
                       </div>
@@ -230,19 +342,21 @@ export default function CreatorDashboard() {
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground text-xs">Donantes</p>
-                          <p className="font-semibold">{campaign.donors}</p>
+                          <p className="font-semibold">{getCampaignDonorCount(campaign)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground text-xs">Vistas</p>
                           <p className="font-semibold flex items-center gap-1">
                             <Eye className="w-4 h-4" />
-                            {campaign.views}
+                            {getCampaignViewCount(campaign)}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground text-xs">Progreso</p>
                           <p className="font-semibold">
-                            {Math.round((campaign.raised / campaign.goal) * 100)}%
+                            {campaign.goal_amount_usd > 0
+                              ? `${Math.round((campaign.current_amount_usd / campaign.goal_amount_usd) * 100)}%`
+                              : '0%'}
                           </p>
                         </div>
                       </div>
@@ -258,29 +372,36 @@ export default function CreatorDashboard() {
             <h2 className="text-xl font-bold mb-4">Donaciones Recientes</h2>
 
             <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Últimos aportes recibidos</CardTitle>
+              </CardHeader>
               <CardContent className="pt-6">
                 <div className="space-y-4">
-                  {RECENT_DONATIONS.map((donation) => (
+                  {(recentDonations || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      Aún no tienes donaciones completadas.
+                    </p>
+                  ) : (recentDonations || []).map((donation: any) => (
                     <div
                       key={donation.id}
                       className="flex items-center justify-between py-3 border-b border-border last:border-0"
                     >
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{donation.donor}</p>
+                        <p className="font-medium text-sm">{donation.is_anonymous ? 'Anónimo' : (donation.donor_name || 'Donante')}</p>
                         <p className="text-xs text-muted-foreground">
-                          {donation.campaign}
+                          {donation.campaigns?.title || 'Campaña'}
                         </p>
                       </div>
                       <div className="text-right">
                         <p className="font-semibold text-primary">
-                          ${donation.amount.toFixed(2)}
+                          ${Number(donation.amount_usd || 0).toFixed(2)}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {donation.date.toLocaleDateString("es-VE", {
+                          {new Date(donation.created_at).toLocaleDateString("es-VE", {
                             month: "short",
                             day: "numeric",
                           })}{" "}
-                          • {donation.method}
+                          • {formatPaymentMethod(donation.payment_method)}
                         </p>
                       </div>
                     </div>

@@ -2,11 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { NotificationsDropdown } from '@/components/notifications-dropdown'
 import { createClient } from '@/lib/supabase/client'
-import { Heart, Menu, X, Search, User, Loader2, FolderKanban } from 'lucide-react'
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select'
+import { Heart, Menu, X, Search, User, Loader2, FolderKanban, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Navbar() {
@@ -15,6 +22,7 @@ export function Navbar() {
     const [authLoading, setAuthLoading] = useState(true)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const pathname = usePathname()
+    const router = useRouter()
     const supabase = createClient()
 
     useEffect(() => {
@@ -74,6 +82,15 @@ export function Navbar() {
     }, [])
 
     const isActive = (path: string) => pathname === path
+
+    const creatorNavOptions = [
+        { value: '/creator/dashboard', label: 'Panel principal' },
+        { value: '/creator/campaigns', label: 'Mis campañas' },
+    ]
+
+    const creatorNavValue = creatorNavOptions.some((option) => option.value === pathname)
+        ? pathname
+        : undefined
 
     return (
         <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -146,17 +163,31 @@ export function Navbar() {
                                 </Button>
 
                                 {userRole === 'creator' && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="hidden md:flex"
-                                        asChild
-                                    >
-                                        <Link href="/creator/campaigns">
-                                            <FolderKanban className="h-4 w-4 mr-2" />
-                                            Mis campañas
-                                        </Link>
-                                    </Button>
+                                    <>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="hidden md:flex"
+                                            asChild
+                                        >
+                                            <Link href="/creator/dashboard">
+                                                <LayoutDashboard className="h-4 w-4 mr-2" />
+                                                Panel principal
+                                            </Link>
+                                        </Button>
+
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="hidden md:flex"
+                                            asChild
+                                        >
+                                            <Link href="/creator/campaigns">
+                                                <FolderKanban className="h-4 w-4 mr-2" />
+                                                Mis campañas
+                                            </Link>
+                                        </Button>
+                                    </>
                                 )}
 
                                 {/* Start Campaign Button */}
@@ -222,13 +253,26 @@ export function Navbar() {
                             </Link>
                         )}
                         {!authLoading && user && userRole === 'creator' && (
-                            <Link
-                                href="/creator/campaigns"
-                                className="block px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
-                                onClick={() => setMobileMenuOpen(false)}
-                            >
-                                Mis campañas
-                            </Link>
+                            <div className="px-3 py-2">
+                                <Select
+                                    value={creatorNavValue}
+                                    onValueChange={(value) => {
+                                        setMobileMenuOpen(false)
+                                        router.push(value)
+                                    }}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Navegación creador" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {creatorNavOptions.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         )}
                     </div>
                 )}

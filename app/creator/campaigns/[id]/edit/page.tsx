@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { EditCampaignForm } from '@/components/edit-campaign-form'
 import { FilePenLine } from 'lucide-react'
 
@@ -60,14 +62,20 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
         <div className="min-h-screen bg-background p-4">
             <div className="max-w-4xl mx-auto space-y-6">
                 <div className="space-y-2">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                            <FilePenLine className="h-5 w-5 text-primary-foreground" />
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                                <FilePenLine className="h-5 w-5 text-primary-foreground" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold">Editar campaña</h1>
+                                <p className="text-muted-foreground">Gestiona tu historia, documentos y actualizaciones.</p>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-2xl font-bold">Editar campaña</h1>
-                            <p className="text-muted-foreground">Gestiona tu historia, documentos y actualizaciones.</p>
-                        </div>
+
+                        <Button variant="outline" asChild>
+                            <Link href="/creator/campaigns">Finalizar</Link>
+                        </Button>
                     </div>
                 </div>
 

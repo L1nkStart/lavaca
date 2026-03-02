@@ -612,7 +612,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                             />
                         </div>
 
-                        <div className="space-y-2">
+                        {/* <div className="space-y-2">
                             <Label htmlFor="update-image">Imagen (opcional)</Label>
                             <Input
                                 id="update-image"
@@ -621,7 +621,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                                 onChange={(e) => setUpdateImage(e.target.files?.[0] || null)}
                                 disabled={publishingUpdate}
                             />
-                        </div>
+                        </div> */}
 
                         <Button type="submit" disabled={publishingUpdate}>
                             {publishingUpdate ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlusCircle className="h-4 w-4 mr-2" />}

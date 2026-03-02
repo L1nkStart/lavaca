@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { CreatorSidebar } from '@/components/creator-sidebar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -139,67 +138,75 @@ export default async function CreatorCampaignsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <CreatorSidebar />
-
-      <main className="flex-1 p-6 overflow-auto">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-muted/30">
+      <main>
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">Mis Campañas</h1>
-              <p className="text-muted-foreground">
-                Gestiona y monitorea tus campañas de recaudación
-              </p>
-            </div>
+          <div className="bg-gradient-to-br from-primary/10 to-accent/10 border rounded-xl p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold">Mis Campañas</h1>
+                <p className="text-muted-foreground">
+                  Gestiona y monitorea tus campañas de recaudación
+                </p>
+              </div>
 
-            <Button asChild size="lg">
-              <Link href="/creator/campaigns/create">
-                <PlusCircle className="mr-2 h-5 w-5" />
-                Nueva Campaña
-              </Link>
-            </Button>
+              <Button asChild size="lg">
+                <Link href="/creator/campaigns/create">
+                  <PlusCircle className="mr-2 h-5 w-5" />
+                  Nueva Campaña
+                </Link>
+              </Button>
+            </div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Campañas</CardTitle>
-                <Heart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.total}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total campañas</p>
+                    <p className="text-2xl font-bold">{stats.total}</p>
+                  </div>
+                  <Heart className="h-8 w-8 text-primary" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Activas</CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Activas</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+                  </div>
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">En Revisión</CardTitle>
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">En revisión</p>
+                    <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-yellow-500" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Recaudado</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${stats.totalRaised.toFixed(2)}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total recaudado</p>
+                    <p className="text-2xl font-bold">${stats.totalRaised.toFixed(2)}</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-blue-500" />
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -213,11 +220,11 @@ export default async function CreatorCampaignsPage() {
                   : 0
 
                 return (
-                  <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow bg-card">
                     <CardContent className="p-0">
-                      <div className="flex gap-6">
+                      <div className="flex flex-col md:flex-row md:gap-6">
                         {/* Image */}
-                        <div className="relative w-48 h-48 bg-muted flex-shrink-0">
+                        <div className="relative w-full h-48 md:w-48 md:h-48 bg-muted flex-shrink-0">
                           {campaign.main_image_url ? (
                             <img
                               src={campaign.main_image_url}
@@ -232,10 +239,10 @@ export default async function CreatorCampaignsPage() {
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 py-6 pr-6">
-                          <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1 px-4 py-4 md:py-6 md:pr-6 md:pl-0">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                                 <h3 className="font-bold text-xl line-clamp-2 flex-1">
                                   {campaign.title}
                                 </h3>
@@ -247,7 +254,7 @@ export default async function CreatorCampaignsPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-4 mb-3">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3">
                                 <Badge variant={getStatusVariant(campaign.status)} className="flex items-center gap-1">
                                   {getStatusIcon(campaign.status)}
                                   {getStatusText(campaign.status)}
@@ -272,15 +279,15 @@ export default async function CreatorCampaignsPage() {
                               </p>
                             </div>
 
-                            <div className="flex gap-2 ml-4">
-                              <Button size="sm" variant="outline" asChild>
+                            <div className="flex w-full md:w-auto gap-2 md:ml-4">
+                              <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
                                 <Link href={`/creator/campaigns/${campaign.id}/edit`}>
                                   <Edit className="h-4 w-4 mr-1" />
                                   Editar
                                 </Link>
                               </Button>
                               {campaign.status === 'active' && (
-                                <Button size="sm" variant="outline" asChild>
+                                <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
                                   <Link href={`/campaigns/${campaign.id}`} target="_blank">
                                     <ExternalLink className="h-4 w-4 mr-1" />
                                     Ver
@@ -293,7 +300,7 @@ export default async function CreatorCampaignsPage() {
                           {/* Progress and Stats */}
                           <div className="space-y-4">
                             <div>
-                              <div className="flex justify-between text-sm mb-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm mb-2">
                                 <span className="font-medium">
                                   ${campaign.current_amount_usd.toFixed(2)} recaudados
                                 </span>
@@ -307,7 +314,7 @@ export default async function CreatorCampaignsPage() {
                               </div>
                             </div>
 
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm text-muted-foreground">
                               <span>
                                 Creada el {new Date(campaign.created_at).toLocaleDateString('es-VE')}
                               </span>
