@@ -147,18 +147,19 @@ export default function AdminVerificationsPage() {
 
     try {
       setProcessing(true)
-      const { data: { user } } = await supabase.auth.getUser()
+      const response = await fetch(`/api/admin/verifications/${id}/decision`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ decision: 'approved' }),
+      })
 
-      const { error: updateError } = await supabase
-        .from('verification_requests')
-        .update({
-          status: 'approved',
-          reviewed_by: user?.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', id)
+      const result = await response.json()
 
-      if (updateError) throw updateError
+      if (!response.ok) {
+        throw new Error(result?.error || result?.details || 'No se pudo aprobar la verificación')
+      }
 
       alert('✅ Verificación aprobada exitosamente')
       fetchVerifications()
@@ -182,19 +183,22 @@ export default function AdminVerificationsPage() {
 
     try {
       setProcessing(true)
-      const { data: { user } } = await supabase.auth.getUser()
+      const response = await fetch(`/api/admin/verifications/${id}/decision`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          decision: 'rejected',
+          rejectionReason,
+        }),
+      })
 
-      const { error: updateError } = await supabase
-        .from('verification_requests')
-        .update({
-          status: 'rejected',
-          rejection_reason: rejectionReason,
-          reviewed_by: user?.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', id)
+      const result = await response.json()
 
-      if (updateError) throw updateError
+      if (!response.ok) {
+        throw new Error(result?.error || result?.details || 'No se pudo rechazar la verificación')
+      }
 
       alert('❌ Verificación rechazada. El sistema automáticamente:\n- Suspendió al usuario\n- Suspendió sus campañas\n- Congeló los fondos')
       setRejectionReason('')

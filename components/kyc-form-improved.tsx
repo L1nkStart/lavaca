@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,8 +8,38 @@ import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Loader2, Upload, FileText, AlertCircle, Shield, CheckCircle2 } from 'lucide-react'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Loader2, Upload, FileText, AlertCircle, Shield, CheckCircle2, Check, ChevronsUpDown } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
+
+const VENEZUELA_STATES = [
+    'Amazonas',
+    'Anzoátegui',
+    'Apure',
+    'Aragua',
+    'Barinas',
+    'Bolívar',
+    'Carabobo',
+    'Cojedes',
+    'Delta Amacuro',
+    'Distrito Capital',
+    'Falcón',
+    'Guárico',
+    'Lara',
+    'La Guaira',
+    'Mérida',
+    'Miranda',
+    'Monagas',
+    'Nueva Esparta',
+    'Portuguesa',
+    'Sucre',
+    'Táchira',
+    'Trujillo',
+    'Yaracuy',
+    'Zulia',
+]
 
 export function KYCFormImproved() {
     const router = useRouter()
@@ -19,6 +49,10 @@ export function KYCFormImproved() {
     const [verificationType, setVerificationType] = useState<'individual' | 'company'>('individual')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [checkingExistingRequest, setCheckingExistingRequest] = useState(true)
+    const [existingRequestStatus, setExistingRequestStatus] = useState<string | null>(null)
+    const [accountEmail, setAccountEmail] = useState('')
+    const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
 
     // Personal data
     const [fullName, setFullName] = useState('')
@@ -43,6 +77,42 @@ export function KYCFormImproved() {
     const [selfie, setSelfie] = useState<File | null>(null)
     const [proofOfAddress, setProofOfAddress] = useState<File | null>(null)
     const [companyRegistration, setCompanyRegistration] = useState<File | null>(null)
+
+    useEffect(() => {
+        const loadInitialKycContext = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+
+                if (!user) {
+                    setError('No autenticado')
+                    return
+                }
+
+                setAccountEmail(user.email || '')
+                setEmail(user.email || '')
+
+                const { data: latestRequest } = await supabase
+                    .from('verification_requests')
+                    .select('status, created_at')
+                    .eq('user_id', user.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+
+                if (latestRequest && ['pending', 'under_review'].includes(latestRequest.status)) {
+                    setExistingRequestStatus(latestRequest.status)
+                }
+            } catch (err: any) {
+                setError(err.message || 'No se pudo cargar la información de verificación')
+            } finally {
+                setCheckingExistingRequest(false)
+            }
+        }
+
+        loadInitialKycContext()
+    }, [supabase])
+
+    const isSubmissionBlocked = checkingExistingRequest || !!existingRequestStatus
 
     const handleFileChange = (setter: (file: File | null) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -117,6 +187,10 @@ export function KYCFormImproved() {
         setError(null)
 
         try {
+            if (existingRequestStatus) {
+                throw new Error('Ya tienes una solicitud de verificación en revisión. Debes esperar a que sea aprobada o rechazada.')
+            }
+
             // Validate
             if (!fullName || !documentNumber || !phone || !email || !address) {
                 throw new Error('Por favor completa todos los campos requeridos')
@@ -191,7 +265,6 @@ export function KYCFormImproved() {
                 .update({ kyc_status: 'pending' })
                 .eq('id', user.id)
 
-            alert('✅ Solicitud enviada exitosamente!\n\nPuedes crear campañas mientras revisamos tu verificación.')
             router.push('/creator/campaigns/create')
             router.refresh()
 
@@ -216,10 +289,27 @@ export function KYCFormImproved() {
             <Alert className="bg-blue-50 border-blue-200">
                 <Shield className="h-4 w-4 text-blue-600" />
                 <AlertDescription className="text-blue-800">
-                    <strong>Importante:</strong> Podrás crear campañas mientras revisamos tu solicitud.
+                    <strong>Importante:</strong> No podrás crear campañas mientras revisamos tu solicitud.
                     La verificación toma 24-48 horas.
                 </AlertDescription>
             </Alert>
+
+            {checkingExistingRequest && (
+                <Alert>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <AlertDescription>Verificando estado de solicitudes previas...</AlertDescription>
+                </Alert>
+            )}
+
+            {existingRequestStatus && (
+                <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                        Ya tienes una solicitud de verificación {existingRequestStatus === 'under_review' ? 'en revisión' : 'pendiente'}.
+                        Debes esperar a que sea aprobada o rechazada para enviar una nueva.
+                    </AlertDescription>
+                </Alert>
+            )}
 
             {/* Verification Type */}
             <Card>
@@ -302,6 +392,7 @@ export function KYCFormImproved() {
                             onChange={(e) => setFullName(e.target.value)}
                             placeholder="Juan Pérez"
                             required
+                            disabled={loading || isSubmissionBlocked}
                         />
                     </div>
 
@@ -313,6 +404,7 @@ export function KYCFormImproved() {
                                 value={documentType}
                                 onChange={(e) => setDocumentType(e.target.value as any)}
                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2"
+                                disabled={loading || isSubmissionBlocked}
                             >
                                 <option value="cedula">Cédula</option>
                                 <option value="rif">RIF</option>
@@ -327,6 +419,7 @@ export function KYCFormImproved() {
                                 onChange={(e) => setDocumentNumber(e.target.value)}
                                 placeholder="V-12345678"
                                 required
+                                disabled={loading || isSubmissionBlocked}
                             />
                         </div>
                     </div>
@@ -339,6 +432,7 @@ export function KYCFormImproved() {
                                 type="date"
                                 value={birthDate}
                                 onChange={(e) => setBirthDate(e.target.value)}
+                                disabled={loading || isSubmissionBlocked}
                             />
                         </div>
                         <div>
@@ -347,6 +441,7 @@ export function KYCFormImproved() {
                                 id="nationality"
                                 value={nationality}
                                 onChange={(e) => setNationality(e.target.value)}
+                                disabled={loading || isSubmissionBlocked}
                             />
                         </div>
                     </div>
@@ -369,6 +464,7 @@ export function KYCFormImproved() {
                                 onChange={(e) => setPhone(e.target.value)}
                                 placeholder="+58 424-1234567"
                                 required
+                                disabled={loading || isSubmissionBlocked}
                             />
                         </div>
                         <div>
@@ -376,11 +472,15 @@ export function KYCFormImproved() {
                             <Input
                                 id="email"
                                 type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                value={accountEmail || email}
                                 placeholder="tu@email.com"
                                 required
+                                readOnly
+                                disabled
                             />
+                            <p className="text-xs text-muted-foreground">
+                                Este correo está vinculado a tu cuenta y no puede modificarse.
+                            </p>
                         </div>
                     </div>
 
@@ -392,6 +492,7 @@ export function KYCFormImproved() {
                             onChange={(e) => setAddress(e.target.value)}
                             placeholder="Av. Principal #123, Edificio XYZ"
                             required
+                            disabled={loading || isSubmissionBlocked}
                         />
                     </div>
 
@@ -403,16 +504,54 @@ export function KYCFormImproved() {
                                 value={city}
                                 onChange={(e) => setCity(e.target.value)}
                                 placeholder="Caracas"
+                                disabled={loading || isSubmissionBlocked}
                             />
                         </div>
                         <div>
                             <Label htmlFor="state">Estado</Label>
-                            <Input
-                                id="state"
-                                value={state}
-                                onChange={(e) => setState(e.target.value)}
-                                placeholder="Distrito Capital"
-                            />
+                            <Popover open={stateDropdownOpen} onOpenChange={setStateDropdownOpen}>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        role="combobox"
+                                        aria-expanded={stateDropdownOpen}
+                                        className="w-full justify-between"
+                                        disabled={loading || isSubmissionBlocked}
+                                    >
+                                        {state || 'Selecciona un estado'}
+                                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                                    <Command>
+                                        <CommandInput placeholder="Buscar estado..." />
+                                        <CommandList>
+                                            <CommandEmpty>No se encontró el estado.</CommandEmpty>
+                                            <CommandGroup>
+                                                {VENEZUELA_STATES.map((stateName) => (
+                                                    <CommandItem
+                                                        key={stateName}
+                                                        value={stateName}
+                                                        onSelect={(selected) => {
+                                                            setState(selected)
+                                                            setStateDropdownOpen(false)
+                                                        }}
+                                                    >
+                                                        <Check
+                                                            className={cn(
+                                                                'mr-2 h-4 w-4',
+                                                                state === stateName ? 'opacity-100' : 'opacity-0'
+                                                            )}
+                                                        />
+                                                        {stateName}
+                                                    </CommandItem>
+                                                ))}
+                                            </CommandGroup>
+                                        </CommandList>
+                                    </Command>
+                                </PopoverContent>
+                            </Popover>
                         </div>
                     </div>
                 </CardContent>
@@ -432,6 +571,7 @@ export function KYCFormImproved() {
                             accept=".jpg,.jpeg,.png,.pdf"
                             onChange={handleFileChange(setDocumentFront)}
                             required
+                            disabled={loading || isSubmissionBlocked}
                         />
                         {documentFront && (
                             <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
@@ -447,6 +587,7 @@ export function KYCFormImproved() {
                             type="file"
                             accept=".jpg,.jpeg,.png,.pdf"
                             onChange={handleFileChange(setDocumentBack)}
+                            disabled={loading || isSubmissionBlocked}
                         />
                         {documentBack && (
                             <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
@@ -463,6 +604,7 @@ export function KYCFormImproved() {
                             accept=".jpg,.jpeg,.png"
                             onChange={handleFileChange(setSelfie)}
                             required
+                            disabled={loading || isSubmissionBlocked}
                         />
                         {selfie && (
                             <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
@@ -478,6 +620,7 @@ export function KYCFormImproved() {
                             type="file"
                             accept=".jpg,.jpeg,.png,.pdf"
                             onChange={handleFileChange(setProofOfAddress)}
+                            disabled={loading || isSubmissionBlocked}
                         />
                         {proofOfAddress && (
                             <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
@@ -495,6 +638,7 @@ export function KYCFormImproved() {
                                 accept=".jpg,.jpeg,.png,.pdf"
                                 onChange={handleFileChange(setCompanyRegistration)}
                                 required
+                                disabled={loading || isSubmissionBlocked}
                             />
                             {companyRegistration && (
                                 <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
@@ -525,7 +669,7 @@ export function KYCFormImproved() {
                 type="submit"
                 size="lg"
                 className="w-full"
-                disabled={loading}
+                disabled={loading || isSubmissionBlocked}
             >
                 {loading ? (
                     <>
