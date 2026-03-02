@@ -113,8 +113,8 @@ export function AdminSidebar() {
               <Link key={item.href} href={item.href}>
                 <div
                   className={`flex items-center justify-between px-4 py-2 rounded-lg transition-colors ${isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-foreground hover:bg-muted"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-foreground hover:bg-muted"
                     }`}
                 >
                   <div className="flex items-center gap-3">
@@ -124,8 +124,8 @@ export function AdminSidebar() {
                   {showBadge && (
                     <span
                       className={`text-xs font-bold px-2 py-1 rounded-full min-w-[24px] text-center ${isActive
-                          ? "bg-primary-foreground text-primary"
-                          : "bg-accent text-accent-foreground"
+                        ? "bg-primary-foreground text-primary"
+                        : "bg-accent text-accent-foreground"
                         }`}
                     >
                       {item.badge}
@@ -138,14 +138,14 @@ export function AdminSidebar() {
         </nav>
 
         {/* Logout */}
-        <div className="p-6 border-t border-border">
+        {/* <div className="p-6 border-t border-border">
           <Button size="sm" variant="outline" className="w-full" asChild>
             <Link href="/auth/logout">
               <LogOut className="w-4 h-4 mr-2" />
               Salir
             </Link>
           </Button>
-        </div>
+        </div> */}
       </div>
     </aside>
   )

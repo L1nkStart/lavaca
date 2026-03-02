@@ -70,20 +70,45 @@ export function KYCFormImproved() {
         if (!user) throw new Error('No autenticado')
 
         const fileExt = file.name.split('.').pop()
-        const fileName = `${user.id}/${folder}_${Date.now()}.${fileExt}`
-        const filePath = fileName
+        const uniqueSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-        const { error: uploadError } = await supabase.storage
-            .from('verification-documents')
-            .upload(filePath, file)
+        // Compatibility matrix across environments:
+        // - Some environments use `kyc-documents` bucket with path `kyc-documents/<uid>_...`
+        // - Others use `verification-documents` bucket with path `<uid>/...`
+        const uploadCandidates = [
+            {
+                bucket: 'kyc-documents',
+                path: `kyc-documents/${user.id}_${folder}_${uniqueSuffix}.${fileExt}`
+            },
+            {
+                bucket: 'kyc-documents',
+                path: `${user.id}/${folder}_${uniqueSuffix}.${fileExt}`
+            },
+            {
+                bucket: 'verification-documents',
+                path: `${user.id}/${folder}_${uniqueSuffix}.${fileExt}`
+            },
+        ]
 
-        if (uploadError) throw uploadError
+        const uploadErrors: string[] = []
 
-        const { data: { publicUrl } } = supabase.storage
-            .from('verification-documents')
-            .getPublicUrl(filePath)
+        for (const candidate of uploadCandidates) {
+            const { error: uploadError } = await supabase.storage
+                .from(candidate.bucket)
+                .upload(candidate.path, file)
 
-        return publicUrl
+            if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage
+                    .from(candidate.bucket)
+                    .getPublicUrl(candidate.path)
+
+                return publicUrl
+            }
+
+            uploadErrors.push(`${candidate.bucket}/${candidate.path} -> ${uploadError.message}`)
+        }
+
+        throw new Error(`No se pudo subir el documento por políticas de acceso. Detalle: ${uploadErrors[uploadErrors.length - 1]}`)
     }
 
     const handleSubmit = async (e: React.FormEvent) => {

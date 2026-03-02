@@ -243,7 +243,7 @@ export default async function ProfilePage({
                         <Info className="h-4 w-4" />
                         <AlertDescription>
                             Necesitas verificar tu identidad para acceder a esta función.
-                            Por favor completa tu KYC en la pestaña "Verificación".
+                            Ve a la pestaña "Verificación", completa el formulario de Identidad (KYC) y envía tus documentos.
                         </AlertDescription>
                     </Alert>
                 )}

@@ -190,6 +190,20 @@ export function Navbar() {
                                     </>
                                 )}
 
+                                {userRole === 'admin' && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="hidden md:flex"
+                                        asChild
+                                    >
+                                        <Link href="/admin/dashboard">
+                                            <LayoutDashboard className="h-4 w-4 mr-2" />
+                                            Admin
+                                        </Link>
+                                    </Button>
+                                )}
+
                                 {/* Start Campaign Button */}
                                 <Button size="sm" asChild>
                                     <Link href="/creator/campaigns/create">
@@ -273,6 +287,15 @@ export function Navbar() {
                                     </SelectContent>
                                 </Select>
                             </div>
+                        )}
+                        {!authLoading && user && userRole === 'admin' && (
+                            <Link
+                                href="/admin/dashboard"
+                                className="block px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                Dashboard admin
+                            </Link>
                         )}
                     </div>
                 )}

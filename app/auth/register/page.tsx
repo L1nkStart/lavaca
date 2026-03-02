@@ -83,6 +83,7 @@ function RegisterForm() {
                 email: formData.email,
                 password: formData.password,
                 options: {
+                    emailRedirectTo: `${window.location.origin}/auth/verify?redirect_to=${encodeURIComponent(redirectTo)}`,
                     data: {
                         full_name: formData.fullName,
                     },
@@ -95,22 +96,21 @@ function RegisterForm() {
             }
 
             if (data.user) {
-                // Create user profile in our users table
+                // Create/update user profile in an idempotent way (covers DB triggers that already insert the row)
                 const { error: profileError } = await supabase
                     .from('users')
-                    .insert({
+                    .upsert({
                         id: data.user.id,
                         email: data.user.email,
                         full_name: formData.fullName,
-                        role: 'donor', // Default role
+                        role: 'donor',
                         kyc_status: 'pending',
                         terms_version_accepted: CURRENT_TERMS_VERSION,
                         terms_accepted_at: new Date().toISOString(),
-                    })
+                    }, { onConflict: 'id' })
 
                 if (profileError) {
-                    console.error('Error creating profile:', profileError)
-                    // Don't show this error to user as auth was successful
+                    console.warn('Profile upsert warning:', profileError)
                 }
 
                 if (data.user.email_confirmed_at) {

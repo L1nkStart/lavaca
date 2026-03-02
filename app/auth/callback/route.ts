@@ -17,20 +17,20 @@ export async function GET(request: NextRequest) {
                 .from('users')
                 .select('id')
                 .eq('id', data.user.id)
-                .single()
+                .maybeSingle()
 
             // Create profile if it doesn't exist (OAuth users)
             if (!existingProfile) {
                 const { error: profileError } = await supabase
                     .from('users')
-                    .insert({
+                    .upsert({
                         id: data.user.id,
                         email: data.user.email!,
                         full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || 'Usuario',
                         avatar_url: data.user.user_metadata?.avatar_url,
                         role: 'donor', // Default role
                         kyc_status: 'pending',
-                    })
+                    }, { onConflict: 'id' })
 
                 if (profileError) {
                     console.error('Error creating OAuth profile:', profileError)

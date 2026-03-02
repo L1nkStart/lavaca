@@ -46,6 +46,75 @@ export default function AdminVerificationsPage() {
 
   const supabase = createClient()
 
+  const extractPathFromStorageUrl = (url: string, bucket: string) => {
+    const marker = `/object/public/${bucket}/`
+    const markerAuthenticated = `/object/authenticated/${bucket}/`
+    const markerSigned = `/object/sign/${bucket}/`
+
+    const candidateMarker = [marker, markerAuthenticated, markerSigned].find((value) =>
+      url.includes(value)
+    )
+
+    if (!candidateMarker) return null
+
+    const rawPath = url.split(candidateMarker)[1]?.split('?')[0]
+    if (!rawPath) return null
+    return decodeURIComponent(rawPath)
+  }
+
+  const getSignedDocumentUrl = async (value: string | null) => {
+    if (!value) return null
+
+    const normalizedValue = value.replace('/verification-documents/', '/kyc-documents/')
+
+    const pathCandidates = [
+      extractPathFromStorageUrl(normalizedValue, 'kyc-documents'),
+      extractPathFromStorageUrl(normalizedValue, 'verification-documents'),
+      normalizedValue.startsWith('http') ? null : normalizedValue,
+    ].filter(Boolean) as string[]
+
+    for (const path of pathCandidates) {
+      const tryBuckets = ['kyc-documents', 'verification-documents']
+
+      for (const bucket of tryBuckets) {
+        const { data, error } = await supabase.storage
+          .from(bucket)
+          .createSignedUrl(path, 60 * 60)
+
+        if (!error && data?.signedUrl) {
+          return data.signedUrl
+        }
+      }
+    }
+
+    return normalizedValue
+  }
+
+  const resolveVerificationDocumentUrls = async (verification: VerificationRequest): Promise<VerificationRequest> => {
+    const [
+      documentFrontUrl,
+      documentBackUrl,
+      selfieUrl,
+      proofOfAddressUrl,
+      companyRegistrationUrl,
+    ] = await Promise.all([
+      getSignedDocumentUrl(verification.document_front_url),
+      getSignedDocumentUrl(verification.document_back_url),
+      getSignedDocumentUrl(verification.selfie_url),
+      getSignedDocumentUrl(verification.proof_of_address_url),
+      getSignedDocumentUrl(verification.company_registration_url),
+    ])
+
+    return {
+      ...verification,
+      document_front_url: documentFrontUrl || verification.document_front_url,
+      document_back_url: documentBackUrl,
+      selfie_url: selfieUrl || verification.selfie_url,
+      proof_of_address_url: proofOfAddressUrl,
+      company_registration_url: companyRegistrationUrl,
+    }
+  }
+
   useEffect(() => {
     fetchVerifications()
   }, [])
@@ -60,7 +129,11 @@ export default function AdminVerificationsPage() {
 
       if (fetchError) throw fetchError
 
-      setVerifications(data || [])
+      const resolvedVerifications = await Promise.all(
+        (data || []).map((verification) => resolveVerificationDocumentUrls(verification as VerificationRequest))
+      )
+
+      setVerifications(resolvedVerifications)
     } catch (err: any) {
       console.error('Error fetching verifications:', err)
       setError(err.message)
@@ -210,285 +283,295 @@ export default function AdminVerificationsPage() {
             verifications.map((verification) => (
               <Card key={verification.id}>
                 <CardContent className="pt-6">
-                  <Tabs defaultValue="details" className="space-y-4">
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="font-bold text-lg">{verification.full_name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {verification.verification_type === 'individual' ? '👤 Persona Natural' : '🏢 Empresa'}
-                        </p>
-                        {verification.company_name && (
-                          <p className="text-sm font-medium mt-1">{verification.company_name}</p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {getStatusBadge(verification.status)}
-                        <Badge variant="secondary">
-                          {getTimeAgo(verification.created_at)}
-                        </Badge>
-                      </div>
-                    </div>
+                  {(() => {
+                    const documentFrontUrl = verification.document_front_url
+                    const documentBackUrl = verification.document_back_url
+                    const selfieUrl = verification.selfie_url
+                    const proofOfAddressUrl = verification.proof_of_address_url
+                    const companyRegistrationUrl = verification.company_registration_url
 
-                    {/* Tabs */}
-                    <TabsList>
-                      <TabsTrigger value="details">Detalles</TabsTrigger>
-                      <TabsTrigger value="documents">Documentos</TabsTrigger>
-                    </TabsList>
-
-                    {/* Details Tab */}
-                    <TabsContent value="details" className="space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs text-muted-foreground">Email</p>
-                          <p className="font-medium">{verification.email}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Teléfono</p>
-                          <p className="font-medium">{verification.phone}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Tipo de documento</p>
-                          <p className="font-medium capitalize">{verification.document_type}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground">Número</p>
-                          <p className="font-medium">{verification.document_number}</p>
-                        </div>
-                        <div className="md:col-span-2">
-                          <p className="text-xs text-muted-foreground">Dirección</p>
-                          <p className="font-medium">{verification.address}</p>
-                          {verification.city && verification.state && (
+                    return (
+                      <Tabs defaultValue="details" className="space-y-4">
+                        {/* Header */}
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="font-bold text-lg">{verification.full_name}</h3>
                             <p className="text-sm text-muted-foreground">
-                              {verification.city}, {verification.state}
+                              {verification.verification_type === 'individual' ? '👤 Persona Natural' : '🏢 Empresa'}
                             </p>
-                          )}
+                            {verification.company_name && (
+                              <p className="text-sm font-medium mt-1">{verification.company_name}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {getStatusBadge(verification.status)}
+                            <Badge variant="secondary">
+                              {getTimeAgo(verification.created_at)}
+                            </Badge>
+                          </div>
                         </div>
-                        {verification.company_rif && (
-                          <>
+
+                        {/* Tabs */}
+                        <TabsList>
+                          <TabsTrigger value="details">Detalles</TabsTrigger>
+                          <TabsTrigger value="documents">Documentos</TabsTrigger>
+                        </TabsList>
+
+                        {/* Details Tab */}
+                        <TabsContent value="details" className="space-y-4">
+                          <div className="grid md:grid-cols-2 gap-4">
                             <div>
-                              <p className="text-xs text-muted-foreground">RIF</p>
-                              <p className="font-medium">{verification.company_rif}</p>
+                              <p className="text-xs text-muted-foreground">Email</p>
+                              <p className="font-medium">{verification.email}</p>
                             </div>
                             <div>
-                              <p className="text-xs text-muted-foreground">Tipo de empresa</p>
-                              <p className="font-medium">{verification.company_type}</p>
+                              <p className="text-xs text-muted-foreground">Teléfono</p>
+                              <p className="font-medium">{verification.phone}</p>
                             </div>
-                          </>
-                        )}
-                      </div>
-                    </TabsContent>
-
-                    {/* Documents Tab */}
-                    <TabsContent value="documents" className="space-y-4">
-                      <div className="grid md:grid-cols-2 gap-4">
-                        {/* Document Front */}
-                        <div className="border border-border rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <ImageIcon className="w-4 h-4 text-primary" />
-                            <p className="font-medium text-sm">Documento (Frente)</p>
-                          </div>
-                          <a
-                            href={verification.document_front_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
-                          >
-                            <img
-                              src={verification.document_front_url}
-                              alt="Documento frente"
-                              className="w-full h-full object-contain"
-                            />
-                          </a>
-                        </div>
-
-                        {/* Document Back */}
-                        {verification.document_back_url && (
-                          <div className="border border-border rounded-lg p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <ImageIcon className="w-4 h-4 text-primary" />
-                              <p className="font-medium text-sm">Documento (Reverso)</p>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Tipo de documento</p>
+                              <p className="font-medium capitalize">{verification.document_type}</p>
                             </div>
-                            <a
-                              href={verification.document_back_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
-                            >
-                              <img
-                                src={verification.document_back_url}
-                                alt="Documento reverso"
-                                className="w-full h-full object-contain"
-                              />
-                            </a>
-                          </div>
-                        )}
-
-                        {/* Selfie */}
-                        <div className="border border-border rounded-lg p-4">
-                          <div className="flex items-center gap-2 mb-3">
-                            <ImageIcon className="w-4 h-4 text-primary" />
-                            <p className="font-medium text-sm">Selfie con Documento</p>
-                          </div>
-                          <a
-                            href={verification.selfie_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
-                          >
-                            <img
-                              src={verification.selfie_url}
-                              alt="Selfie"
-                              className="w-full h-full object-contain"
-                            />
-                          </a>
-                        </div>
-
-                        {/* Proof of Address */}
-                        {verification.proof_of_address_url && (
-                          <div className="border border-border rounded-lg p-4">
-                            <div className="flex items-center gap-2 mb-3">
-                              <FileText className="w-4 h-4 text-primary" />
-                              <p className="font-medium text-sm">Comprobante de Domicilio</p>
+                            <div>
+                              <p className="text-xs text-muted-foreground">Número</p>
+                              <p className="font-medium">{verification.document_number}</p>
                             </div>
-                            <a
-                              href={verification.proof_of_address_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
-                            >
-                              <img
-                                src={verification.proof_of_address_url}
-                                alt="Comprobante"
-                                className="w-full h-full object-contain"
-                              />
-                            </a>
-                          </div>
-                        )}
-
-                        {/* Company Registration */}
-                        {verification.company_registration_url && (
-                          <div className="border border-border rounded-lg p-4 md:col-span-2">
-                            <div className="flex items-center gap-2 mb-3">
-                              <FileText className="w-4 h-4 text-primary" />
-                              <p className="font-medium text-sm">Registro Mercantil</p>
-                            </div>
-                            <a
-                              href={verification.company_registration_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block bg-muted rounded-lg overflow-hidden aspect-video max-w-md hover:opacity-80 transition-opacity"
-                            >
-                              <img
-                                src={verification.company_registration_url}
-                                alt="Registro"
-                                className="w-full h-full object-contain"
-                              />
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    </TabsContent>
-
-                    {/* Actions */}
-                    {verification.status === 'pending' && (
-                      <div className="border-t border-border pt-4 space-y-3">
-                        {selectedId !== verification.id ? (
-                          <div className="flex gap-3">
-                            <Button
-                              size="sm"
-                              className="flex-1 bg-primary"
-                              onClick={() => handleApprove(verification.id)}
-                              disabled={processing}
-                            >
-                              {processing ? (
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              ) : (
-                                <CheckCircle2 className="w-4 h-4 mr-2" />
+                            <div className="md:col-span-2">
+                              <p className="text-xs text-muted-foreground">Dirección</p>
+                              <p className="font-medium">{verification.address}</p>
+                              {verification.city && verification.state && (
+                                <p className="text-sm text-muted-foreground">
+                                  {verification.city}, {verification.state}
+                                </p>
                               )}
-                              Aprobar
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              className="flex-1"
-                              onClick={() => setSelectedId(verification.id)}
-                              disabled={processing}
-                            >
-                              <X className="w-4 h-4 mr-2" />
-                              Rechazar
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription>
-                                Al rechazar, el sistema automáticamente:
-                                <ul className="list-disc list-inside mt-2 text-sm">
-                                  <li>Suspenderá al usuario permanentemente</li>
-                                  <li>Suspenderá todas sus campañas</li>
-                                  <li>Congelará todos los fondos</li>
-                                </ul>
-                              </AlertDescription>
-                            </Alert>
-                            <Textarea
-                              placeholder="Explica por qué rechazas esta verificación..."
-                              value={rejectionReason}
-                              onChange={(e) => setRejectionReason(e.target.value)}
-                              rows={3}
-                            />
-                            <div className="flex gap-3">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="flex-1"
-                                onClick={() => {
-                                  setSelectedId(null)
-                                  setRejectionReason('')
-                                }}
-                                disabled={processing}
-                              >
-                                Cancelar
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                className="flex-1"
-                                onClick={() => handleReject(verification.id)}
-                                disabled={processing}
-                              >
-                                {processing ? (
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                  <X className="w-4 h-4 mr-2" />
-                                )}
-                                Confirmar rechazo
-                              </Button>
                             </div>
-                          </>
+                            {verification.company_rif && (
+                              <>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">RIF</p>
+                                  <p className="font-medium">{verification.company_rif}</p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Tipo de empresa</p>
+                                  <p className="font-medium">{verification.company_type}</p>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </TabsContent>
+
+                        {/* Documents Tab */}
+                        <TabsContent value="documents" className="space-y-4">
+                          <div className="grid md:grid-cols-2 gap-4">
+                            {/* Document Front */}
+                            <div className="border border-border rounded-lg p-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <ImageIcon className="w-4 h-4 text-primary" />
+                                <p className="font-medium text-sm">Documento (Frente)</p>
+                              </div>
+                              <a
+                                href={documentFrontUrl || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
+                              >
+                                <img
+                                  src={documentFrontUrl || ''}
+                                  alt="Documento frente"
+                                  className="w-full h-full object-contain"
+                                />
+                              </a>
+                            </div>
+
+                            {/* Document Back */}
+                            {documentBackUrl && (
+                              <div className="border border-border rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <ImageIcon className="w-4 h-4 text-primary" />
+                                  <p className="font-medium text-sm">Documento (Reverso)</p>
+                                </div>
+                                <a
+                                  href={documentBackUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
+                                >
+                                  <img
+                                    src={documentBackUrl}
+                                    alt="Documento reverso"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </a>
+                              </div>
+                            )}
+
+                            {/* Selfie */}
+                            <div className="border border-border rounded-lg p-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <ImageIcon className="w-4 h-4 text-primary" />
+                                <p className="font-medium text-sm">Selfie con Documento</p>
+                              </div>
+                              <a
+                                href={selfieUrl || '#'}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
+                              >
+                                <img
+                                  src={selfieUrl || ''}
+                                  alt="Selfie"
+                                  className="w-full h-full object-contain"
+                                />
+                              </a>
+                            </div>
+
+                            {/* Proof of Address */}
+                            {proofOfAddressUrl && (
+                              <div className="border border-border rounded-lg p-4">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <FileText className="w-4 h-4 text-primary" />
+                                  <p className="font-medium text-sm">Comprobante de Domicilio</p>
+                                </div>
+                                <a
+                                  href={proofOfAddressUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block bg-muted rounded-lg overflow-hidden aspect-video hover:opacity-80 transition-opacity"
+                                >
+                                  <img
+                                    src={proofOfAddressUrl}
+                                    alt="Comprobante"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </a>
+                              </div>
+                            )}
+
+                            {/* Company Registration */}
+                            {companyRegistrationUrl && (
+                              <div className="border border-border rounded-lg p-4 md:col-span-2">
+                                <div className="flex items-center gap-2 mb-3">
+                                  <FileText className="w-4 h-4 text-primary" />
+                                  <p className="font-medium text-sm">Registro Mercantil</p>
+                                </div>
+                                <a
+                                  href={companyRegistrationUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="block bg-muted rounded-lg overflow-hidden aspect-video max-w-md hover:opacity-80 transition-opacity"
+                                >
+                                  <img
+                                    src={companyRegistrationUrl}
+                                    alt="Registro"
+                                    className="w-full h-full object-contain"
+                                  />
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        </TabsContent>
+
+                        {/* Actions */}
+                        {verification.status === 'pending' && (
+                          <div className="border-t border-border pt-4 space-y-3">
+                            {selectedId !== verification.id ? (
+                              <div className="flex gap-3">
+                                <Button
+                                  size="sm"
+                                  className="flex-1 bg-primary"
+                                  onClick={() => handleApprove(verification.id)}
+                                  disabled={processing}
+                                >
+                                  {processing ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  ) : (
+                                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                                  )}
+                                  Aprobar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  className="flex-1"
+                                  onClick={() => setSelectedId(verification.id)}
+                                  disabled={processing}
+                                >
+                                  <X className="w-4 h-4 mr-2" />
+                                  Rechazar
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <Alert variant="destructive">
+                                  <AlertCircle className="h-4 w-4" />
+                                  <AlertDescription>
+                                    Al rechazar, el sistema automáticamente:
+                                    <ul className="list-disc list-inside mt-2 text-sm">
+                                      <li>Suspenderá al usuario permanentemente</li>
+                                      <li>Suspenderá todas sus campañas</li>
+                                      <li>Congelará todos los fondos</li>
+                                    </ul>
+                                  </AlertDescription>
+                                </Alert>
+                                <Textarea
+                                  placeholder="Explica por qué rechazas esta verificación..."
+                                  value={rejectionReason}
+                                  onChange={(e) => setRejectionReason(e.target.value)}
+                                  rows={3}
+                                />
+                                <div className="flex gap-3">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="flex-1"
+                                    onClick={() => {
+                                      setSelectedId(null)
+                                      setRejectionReason('')
+                                    }}
+                                    disabled={processing}
+                                  >
+                                    Cancelar
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    className="flex-1"
+                                    onClick={() => handleReject(verification.id)}
+                                    disabled={processing}
+                                  >
+                                    {processing ? (
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                      <X className="w-4 h-4 mr-2" />
+                                    )}
+                                    Confirmar rechazo
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         )}
-                      </div>
-                    )}
 
-                    {verification.status === 'approved' && (
-                      <Alert className="border-green-200 bg-green-50">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        <AlertDescription className="text-green-800">
-                          Verificación aprobada exitosamente
-                        </AlertDescription>
-                      </Alert>
-                    )}
+                        {verification.status === 'approved' && (
+                          <Alert className="border-green-200 bg-green-50">
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            <AlertDescription className="text-green-800">
+                              Verificación aprobada exitosamente
+                            </AlertDescription>
+                          </Alert>
+                        )}
 
-                    {verification.status === 'rejected' && (
-                      <Alert variant="destructive">
-                        <X className="h-4 w-4" />
-                        <AlertDescription>
-                          <strong>Rechazado:</strong> {verification.rejection_reason || 'Sin razón especificada'}
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                  </Tabs>
+                        {verification.status === 'rejected' && (
+                          <Alert variant="destructive">
+                            <X className="h-4 w-4" />
+                            <AlertDescription>
+                              <strong>Rechazado:</strong> {verification.rejection_reason || 'Sin razón especificada'}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </Tabs>
+                    )
+                  })()}
                 </CardContent>
               </Card>
             ))
