@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -32,7 +32,11 @@ interface CampaignCommentsProps {
 }
 
 export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsProps) {
+    const PAGE_SIZE = 10
+
     const [comments, setComments] = useState<Comment[]>([])
+    const [commentsCount, setCommentsCount] = useState(0)
+    const [currentPage, setCurrentPage] = useState(1)
     const [newComment, setNewComment] = useState('')
     const [isAnonymous, setIsAnonymous] = useState(false)
     const [loading, setLoading] = useState(false)
@@ -43,10 +47,13 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
     const supabase = createClient()
 
     // Load comments
-    const loadComments = async () => {
+    const loadComments = async (page = 1) => {
         setLoading(true)
         try {
-            const { data, error } = await supabase
+            const from = (page - 1) * PAGE_SIZE
+            const to = from + PAGE_SIZE - 1
+
+            const { data, error, count } = await supabase
                 .from('campaign_comments')
                 .select(`
                     id,
@@ -59,13 +66,15 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
                         full_name,
                         avatar_url
                     )
-                `)
+                `, { count: 'exact' })
                 .eq('campaign_id', campaignId)
                 .is('deleted_at', null)
                 .order('created_at', { ascending: false })
+                .range(from, to)
 
             if (error) throw error
             setComments((data as any) || [])
+            setCommentsCount(count || 0)
         } catch (err) {
             console.error('Error loading comments:', err)
         } finally {
@@ -79,11 +88,11 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
         setUser(user)
     }
 
-    // Load on mount
-    useState(() => {
-        loadComments()
+    // Load on mount and page changes
+    useEffect(() => {
+        loadComments(currentPage)
         checkUser()
-    })
+    }, [campaignId, currentPage])
 
     // Submit comment
     const handleSubmit = async (e: React.FormEvent) => {
@@ -108,7 +117,8 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
 
             setNewComment('')
             setIsAnonymous(false)
-            loadComments()
+            setCurrentPage(1)
+            loadComments(1)
         } catch (err: any) {
             setError(err.message || 'Error al enviar el comentario')
         } finally {
@@ -116,12 +126,22 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
         }
     }
 
+    const totalPages = Math.max(1, Math.ceil(commentsCount / PAGE_SIZE))
+
+    const goToPreviousPage = () => {
+        setCurrentPage((prev) => Math.max(1, prev - 1))
+    }
+
+    const goToNextPage = () => {
+        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
+    }
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5" />
-                    Comentarios ({comments.length})
+                    Comentarios ({commentsCount})
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -223,6 +243,34 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
                         ))
                     )}
                 </div>
+
+                {commentsCount > PAGE_SIZE && (
+                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                        <p className="text-sm text-muted-foreground">
+                            Página {currentPage} de {totalPages}
+                        </p>
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={goToPreviousPage}
+                                disabled={currentPage === 1 || loading}
+                            >
+                                Anterior
+                            </Button>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={goToNextPage}
+                                disabled={currentPage === totalPages || loading}
+                            >
+                                Siguiente
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     )

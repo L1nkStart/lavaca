@@ -6,9 +6,9 @@
 ALTER TYPE kyc_status ADD VALUE IF NOT EXISTS 'submitted';
 
 -- 2) Expand campaign status enum to support underwriting lifecycle
-ALTER TYPE campaign_status ADD VALUE IF NOT EXISTS 'under_review';
-ALTER TYPE campaign_status ADD VALUE IF NOT EXISTS 'suspended';
-ALTER TYPE campaign_status ADD VALUE IF NOT EXISTS 'completed';
+ALTER TYPE campaign_status ADD VALUE IF NOT EXISTS 'pending_review';
+ALTER TYPE campaign_status ADD VALUE IF NOT EXISTS 'draft';
+ALTER TYPE campaign_status ADD VALUE IF NOT EXISTS 'active';
 
 -- 3) Users: legal acceptance + normalized KYC document fields
 ALTER TABLE public.users
@@ -49,15 +49,15 @@ CREATE INDEX IF NOT EXISTS idx_campaigns_reviewed_by ON public.campaigns(reviewe
 
 -- Normalize legacy statuses to the underwriting model (safe text casts)
 UPDATE public.campaigns
-SET status = 'under_review'::campaign_status
+SET status = 'pending_review'::campaign_status
 WHERE status::text = 'pending_review';
 
 UPDATE public.campaigns
-SET status = 'suspended'::campaign_status
+SET status = 'draft'::campaign_status
 WHERE status::text IN ('paused', 'rejected');
 
 UPDATE public.campaigns
-SET status = 'completed'::campaign_status
+SET status = 'active'::campaign_status
 WHERE status::text = 'closed';
 
 -- 5) Guardrail: campaigns cannot move to active without review metadata
@@ -65,7 +65,7 @@ CREATE OR REPLACE FUNCTION public.enforce_campaign_underwriting()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' AND NEW.status::text = 'active' THEN
-    NEW.status = 'under_review'::campaign_status;
+    NEW.status = 'pending_review'::campaign_status;
   END IF;
 
   IF TG_OP = 'UPDATE'

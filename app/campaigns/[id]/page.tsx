@@ -68,11 +68,16 @@ interface Update {
 }
 
 export default function CampaignPage() {
+  const UPDATES_PAGE_SIZE = 5;
+
   const params = useParams();
   const [activeTab, setActiveTab] = useState("story");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
   const [updates, setUpdates] = useState<Update[]>([]);
+  const [updatesCount, setUpdatesCount] = useState(0);
+  const [updatesPage, setUpdatesPage] = useState(1);
+  const [updatesLoading, setUpdatesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,20 +140,39 @@ export default function CampaignPage() {
       console.log('Donations fetched:', donationsData?.length || 0);
       setDonations(donationsData || []);
 
-      // Fetch updates
-      const { data: updatesData } = await supabase
-        .from('campaign_updates')
-        .select('*')
-        .eq('campaign_id', campaignId)
-        .order('created_at', { ascending: false });
-
-      setUpdates(updatesData || []);
+      await fetchUpdates(campaignId, 1);
 
     } catch (err) {
       console.error('Error fetching campaign:', err);
       setError('Error al cargar la campaña');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchUpdates = async (campaignId: string, page = 1) => {
+    try {
+      setUpdatesLoading(true);
+
+      const from = (page - 1) * UPDATES_PAGE_SIZE;
+      const to = from + UPDATES_PAGE_SIZE - 1;
+
+      const { data, error: updatesError, count } = await supabase
+        .from('campaign_updates')
+        .select('*', { count: 'exact' })
+        .eq('campaign_id', campaignId)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (updatesError) throw updatesError;
+
+      setUpdates(data || []);
+      setUpdatesCount(count || 0);
+      setUpdatesPage(page);
+    } catch (err) {
+      console.error('Error fetching updates:', err);
+    } finally {
+      setUpdatesLoading(false);
     }
   };
 
@@ -227,6 +251,8 @@ export default function CampaignPage() {
         return null;
     }
   };
+
+  const totalUpdatePages = Math.max(1, Math.ceil(updatesCount / UPDATES_PAGE_SIZE));
 
   return (
     <main className="flex flex-col min-h-screen bg-background">
@@ -367,7 +393,7 @@ export default function CampaignPage() {
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="story">Historia</TabsTrigger>
                 <TabsTrigger value="updates">
-                  Actualizaciones {updates.length > 0 && `(${updates.length})`}
+                  Actualizaciones {updatesCount > 0 && `(${updatesCount})`}
                 </TabsTrigger>
                 <TabsTrigger value="documents">Documentos</TabsTrigger>
                 <TabsTrigger value="comments">Comentarios</TabsTrigger>
@@ -384,7 +410,42 @@ export default function CampaignPage() {
               </TabsContent>
 
               <TabsContent value="updates" className="mt-6">
+                {updatesLoading ? (
+                  <div className="py-8 flex justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <>
                 <CampaignUpdates updates={updatesList} />
+                    {updatesCount > UPDATES_PAGE_SIZE && (
+                      <div className="mt-4 flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground">
+                          Página {updatesPage} de {totalUpdatePages}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={updatesPage === 1 || updatesLoading}
+                            onClick={() => fetchUpdates(campaign.id, Math.max(1, updatesPage - 1))}
+                          >
+                            Anterior
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={updatesPage === totalUpdatePages || updatesLoading}
+                            onClick={() => fetchUpdates(campaign.id, Math.min(totalUpdatePages, updatesPage + 1))}
+                          >
+                            Siguiente
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
               </TabsContent>
 
               <TabsContent value="documents" className="mt-6">

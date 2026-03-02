@@ -6,11 +6,12 @@ import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { NotificationsDropdown } from '@/components/notifications-dropdown'
 import { createClient } from '@/lib/supabase/client'
-import { Heart, Menu, X, Search, User, Loader2 } from 'lucide-react'
+import { Heart, Menu, X, Search, User, Loader2, FolderKanban } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Navbar() {
     const [user, setUser] = useState<any>(null)
+    const [userRole, setUserRole] = useState<string | null>(null)
     const [authLoading, setAuthLoading] = useState(true)
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
     const pathname = usePathname()
@@ -19,10 +20,29 @@ export function Navbar() {
     useEffect(() => {
         let isMounted = true
 
+        const loadUserRole = async (userId: string) => {
+            const { data } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', userId)
+                .single()
+
+            if (isMounted) {
+                setUserRole(data?.role || null)
+            }
+        }
+
         const checkUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
             if (isMounted) {
                 setUser(user)
+
+                if (user?.id) {
+                    await loadUserRole(user.id)
+                } else {
+                    setUserRole(null)
+                }
+
                 setAuthLoading(false)
             }
         }
@@ -30,10 +50,21 @@ export function Navbar() {
         checkUser()
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (isMounted) {
-                setUser(session?.user ?? null)
-                setAuthLoading(false)
+            const syncAuthState = async () => {
+                if (isMounted) {
+                    setUser(session?.user ?? null)
+
+                    if (session?.user?.id) {
+                        await loadUserRole(session.user.id)
+                    } else {
+                        setUserRole(null)
+                    }
+
+                    setAuthLoading(false)
+                }
             }
+
+            syncAuthState()
         })
 
         return () => {
@@ -114,6 +145,20 @@ export function Navbar() {
                                     </Link>
                                 </Button>
 
+                                {userRole === 'creator' && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="hidden md:flex"
+                                        asChild
+                                    >
+                                        <Link href="/creator/campaigns">
+                                            <FolderKanban className="h-4 w-4 mr-2" />
+                                            Mis campañas
+                                        </Link>
+                                    </Button>
+                                )}
+
                                 {/* Start Campaign Button */}
                                 <Button size="sm" asChild>
                                     <Link href="/creator/campaigns/create">
@@ -174,6 +219,15 @@ export function Navbar() {
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 Mi perfil
+                            </Link>
+                        )}
+                        {!authLoading && user && userRole === 'creator' && (
+                            <Link
+                                href="/creator/campaigns"
+                                className="block px-3 py-2 rounded-md text-sm font-medium hover:bg-muted"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                Mis campañas
                             </Link>
                         )}
                     </div>
