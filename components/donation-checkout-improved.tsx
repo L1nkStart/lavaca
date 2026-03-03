@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { isLikelyRestrictedRegion, loadStripeSdkConditionally } from "@/lib/payments/stripe-loader";
+import { createClient } from "@/lib/supabase/client";
 
 interface DonationCheckoutProps {
     campaignId: string;
@@ -69,6 +70,8 @@ export function DonationCheckout({
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
     const [isAnonymous, setIsAnonymous] = useState(false);
     const [donorEmail, setDonorEmail] = useState("");
+    const [donorName, setDonorName] = useState("");
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [checkoutError, setCheckoutError] = useState<string | null>(null);
     const [internationalMethodWarning, setInternationalMethodWarning] = useState<string | null>(null);
@@ -93,6 +96,35 @@ export function DonationCheckout({
         accountId: "",
         reference: "",
     });
+
+    useEffect(() => {
+        const preloadAuthenticatedEmail = async () => {
+            try {
+                const supabase = createClient();
+                const { data, error } = await supabase.auth.getUser();
+
+                if (error) {
+                    console.error('Error fetching auth user:', error);
+                    return;
+                }
+
+                const userEmail = data?.user?.email?.trim() || "";
+                const userFullName = data?.user?.user_metadata?.full_name?.trim() || "";
+                if (userEmail) {
+                    setIsAuthenticated(true);
+                    setDonorEmail(userEmail);
+                }
+
+                if (userFullName) {
+                    setDonorName(userFullName);
+                }
+            } catch (error) {
+                console.error('Error preloading donor email:', error);
+            }
+        };
+
+        preloadAuthenticatedEmail();
+    }, []);
 
     useEffect(() => {
         const fetchPaymentConfigs = async () => {
@@ -256,8 +288,27 @@ export function DonationCheckout({
         setCheckoutError(null);
         try {
             // Validation
-            if (!isAnonymous && !donorEmail) {
-                setCheckoutError("Por favor ingresa tu correo");
+            const normalizedDonorEmail = donorEmail.trim().toLowerCase();
+            const normalizedDonorName = donorName.trim().replace(/\s+/g, ' ');
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+            if (!normalizedDonorEmail) {
+                setCheckoutError("El correo electrónico es obligatorio para procesar la donación y enviar el recibo.");
+                return;
+            }
+
+            if (!emailRegex.test(normalizedDonorEmail)) {
+                setCheckoutError("Ingresa un correo electrónico válido.");
+                return;
+            }
+
+            if (normalizedDonorName && normalizedDonorName.length < 2) {
+                setCheckoutError("El nombre del donante debe tener al menos 2 caracteres o dejarse en blanco.");
+                return;
+            }
+
+            if (normalizedDonorName.length > 120) {
+                setCheckoutError("El nombre del donante no puede superar 120 caracteres.");
                 return;
             }
 
@@ -291,7 +342,8 @@ export function DonationCheckout({
                     amountUSD: amountInUSD,
                     paymentMethod,
                     isAnonymous,
-                    donorEmail: isAnonymous ? null : donorEmail,
+                    donorEmail: normalizedDonorEmail,
+                    donorName: normalizedDonorName || null,
                     pagoMovilData: paymentMethod === "pagomovil" ? pagoMovilData : null,
                     manualPaymentData: paymentMethod === "transfer"
                         ? {
@@ -586,34 +638,64 @@ export function DonationCheckout({
 
                     {/* Donor Info */}
                     <div className="space-y-3 border-t pt-4">
-                        <h4 className="font-semibold">Información del donante</h4>
+                        <h4 className="font-semibold">Información de contacto del donante</h4>
 
-                        <div className="flex items-center gap-3">
-                            <Checkbox
-                                id="anonymous"
-                                checked={isAnonymous}
-                                onCheckedChange={(checked) => setIsAnonymous(checked as boolean)}
-                            />
-                            <Label htmlFor="anonymous" className="cursor-pointer text-sm">
-                                Donar de forma anónima
-                            </Label>
+                        <Alert className="bg-primary/5 border-primary/20">
+                            <AlertDescription className="text-xs">
+                                Tu correo y nombre de contacto no se publican en la página. Te pedimos datos reales para poder emitir recibos y gestionar devoluciones (refunds) si fuera necesario.
+                            </AlertDescription>
+                        </Alert>
+
+                        <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+                            <div className="flex items-start gap-3">
+                                <Checkbox
+                                    id="anonymous"
+                                    checked={isAnonymous}
+                                    onCheckedChange={(checked) => setIsAnonymous(checked as boolean)}
+                                />
+                                <div className="space-y-1">
+                                    <Label htmlFor="anonymous" className="cursor-pointer text-sm font-medium">
+                                        Donar de forma anónima
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">
+                                        Tu nombre no se mostrará públicamente en la campaña, pero conservamos tu correo para recibo y prevención de fraude.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
-                        {!isAnonymous && (
-                            <div>
-                                <Label htmlFor="email">Correo electrónico</Label>
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    placeholder="tu@email.com"
-                                    value={donorEmail}
-                                    onChange={(e) => setDonorEmail(e.target.value)}
-                                />
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Recibirás un recibo automático por email
-                                </p>
-                            </div>
-                        )}
+                        <div>
+                            <Label htmlFor="email">Correo electrónico (obligatorio)</Label>
+                            <Input
+                                id="email"
+                                type="email"
+                                placeholder="tu@email.com"
+                                value={donorEmail}
+                                onChange={(e) => setDonorEmail(e.target.value)}
+                                disabled={isAuthenticated}
+                                required
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {isAuthenticated
+                                    ? "Usamos el correo verificado de tu cuenta para emitir el recibo automático."
+                                    : "Este correo es obligatorio para enviar tu recibo automático en cualquier método de pago."}
+                            </p>
+                        </div>
+
+                        <div>
+                            <Label htmlFor="donor-name">Nombre del donante (opcional)</Label>
+                            <Input
+                                id="donor-name"
+                                type="text"
+                                placeholder="Tu nombre"
+                                value={donorName}
+                                onChange={(e) => setDonorName(e.target.value)}
+                                maxLength={120}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1">
+                                Recomendamos usar tu nombre real para facilitar soporte y posibles reembolsos.
+                            </p>
+                        </div>
                     </div>
                 </CardContent>
             </Card>

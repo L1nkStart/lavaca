@@ -399,7 +399,7 @@ export default async function CreatorDashboard() {
                       className="flex items-center justify-between py-3 border-b border-border last:border-0"
                     >
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{donation.is_anonymous ? 'Anónimo' : (donation.donor_name || 'Donante')}</p>
+                        <p className="font-medium text-sm">{donation.is_anonymous ? 'Donante anónimo' : (donation.donor_name || 'Donante')}</p>
                         <p className="text-xs text-muted-foreground">
                           {donation.campaigns?.title || 'Campaña'}
                         </p>

@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       paymentMethod,
       isAnonymous,
       donorEmail,
+      donorName,
       pagoMovilData,
       manualPaymentData,
     } = body;
@@ -34,6 +35,48 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
+    const authenticatedEmail = user?.email?.trim().toLowerCase() || null;
+    const requestEmail = typeof donorEmail === "string" ? donorEmail.trim().toLowerCase() : "";
+    const finalDonorEmail = authenticatedEmail || requestEmail;
+    const normalizedDonorName =
+      typeof donorName === "string" ? donorName.trim().replace(/\s+/g, " ") : "";
+    const fallbackDonorName =
+      typeof user?.user_metadata?.full_name === "string"
+        ? user.user_metadata.full_name.trim().replace(/\s+/g, " ")
+        : "";
+    const fallbackNameIsValid = fallbackDonorName.length >= 2 && fallbackDonorName.length <= 120;
+
+    if (normalizedDonorName && normalizedDonorName.length < 2) {
+      return NextResponse.json(
+        { error: "El nombre del donante debe tener al menos 2 caracteres o dejarse en blanco" },
+        { status: 400 }
+      );
+    }
+
+    if (normalizedDonorName.length > 120) {
+      return NextResponse.json(
+        { error: "El nombre del donante no puede superar 120 caracteres" },
+        { status: 400 }
+      );
+    }
+
+    const finalDonorName = normalizedDonorName || (fallbackNameIsValid ? fallbackDonorName : "") || null;
+
+    if (!finalDonorEmail) {
+      return NextResponse.json(
+        { error: "El correo electrónico del donante es obligatorio" },
+        { status: 400 }
+      );
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(finalDonorEmail)) {
+      return NextResponse.json(
+        { error: "El correo electrónico no es válido" },
+        { status: 400 }
+      );
+    }
+
     // Initialize payment system
     initializePayments();
 
@@ -43,13 +86,13 @@ export async function POST(request: NextRequest) {
       .insert({
         campaign_id: campaignId,
         donor_id: user?.id || null,
-        email: donorEmail || 'anonymous@lavaca.app',
+        email: finalDonorEmail,
         amount_usd: amountUSD,
         amount_bs: amountUSD * 41.25, // Should get live rate
         payment_method: paymentMethod,
         payment_status: "pending",
         is_anonymous: isAnonymous,
-        donor_name: isAnonymous ? null : donorEmail?.split("@")[0],
+        donor_name: finalDonorName,
         reference_number:
           paymentMethod === "pagomovil"
             ? pagoMovilData?.reference || null
@@ -104,12 +147,12 @@ export async function POST(request: NextRequest) {
           campaignId,
           donationId: donation.id,
           donorId: user?.id,
-          donorEmail: donorEmail || 'anonymous@lavaca.app',
+          donorEmail: finalDonorEmail,
           isAnonymous,
         },
         customerInfo: {
-          email: donorEmail || 'anonymous@lavaca.app',
-          name: donation.donor_name || undefined,
+          email: finalDonorEmail,
+          name: finalDonorName || undefined,
         },
         returnUrl: `${process.env.NEXT_PUBLIC_URL}/campaigns/${campaignId}?donation=success`,
         cancelUrl: `${process.env.NEXT_PUBLIC_URL}/campaigns/${campaignId}/donate?donation=cancelled`,

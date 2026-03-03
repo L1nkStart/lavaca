@@ -15,6 +15,9 @@ interface Payment {
   id: string
   campaign_id: string
   donor_id: string
+  donor_name: string | null
+  email: string
+  is_anonymous: boolean
   amount_usd: number
   payment_method: string
   reference_number: string | null
@@ -27,7 +30,7 @@ interface Payment {
   users: {
     full_name: string
     email: string
-  }
+  } | null
 }
 
 export default function AdminPaymentsPage() {
@@ -144,6 +147,15 @@ export default function AdminPaymentsPage() {
     return 'Hace poco'
   }
 
+  const getDonorDisplayName = (payment: Payment) => {
+    if (payment.is_anonymous) return 'Donante anónimo'
+    return payment.users?.full_name || payment.donor_name || 'Donante'
+  }
+
+  const getDonorContactEmail = (payment: Payment) => {
+    return payment.email || payment.users?.email || null
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen bg-background">
@@ -205,13 +217,13 @@ export default function AdminPaymentsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge variant="outline">{payment.payment_method}</Badge>
                         <span className="text-xs text-muted-foreground">
-                          Enviado por {payment.users?.full_name || 'Anónimo'}
+                          Enviado por {getDonorDisplayName(payment)}
                         </span>
-                        {payment.users?.email && (
+                        {getDonorContactEmail(payment) && (
                           <>
                             <span className="text-xs text-muted-foreground">•</span>
                             <span className="text-xs text-muted-foreground">
-                              {payment.users.email}
+                              {getDonorContactEmail(payment)}
                             </span>
                           </>
                         )}
