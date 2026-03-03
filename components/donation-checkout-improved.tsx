@@ -20,15 +20,13 @@ interface DonationCheckoutProps {
 type Currency = 'USD' | 'BS';
 type PaymentMethod = 'card' | 'paypal' | 'googlepay' | 'zelle' | 'crypto' | 'pagomovil' | 'transfer';
 
-const INTERNATIONAL_METHODS: PaymentMethod[] = ['card', 'paypal', 'googlepay'];
+const STRIPE_METHODS: PaymentMethod[] = ['card'];
 const MANUAL_METHODS: PaymentMethod[] = ['zelle', 'pagomovil', 'transfer'];
 
 const USD_METHODS: { id: PaymentMethod; name: string; icon: string }[] = [
     { id: 'card', name: 'Tarjeta de Crédito/Débito', icon: '💳' },
-    { id: 'paypal', name: 'PayPal', icon: '🅿️' },
-    { id: 'googlepay', name: 'Google Pay', icon: '📱' },
     { id: 'zelle', name: 'Zelle', icon: '💵' },
-    { id: 'crypto', name: 'Criptomonedas', icon: '₿' },
+    { id: 'crypto', name: 'Binance Pay', icon: '₿' },
 ];
 
 const BS_METHODS: { id: PaymentMethod; name: string; icon: string }[] = [
@@ -48,6 +46,7 @@ export function DonationCheckout({
     const [isLoading, setIsLoading] = useState(false);
     const [checkoutError, setCheckoutError] = useState<string | null>(null);
     const [internationalMethodWarning, setInternationalMethodWarning] = useState<string | null>(null);
+    const [stripeStatus, setStripeStatus] = useState<'checking' | 'available' | 'blocked'>('checking');
 
     // Exchange rate state
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
@@ -118,20 +117,50 @@ export function DonationCheckout({
     // Change default payment method when currency changes
     useEffect(() => {
         if (currency === 'USD') {
-            setPaymentMethod(isLikelyRestrictedRegion() ? 'zelle' : 'card');
+            setPaymentMethod(stripeStatus === 'available' ? 'card' : 'zelle');
         } else {
             setPaymentMethod('pagomovil');
         }
-    }, [currency]);
+    }, [currency, stripeStatus]);
+
+    // Validate Stripe availability once on load
+    useEffect(() => {
+        const validateStripeAvailability = async () => {
+            if (isLikelyRestrictedRegion()) {
+                setStripeStatus('blocked');
+                setInternationalMethodWarning('Los pagos con tarjeta no están disponibles en tu región actualmente. Puedes donar con Binance Pay o métodos locales.');
+                return;
+            }
+
+            try {
+                await loadStripeSdkConditionally();
+                setStripeStatus('available');
+                setInternationalMethodWarning(null);
+            } catch (error) {
+                console.error('Error loading Stripe SDK:', error);
+                setStripeStatus('blocked');
+                setInternationalMethodWarning('No pudimos habilitar pagos con tarjeta en este momento. Puedes donar con Binance Pay o métodos locales.');
+            }
+        };
+
+        validateStripeAvailability();
+    }, []);
 
     const handleSelectPaymentMethod = async (method: PaymentMethod) => {
         setCheckoutError(null);
-        setPaymentMethod(method);
 
-        if (!INTERNATIONAL_METHODS.includes(method)) {
+        if (!STRIPE_METHODS.includes(method)) {
+            setPaymentMethod(method);
             setInternationalMethodWarning(null);
             return;
         }
+
+        if (stripeStatus !== 'available') {
+            setInternationalMethodWarning('Los pagos con tarjeta no están disponibles en este momento. Usa Binance Pay o un método local.');
+            return;
+        }
+
+        setPaymentMethod(method);
 
         try {
             await loadStripeSdkConditionally();
@@ -142,10 +171,11 @@ export function DonationCheckout({
         }
     }
 
-    const availableMethods = currency === 'USD' ? USD_METHODS : BS_METHODS;
+    const availableMethods = currency === 'USD'
+        ? USD_METHODS.filter((method) => method.id !== 'card' || stripeStatus === 'available')
+        : BS_METHODS;
 
     const amountInUSD = currency === 'USD' ? amount : amount / (exchangeRate || 43.02);
-    const amountInBS = currency === 'BS' ? amount : amount * (exchangeRate || 43.02);
 
     const handleDonate = async () => {
         setIsLoading(true);
@@ -167,7 +197,7 @@ export function DonationCheckout({
                 return;
             }
 
-            if (INTERNATIONAL_METHODS.includes(paymentMethod)) {
+            if (STRIPE_METHODS.includes(paymentMethod)) {
                 try {
                     await loadStripeSdkConditionally();
                     setInternationalMethodWarning(null);
@@ -199,14 +229,15 @@ export function DonationCheckout({
                 throw new Error(result.details || result.error || "Error creating donation");
             }
 
+            const checkoutUrl = result?.payment?.metadata?.checkoutUrl;
             const confirmationType = result?.payment?.metadata?.confirmationType;
 
-            if (result.payment && result.payment.success && confirmationType === 'api') {
+            if (checkoutUrl) {
+                window.location.href = checkoutUrl;
+            } else if (result.payment && result.payment.success && result.payment.status === 'completed' && confirmationType === 'api') {
                 window.location.href = `/campaigns/${campaignId}?donation=success`;
             } else if (result.payment && (confirmationType === 'manual' || MANUAL_METHODS.includes(paymentMethod))) {
                 window.location.href = `/campaigns/${campaignId}?donation=pending`;
-            } else if (result.payment && result.payment.externalId) {
-                window.location.href = result.payment.metadata?.checkoutUrl || `/campaigns/${campaignId}`;
             } else {
                 window.location.href = `/campaigns/${campaignId}?donation=pending`;
             }
