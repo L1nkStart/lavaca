@@ -7,12 +7,13 @@
 
 import { PaymentProvider, IPaymentProvider, ProviderConfig } from './types';
 import { MockProvider } from './providers/mock-provider';
+import { StripeProvider } from './providers/stripe-provider';
+import { BinanceProvider } from './providers/binance-provider';
 import { isTestMode } from './config';
 
 // Importar proveedores cuando estén implementados
 // import { StripeProvider } from './providers/stripe-provider';
 // import { PayPalProvider } from './providers/paypal-provider';
-// import { BinanceProvider } from './providers/binance-provider';
 // import { ZelleProvider } from './providers/zelle-provider';
 // import { PagoMovilProvider } from './providers/pagomovil-provider';
 
@@ -63,16 +64,16 @@ export class PaymentFactory {
             // Modo producción - usar proveedores reales
             switch (provider) {
                 case PaymentProvider.STRIPE:
-                    // providerInstance = new StripeProvider();
-                    throw new Error('Stripe provider not implemented yet');
+                    providerInstance = new StripeProvider();
+                    break;
 
                 case PaymentProvider.PAYPAL:
                     // providerInstance = new PayPalProvider();
                     throw new Error('PayPal provider not implemented yet');
 
                 case PaymentProvider.BINANCE:
-                    // providerInstance = new BinanceProvider();
-                    throw new Error('Binance provider not implemented yet');
+                    providerInstance = new BinanceProvider();
+                    break;
 
                 case PaymentProvider.ZELLE:
                     // providerInstance = new ZelleProvider();

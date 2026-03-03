@@ -19,6 +19,16 @@ export async function POST(request: NextRequest) {
       manualPaymentData,
     } = body;
 
+    const manualMethods = new Set(["zelle", "pagomovil", "transfer"]);
+    const apiMethods = new Set(["card", "paypal", "googlepay", "crypto"]);
+
+    if (!manualMethods.has(paymentMethod) && !apiMethods.has(paymentMethod)) {
+      return NextResponse.json(
+        { error: "Método de pago no soportado" },
+        { status: 400 }
+      );
+    }
+
     // Get authenticated user
     const {
       data: { user },
@@ -40,6 +50,15 @@ export async function POST(request: NextRequest) {
         payment_status: "pending",
         is_anonymous: isAnonymous,
         donor_name: isAnonymous ? null : donorEmail?.split("@")[0],
+        payment_reference:
+          paymentMethod === "pagomovil"
+            ? pagoMovilData?.reference || null
+            : paymentMethod === "transfer"
+              ? manualPaymentData?.reference || null
+              : null,
+        admin_notes: manualMethods.has(paymentMethod)
+          ? "Pago pendiente de verificación manual"
+          : null,
       })
       .select()
       .single();
@@ -49,6 +68,7 @@ export async function POST(request: NextRequest) {
     // Map payment method to provider
     const providerMap: Record<string, PaymentProvider> = {
       card: PaymentProvider.STRIPE,
+      googlepay: PaymentProvider.STRIPE,
       paypal: PaymentProvider.PAYPAL,
       crypto: PaymentProvider.BINANCE,
       zelle: PaymentProvider.ZELLE,
@@ -56,6 +76,20 @@ export async function POST(request: NextRequest) {
     };
 
     const provider = providerMap[paymentMethod] || PaymentProvider.STRIPE;
+
+    if (manualMethods.has(paymentMethod)) {
+      return NextResponse.json({
+        donation,
+        payment: {
+          success: true,
+          status: "pending",
+          metadata: {
+            confirmationType: "manual",
+            paymentMethod,
+          },
+        },
+      });
+    }
 
     // Process payment through PaymentManager
     try {
@@ -95,11 +129,16 @@ export async function POST(request: NextRequest) {
       if (paymentResult.success) {
         console.log(`✅ Payment successful, updating donation to: ${paymentResult.status}`);
 
+        const isStripeMethod = paymentMethod === "card" || paymentMethod === "googlepay";
+        const isBinanceMethod = paymentMethod === "crypto";
+
         const { data: updateData, error: updateError, count } = await supabase
           .from("donations")
           .update({
             payment_status: paymentResult.status,
             completed_at: paymentResult.status === 'completed' ? new Date().toISOString() : null,
+            stripe_payment_id: isStripeMethod ? paymentResult.externalId || null : null,
+            payment_reference: isBinanceMethod ? paymentResult.externalId || null : null,
           })
           .eq("id", donation.id)
           .select();
@@ -120,16 +159,51 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         donation,
-        payment: paymentResult,
+        payment: {
+          ...paymentResult,
+          metadata: {
+            ...(paymentResult.metadata || {}),
+            confirmationType: "api",
+          },
+        },
       });
     } catch (paymentError: any) {
       console.error("Payment processing error:", paymentError);
 
-      // Update donation as failed
+      const details = paymentError?.message || "Error desconocido";
+      const providerNotAvailable =
+        details.includes("not implemented") ||
+        details.includes("Provider") ||
+        details.includes("not enabled");
+
+      if (providerNotAvailable) {
+        await supabase
+          .from("donations")
+          .update({
+            payment_status: "pending",
+            admin_notes: "Método automático pendiente de integración/confirmación",
+          })
+          .eq("id", donation.id);
+
+        return NextResponse.json({
+          donation,
+          payment: {
+            success: false,
+            status: "pending",
+            error: "No pudimos completar el método automático en este momento.",
+            metadata: {
+              confirmationType: "api",
+              providerAvailable: false,
+            },
+          },
+        });
+      }
+
       await supabase
         .from("donations")
         .update({
           payment_status: "failed",
+          admin_notes: details,
         })
         .eq("id", donation.id);
 
@@ -137,7 +211,12 @@ export async function POST(request: NextRequest) {
         donation,
         payment: {
           success: false,
+          status: "failed",
           error: paymentError.message,
+          metadata: {
+            confirmationType: "api",
+            providerAvailable: true,
+          },
         },
       });
     }

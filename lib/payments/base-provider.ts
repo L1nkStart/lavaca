@@ -35,14 +35,18 @@ export abstract class BasePaymentProvider implements IPaymentProvider {
      * Inicializa el proveedor con su configuración
      */
     async initialize(config: ProviderConfig): Promise<void> {
+        const previousConfig = this.config;
+        this.config = config;
+
         if (!this.validateConfig()) {
+            this.config = previousConfig;
             throw new PaymentError(
                 `Invalid configuration for ${this.provider}`,
                 PaymentErrorCode.INVALID_CONFIG,
                 this.provider
             );
         }
-        this.config = config;
+
         await this.onInitialize();
     }
 

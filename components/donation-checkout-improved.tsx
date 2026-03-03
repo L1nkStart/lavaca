@@ -10,6 +10,7 @@ import { Loader2, Clock, TrendingUp, Shield, CheckCircle, RefreshCcw } from 'luc
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { isLikelyRestrictedRegion, loadStripeSdkConditionally } from "@/lib/payments/stripe-loader";
 
 interface DonationCheckoutProps {
     campaignId: string;
@@ -18,6 +19,9 @@ interface DonationCheckoutProps {
 
 type Currency = 'USD' | 'BS';
 type PaymentMethod = 'card' | 'paypal' | 'googlepay' | 'zelle' | 'crypto' | 'pagomovil' | 'transfer';
+
+const INTERNATIONAL_METHODS: PaymentMethod[] = ['card', 'paypal', 'googlepay'];
+const MANUAL_METHODS: PaymentMethod[] = ['zelle', 'pagomovil', 'transfer'];
 
 const USD_METHODS: { id: PaymentMethod; name: string; icon: string }[] = [
     { id: 'card', name: 'Tarjeta de Crédito/Débito', icon: '💳' },
@@ -42,6 +46,8 @@ export function DonationCheckout({
     const [isAnonymous, setIsAnonymous] = useState(false);
     const [donorEmail, setDonorEmail] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [checkoutError, setCheckoutError] = useState<string | null>(null);
+    const [internationalMethodWarning, setInternationalMethodWarning] = useState<string | null>(null);
 
     // Exchange rate state
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
@@ -112,11 +118,29 @@ export function DonationCheckout({
     // Change default payment method when currency changes
     useEffect(() => {
         if (currency === 'USD') {
-            setPaymentMethod('card');
+            setPaymentMethod(isLikelyRestrictedRegion() ? 'zelle' : 'card');
         } else {
             setPaymentMethod('pagomovil');
         }
     }, [currency]);
+
+    const handleSelectPaymentMethod = async (method: PaymentMethod) => {
+        setCheckoutError(null);
+        setPaymentMethod(method);
+
+        if (!INTERNATIONAL_METHODS.includes(method)) {
+            setInternationalMethodWarning(null);
+            return;
+        }
+
+        try {
+            await loadStripeSdkConditionally();
+            setInternationalMethodWarning(null);
+        } catch (error) {
+            console.error('Error loading Stripe SDK:', error);
+            setInternationalMethodWarning('No pudimos cargar el método de pago internacional. Por favor, verifica tu conexión o intenta con uno de nuestros métodos locales.');
+        }
+    }
 
     const availableMethods = currency === 'USD' ? USD_METHODS : BS_METHODS;
 
@@ -125,24 +149,33 @@ export function DonationCheckout({
 
     const handleDonate = async () => {
         setIsLoading(true);
+        setCheckoutError(null);
         try {
             // Validation
             if (!isAnonymous && !donorEmail) {
-                alert("Por favor ingresa tu correo");
-                setIsLoading(false);
+                setCheckoutError("Por favor ingresa tu correo");
                 return;
             }
 
             if (paymentMethod === "pagomovil" && (!pagoMovilData.bank || !pagoMovilData.phone || !pagoMovilData.cedula)) {
-                alert("Por favor completa todos los datos de Pago Móvil");
-                setIsLoading(false);
+                setCheckoutError("Por favor completa todos los datos de Pago Móvil");
                 return;
             }
 
             if (paymentMethod === "transfer" && (!transferData.bank || !transferData.reference)) {
-                alert("Por favor completa los datos de la transferencia");
-                setIsLoading(false);
+                setCheckoutError("Por favor completa los datos de la transferencia");
                 return;
+            }
+
+            if (INTERNATIONAL_METHODS.includes(paymentMethod)) {
+                try {
+                    await loadStripeSdkConditionally();
+                    setInternationalMethodWarning(null);
+                } catch (error) {
+                    console.error('International checkout load error:', error);
+                    setInternationalMethodWarning('No pudimos cargar el método de pago internacional. Por favor, verifica tu conexión o intenta con uno de nuestros métodos locales.');
+                    return;
+                }
             }
 
             // Call API
@@ -166,18 +199,20 @@ export function DonationCheckout({
                 throw new Error(result.details || result.error || "Error creating donation");
             }
 
-            if (result.payment && result.payment.success) {
-                alert("✅ ¡Donación exitosa!\n\nGracias por tu apoyo.");
+            const confirmationType = result?.payment?.metadata?.confirmationType;
+
+            if (result.payment && result.payment.success && confirmationType === 'api') {
                 window.location.href = `/campaigns/${campaignId}?donation=success`;
+            } else if (result.payment && (confirmationType === 'manual' || MANUAL_METHODS.includes(paymentMethod))) {
+                window.location.href = `/campaigns/${campaignId}?donation=pending`;
             } else if (result.payment && result.payment.externalId) {
                 window.location.href = result.payment.metadata?.checkoutUrl || `/campaigns/${campaignId}`;
             } else {
-                alert("⏳ Donación registrada\n\nTu donación está pendiente de confirmación.");
                 window.location.href = `/campaigns/${campaignId}?donation=pending`;
             }
         } catch (error) {
             console.error("Error:", error);
-            alert("Ocurrió un error. Por favor intenta de nuevo.");
+            setCheckoutError("Ocurrió un error al procesar la donación. Por favor intenta de nuevo.");
         } finally {
             setIsLoading(false);
         }
@@ -220,6 +255,20 @@ export function DonationCheckout({
                     <CardTitle className="text-xl">Donación para: {campaignTitle}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                    {checkoutError && (
+                        <Alert variant="destructive">
+                            <AlertDescription>{checkoutError}</AlertDescription>
+                        </Alert>
+                    )}
+
+                    {internationalMethodWarning && (
+                        <Alert className="bg-yellow-500/5 border-yellow-500/30">
+                            <AlertDescription>
+                                {internationalMethodWarning}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
                     {/* Currency Selector */}
                     <div className="space-y-3">
                         <Label className="text-base font-semibold">Moneda</Label>
@@ -288,7 +337,7 @@ export function DonationCheckout({
                             {availableMethods.map((method) => (
                                 <button
                                     key={method.id}
-                                    onClick={() => setPaymentMethod(method.id)}
+                                    onClick={() => handleSelectPaymentMethod(method.id)}
                                     className={cn(
                                         "flex items-center gap-3 p-4 rounded-lg border-2 transition-all text-left",
                                         paymentMethod === method.id

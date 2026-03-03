@@ -300,8 +300,25 @@ export default async function CreatorCampaignsPage() {
                                   </Link>
                                 </Button>
                               )}
+                              {campaign.status === 'rejected' && (
+                                <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
+                                  <Link href={`/creator/campaigns/${campaign.id}/edit`}>
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    Ver estado
+                                  </Link>
+                                </Button>
+                              )}
                             </div>
                           </div>
+
+                          {campaign.status === 'rejected' && (
+                            <Alert className="mb-4 border-destructive/30 bg-destructive/10">
+                              <AlertCircle className="h-4 w-4 text-destructive" />
+                              <AlertDescription className="text-destructive">
+                                Esta campaña fue rechazada. Para solicitar su reactivación, envía un correo al equipo de soporte con el ID de la campaña y los ajustes realizados desde la sección de contacto.
+                              </AlertDescription>
+                            </Alert>
+                          )}
 
                           {/* Progress and Stats */}
                           <div className="space-y-4">

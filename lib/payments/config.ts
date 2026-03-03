@@ -62,6 +62,10 @@ export function initializePayments() {
             apiKey: process.env.BINANCE_API_KEY,
             apiSecret: process.env.BINANCE_API_SECRET,
             environment: isTestMode() ? 'sandbox' : 'production',
+            customConfig: {
+                certificateSn: process.env.BINANCE_PAY_CERT_SN,
+                baseUrl: process.env.BINANCE_PAY_BASE_URL || 'https://bpay.binanceapi.com',
+            },
         });
     }
 

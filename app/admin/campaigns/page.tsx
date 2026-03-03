@@ -20,7 +20,6 @@ import {
     Trash2,
     ExternalLink
 } from 'lucide-react'
-import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 
 interface Campaign {
@@ -56,8 +55,6 @@ export default function AdminCampaignsPage() {
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [processing, setProcessing] = useState<string | null>(null)
 
-    const supabase = createClient()
-
     useEffect(() => {
         fetchCampaigns()
     }, [])
@@ -69,23 +66,18 @@ export default function AdminCampaignsPage() {
     const fetchCampaigns = async () => {
         try {
             setLoading(true)
-            const { data, error: fetchError } = await supabase
-                .from('campaigns')
-                .select(`
-          *,
-          users (
-            full_name,
-            email
-          ),
-          categories (
-            name
-          )
-        `)
-                .order('created_at', { ascending: false })
+            const response = await fetch('/api/admin/campaigns', {
+                method: 'GET',
+                cache: 'no-store',
+            })
 
-            if (fetchError) throw fetchError
+            const result = await response.json()
 
-            setCampaigns(data || [])
+            if (!response.ok) {
+                throw new Error(result?.error || result?.details || 'No se pudieron cargar las campañas')
+            }
+
+            setCampaigns(result?.campaigns || [])
         } catch (err: any) {
             console.error('Error fetching campaigns:', err)
             setError(err.message)
@@ -101,8 +93,8 @@ export default function AdminCampaignsPage() {
         if (searchTerm) {
             filtered = filtered.filter(campaign =>
                 campaign.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                campaign.users?.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                campaign.users?.email.toLowerCase().includes(searchTerm.toLowerCase())
+                (campaign.users?.full_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (campaign.users?.email || '').toLowerCase().includes(searchTerm.toLowerCase())
             )
         }
 
@@ -120,15 +112,8 @@ export default function AdminCampaignsPage() {
         try {
             setProcessing(campaignId)
 
-            const { data: { user } } = await supabase.auth.getUser()
-
-            if (!user) {
-                alert('No se pudo identificar el administrador autenticado.')
-                return
-            }
-
             const requiresReviewNotes =
-                currentStatus === 'under_review' && ['active', 'suspended', 'completed'].includes(newStatus)
+                currentStatus === 'under_review' && ['active', 'rejected', 'completed', 'closed'].includes(newStatus)
 
             let reviewNotes: string | null = null
             if (requiresReviewNotes) {
@@ -147,50 +132,32 @@ export default function AdminCampaignsPage() {
                 }
             }
 
-            const updatePayload: Record<string, any> = {
-                status: newStatus,
-                updated_at: new Date().toISOString()
+            const response = await fetch(`/api/admin/campaigns/${campaignId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    status: newStatus,
+                    reviewNotes,
+                    creatorId,
+                })
+            })
+
+            const result = await response.json()
+
+            if (!response.ok) {
+                throw new Error(result?.error || result?.details || 'No se pudo actualizar la campaña')
             }
 
-            if (requiresReviewNotes) {
-                updatePayload.reviewed_by = user.id
-                updatePayload.review_notes = reviewNotes
-                updatePayload.reviewed_at = new Date().toISOString()
-            }
+            const statusLabel =
+                newStatus === 'active'
+                    ? 'activada'
+                    : newStatus === 'rejected'
+                        ? 'rechazada'
+                        : 'actualizada'
 
-            const { error: updateError } = await supabase
-                .from('campaigns')
-                .update(updatePayload)
-                .eq('id', campaignId)
-
-            if (updateError) throw updateError
-
-            if (requiresReviewNotes) {
-                const notificationType = newStatus === 'active' ? 'campaign_approved' : 'campaign_rejected'
-                const notificationTitle = newStatus === 'active'
-                    ? 'Campaña aprobada'
-                    : 'Campaña no aprobada'
-                const notificationMessage = newStatus === 'active'
-                    ? 'Tu campaña fue aprobada y ya puede recibir donaciones.'
-                    : 'Tu campaña requiere ajustes. Revisa las observaciones del equipo de seguridad.'
-
-                await supabase
-                    .from('notifications')
-                    .insert({
-                        user_id: creatorId,
-                        type: notificationType,
-                        title: notificationTitle,
-                        message: notificationMessage,
-                        link: '/creator/campaigns',
-                        data: {
-                            campaign_id: campaignId,
-                            review_notes: reviewNotes,
-                            reviewed_by: user.id
-                        }
-                    })
-            }
-
-            alert(`✅ Campaña ${newStatus === 'active' ? 'activada' : 'suspendida'} exitosamente`)
+            alert(`✅ Campaña ${statusLabel} exitosamente`)
             fetchCampaigns()
         } catch (err: any) {
             console.error('Error updating campaign:', err)
@@ -205,12 +172,15 @@ export default function AdminCampaignsPage() {
 
         try {
             setProcessing(campaignId)
-            const { error: deleteError } = await supabase
-                .from('campaigns')
-                .delete()
-                .eq('id', campaignId)
+            const response = await fetch(`/api/admin/campaigns/${campaignId}`, {
+                method: 'DELETE'
+            })
 
-            if (deleteError) throw deleteError
+            const result = await response.json()
+
+            if (!response.ok) {
+                throw new Error(result?.error || result?.details || 'No se pudo eliminar la campaña')
+            }
 
             alert('✅ Campaña eliminada exitosamente')
             fetchCampaigns()
@@ -226,8 +196,9 @@ export default function AdminCampaignsPage() {
         const variants: Record<string, { color: string; text: string; icon: any }> = {
             active: { color: 'bg-green-500', text: 'Activa', icon: CheckCircle },
             completed: { color: 'bg-blue-500', text: 'Completada', icon: CheckCircle },
-            suspended: { color: 'bg-red-500', text: 'Suspendida', icon: Ban },
+            rejected: { color: 'bg-red-500', text: 'Rechazada', icon: Ban },
             under_review: { color: 'bg-yellow-500', text: 'En Revisión', icon: AlertCircle },
+            pending_review: { color: 'bg-yellow-500', text: 'En Revisión', icon: AlertCircle },
             draft: { color: 'bg-gray-500', text: 'Borrador', icon: AlertCircle },
         }
         const variant = variants[status] || variants.draft
@@ -243,6 +214,22 @@ export default function AdminCampaignsPage() {
     const getProgress = (current: number, goal: number) => {
         return goal > 0 ? Math.min((current / goal) * 100, 100) : 0
     }
+
+    const getStatusText = (status: string) => {
+        const labels: Record<string, string> = {
+            active: 'Activas',
+            completed: 'Completadas',
+            rejected: 'Rechazadas',
+            under_review: 'En revisión',
+            pending_review: 'Pendiente revisión',
+            draft: 'Borradores',
+            closed: 'Cerradas',
+        }
+
+        return labels[status] || status
+    }
+
+    const availableStatuses = Array.from(new Set(campaigns.map((campaign) => campaign.status))).filter(Boolean)
 
     if (loading) {
         return (
@@ -309,11 +296,11 @@ export default function AdminCampaignsPage() {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">Todos los estados</SelectItem>
-                                        <SelectItem value="active">Activas</SelectItem>
-                                        <SelectItem value="completed">Completadas</SelectItem>
-                                        <SelectItem value="suspended">Suspendidas</SelectItem>
-                                        <SelectItem value="under_review">En revisión</SelectItem>
-                                        <SelectItem value="draft">Borradores</SelectItem>
+                                        {availableStatuses.map((status) => (
+                                            <SelectItem key={status} value={status}>
+                                                {getStatusText(status)}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -400,7 +387,7 @@ export default function AdminCampaignsPage() {
                                                 <div className="flex flex-wrap gap-2 pt-2 border-t">
                                                     {/* View */}
                                                     <Button size="sm" variant="outline" asChild>
-                                                        <Link href={`/campaigns/${campaign.slug}`} target="_blank">
+                                                        <Link href={`/campaigns/${campaign.id}`} target="_blank">
                                                             <Eye className="w-4 h-4 mr-2" />
                                                             Ver campaña
                                                             <ExternalLink className="w-3 h-3 ml-1" />
@@ -431,7 +418,7 @@ export default function AdminCampaignsPage() {
                                                             size="sm"
                                                             variant="outline"
                                                             className="text-yellow-600 hover:text-yellow-700"
-                                                            onClick={() => handleStatusChange(campaign.id, campaign.status, 'suspended', campaign.creator_id)}
+                                                            onClick={() => handleStatusChange(campaign.id, campaign.status, 'rejected', campaign.creator_id)}
                                                             disabled={processing === campaign.id}
                                                         >
                                                             {processing === campaign.id ? (
@@ -439,7 +426,7 @@ export default function AdminCampaignsPage() {
                                                             ) : (
                                                                 <Ban className="w-4 h-4 mr-2" />
                                                             )}
-                                                            Suspender
+                                                            Rechazar
                                                         </Button>
                                                     )}
 
