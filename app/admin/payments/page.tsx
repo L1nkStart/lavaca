@@ -17,7 +17,7 @@ interface Payment {
   donor_id: string
   amount_usd: number
   payment_method: string
-  payment_reference: string | null
+  reference_number: string | null
   payment_status: string
   created_at: string
   campaigns: {
@@ -227,11 +227,11 @@ export default function AdminPaymentsPage() {
 
                   {/* Payment Details */}
                   <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                    {payment.payment_reference && (
+                    {payment.reference_number && (
                       <div>
                         <p className="text-xs text-muted-foreground">Referencia</p>
                         <p className="font-mono text-sm break-all">
-                          {payment.payment_reference}
+                          {payment.reference_number}
                         </p>
                       </div>
                     )}

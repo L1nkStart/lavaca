@@ -41,7 +41,7 @@ async function markCompleted(donationId: string, externalRef?: string) {
         .update({
             payment_status: "completed",
             completed_at: new Date().toISOString(),
-            payment_reference: externalRef || null,
+            reference_number: externalRef || null,
             admin_notes: null,
         })
         .eq("id", donationId)
@@ -57,7 +57,7 @@ async function markFailed(donationId: string, reason: string, externalRef?: stri
         .from("donations")
         .update({
             payment_status: "failed",
-            payment_reference: externalRef || null,
+            reference_number: externalRef || null,
             admin_notes: reason,
         })
         .eq("id", donationId)

@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
         payment_status: "pending",
         is_anonymous: isAnonymous,
         donor_name: isAnonymous ? null : donorEmail?.split("@")[0],
-        payment_reference:
+        reference_number:
           paymentMethod === "pagomovil"
             ? pagoMovilData?.reference || null
             : paymentMethod === "transfer"
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
             payment_status: paymentResult.status,
             completed_at: paymentResult.status === 'completed' ? new Date().toISOString() : null,
             stripe_payment_id: isStripeMethod ? paymentResult.externalId || null : null,
-            payment_reference: isBinanceMethod ? paymentResult.externalId || null : null,
+            reference_number: isBinanceMethod ? paymentResult.externalId || null : null,
           })
           .eq("id", donation.id)
           .select();

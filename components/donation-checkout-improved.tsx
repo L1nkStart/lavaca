@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Clock, TrendingUp, Shield, CheckCircle, RefreshCcw } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { isLikelyRestrictedRegion, loadStripeSdkConditionally } from "@/lib/payments/stripe-loader";
 
@@ -20,19 +21,44 @@ interface DonationCheckoutProps {
 type Currency = 'USD' | 'BS';
 type PaymentMethod = 'card' | 'paypal' | 'googlepay' | 'zelle' | 'crypto' | 'pagomovil' | 'transfer';
 
+interface PaymentMethodConfig {
+    code: PaymentMethod;
+    name: string;
+    description?: string | null;
+    is_active: boolean;
+    display_order: number;
+    settings: Record<string, any>;
+}
+
+interface TransferAccount {
+    id: string;
+    method_code: string;
+    bank_name: string;
+    account_holder: string;
+    account_number: string;
+    account_type?: string | null;
+    document_id?: string | null;
+    currency: string;
+    instructions?: string | null;
+    is_active: boolean;
+    display_order: number;
+}
+
 const STRIPE_METHODS: PaymentMethod[] = ['card'];
 const MANUAL_METHODS: PaymentMethod[] = ['zelle', 'pagomovil', 'transfer'];
 
-const USD_METHODS: { id: PaymentMethod; name: string; icon: string }[] = [
-    { id: 'card', name: 'Tarjeta de Crédito/Débito', icon: '💳' },
-    { id: 'zelle', name: 'Zelle', icon: '💵' },
-    { id: 'crypto', name: 'Binance Pay', icon: '₿' },
-];
+const METHOD_META: Record<PaymentMethod, { icon: string; defaultName: string }> = {
+    card: { icon: '💳', defaultName: 'Tarjeta de Crédito/Débito' },
+    paypal: { icon: '🅿️', defaultName: 'PayPal' },
+    googlepay: { icon: '📱', defaultName: 'Google Pay' },
+    zelle: { icon: '💵', defaultName: 'Zelle' },
+    crypto: { icon: '₿', defaultName: 'Binance Pay' },
+    pagomovil: { icon: '📱', defaultName: 'Pago Móvil' },
+    transfer: { icon: '🏦', defaultName: 'Transferencia Bancaria' },
+};
 
-const BS_METHODS: { id: PaymentMethod; name: string; icon: string }[] = [
-    { id: 'pagomovil', name: 'Pago Móvil', icon: '📱' },
-    { id: 'transfer', name: 'Transferencia Bancaria', icon: '🏦' },
-];
+const USD_ALLOWED_METHODS: PaymentMethod[] = ['card', 'zelle', 'crypto'];
+const BS_ALLOWED_METHODS: PaymentMethod[] = ['pagomovil', 'transfer'];
 
 export function DonationCheckout({
     campaignId,
@@ -47,6 +73,8 @@ export function DonationCheckout({
     const [checkoutError, setCheckoutError] = useState<string | null>(null);
     const [internationalMethodWarning, setInternationalMethodWarning] = useState<string | null>(null);
     const [stripeStatus, setStripeStatus] = useState<'checking' | 'available' | 'blocked'>('checking');
+    const [paymentConfigs, setPaymentConfigs] = useState<PaymentMethodConfig[]>([]);
+    const [configuredTransferAccounts, setConfiguredTransferAccounts] = useState<TransferAccount[]>([]);
 
     // Exchange rate state
     const [exchangeRate, setExchangeRate] = useState<number | null>(null);
@@ -62,9 +90,29 @@ export function DonationCheckout({
     });
 
     const [transferData, setTransferData] = useState({
-        bank: "",
+        accountId: "",
         reference: "",
     });
+
+    useEffect(() => {
+        const fetchPaymentConfigs = async () => {
+            try {
+                const response = await fetch('/api/payment-methods', { cache: 'no-store' });
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data?.error || 'No se pudo cargar la configuración de pagos');
+                }
+
+                setPaymentConfigs(data.methods || []);
+                setConfiguredTransferAccounts(data.transferAccounts || []);
+            } catch (error) {
+                console.error('Error fetching payment configs:', error);
+            }
+        };
+
+        fetchPaymentConfigs();
+    }, []);
 
     // Fetch exchange rate
     useEffect(() => {
@@ -114,14 +162,41 @@ export function DonationCheckout({
         return () => clearInterval(interval);
     }, [rateExpiresAt]);
 
-    // Change default payment method when currency changes
+    const activeConfigMethods = paymentConfigs.filter((config) => config.is_active);
+
+    const availableMethods = activeConfigMethods
+        .filter((config) => {
+            const method = config.code;
+            if (currency === 'USD' && !USD_ALLOWED_METHODS.includes(method)) return false;
+            if (currency === 'BS' && !BS_ALLOWED_METHODS.includes(method)) return false;
+            if (method === 'card' && stripeStatus !== 'available') return false;
+            return true;
+        })
+        .sort((a, b) => a.display_order - b.display_order)
+        .map((config) => ({
+            id: config.code,
+            name: config.name || METHOD_META[config.code].defaultName,
+            icon: METHOD_META[config.code].icon,
+            description: config.description || '',
+            settings: config.settings || {},
+        }));
+
+    // Keep selected payment method aligned with available configured methods
     useEffect(() => {
-        if (currency === 'USD') {
-            setPaymentMethod(stripeStatus === 'available' ? 'card' : 'zelle');
-        } else {
-            setPaymentMethod('pagomovil');
+        if (availableMethods.length === 0) return;
+
+        const stillAvailable = availableMethods.some((method) => method.id === paymentMethod);
+        if (!stillAvailable) {
+            setPaymentMethod(availableMethods[0].id);
         }
-    }, [currency, stripeStatus]);
+    }, [availableMethods, paymentMethod]);
+
+    useEffect(() => {
+        if (!configuredTransferAccounts.length) return;
+        if (!transferData.accountId) {
+            setTransferData((prev) => ({ ...prev, accountId: configuredTransferAccounts[0].id }));
+        }
+    }, [configuredTransferAccounts, transferData.accountId]);
 
     // Validate Stripe availability once on load
     useEffect(() => {
@@ -171,9 +246,8 @@ export function DonationCheckout({
         }
     }
 
-    const availableMethods = currency === 'USD'
-        ? USD_METHODS.filter((method) => method.id !== 'card' || stripeStatus === 'available')
-        : BS_METHODS;
+    const selectedMethodConfig = availableMethods.find((method) => method.id === paymentMethod);
+    const selectedTransferAccount = configuredTransferAccounts.find((account) => account.id === transferData.accountId);
 
     const amountInUSD = currency === 'USD' ? amount : amount / (exchangeRate || 43.02);
 
@@ -192,7 +266,7 @@ export function DonationCheckout({
                 return;
             }
 
-            if (paymentMethod === "transfer" && (!transferData.bank || !transferData.reference)) {
+            if (paymentMethod === "transfer" && (!transferData.accountId || !transferData.reference)) {
                 setCheckoutError("Por favor completa los datos de la transferencia");
                 return;
             }
@@ -219,7 +293,14 @@ export function DonationCheckout({
                     isAnonymous,
                     donorEmail: isAnonymous ? null : donorEmail,
                     pagoMovilData: paymentMethod === "pagomovil" ? pagoMovilData : null,
-                    manualPaymentData: paymentMethod === "transfer" ? transferData : null,
+                    manualPaymentData: paymentMethod === "transfer"
+                        ? {
+                            ...transferData,
+                            bank: selectedTransferAccount?.bank_name || null,
+                            accountId: selectedTransferAccount?.id || null,
+                            accountNumber: selectedTransferAccount?.account_number || null,
+                        }
+                        : null,
                 }),
             });
 
@@ -296,6 +377,14 @@ export function DonationCheckout({
                         <Alert className="bg-yellow-500/5 border-yellow-500/30">
                             <AlertDescription>
                                 {internationalMethodWarning}
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
+                    {availableMethods.length === 0 && (
+                        <Alert className="bg-yellow-500/5 border-yellow-500/30">
+                            <AlertDescription>
+                                No hay métodos de pago activos para esta moneda en este momento.
                             </AlertDescription>
                         </Alert>
                     )}
@@ -377,7 +466,12 @@ export function DonationCheckout({
                                     )}
                                 >
                                     <span className="text-2xl">{method.icon}</span>
-                                    <span className="font-medium">{method.name}</span>
+                                    <div>
+                                        <span className="font-medium block">{method.name}</span>
+                                        {method.description ? (
+                                            <span className="text-xs text-muted-foreground">{method.description}</span>
+                                        ) : null}
+                                    </div>
                                     {paymentMethod === method.id && (
                                         <CheckCircle className="ml-auto h-5 w-5 text-primary" />
                                     )}
@@ -389,6 +483,22 @@ export function DonationCheckout({
                     {/* Payment-specific forms */}
                     {paymentMethod === 'pagomovil' && (
                         <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+                            <h4 className="font-semibold text-sm">Datos para pagar</h4>
+                            <p className="text-sm text-muted-foreground">
+                                Banco: <strong>{String(selectedMethodConfig?.settings?.bank || 'No configurado')}</strong> ·
+                                Teléfono: <strong>{String(selectedMethodConfig?.settings?.phone || 'No configurado')}</strong> ·
+                                Cédula/RIF: <strong>{String(selectedMethodConfig?.settings?.cedula || 'No configurado')}</strong>
+                            </p>
+                            {selectedMethodConfig?.settings?.qrImageUrl ? (
+                                <div className="rounded border bg-background p-2 inline-block">
+                                    <img
+                                        src={String(selectedMethodConfig.settings.qrImageUrl)}
+                                        alt="QR de Pago Móvil"
+                                        className="h-40 w-40 object-contain"
+                                    />
+                                </div>
+                            ) : null}
+
                             <h4 className="font-semibold text-sm">Datos de Pago Móvil</h4>
                             <div>
                                 <Label htmlFor="bank">Banco</Label>
@@ -420,18 +530,48 @@ export function DonationCheckout({
                         </div>
                     )}
 
+                    {paymentMethod === 'zelle' && (
+                        <div className="space-y-2 p-4 bg-muted/30 rounded-lg">
+                            <h4 className="font-semibold text-sm">Datos para pagar por Zelle</h4>
+                            <p className="text-sm text-muted-foreground">
+                                Email receptor: <strong>{String(selectedMethodConfig?.settings?.email || 'No configurado')}</strong>
+                            </p>
+                            {selectedMethodConfig?.settings?.accountName ? (
+                                <p className="text-sm text-muted-foreground">
+                                    Titular: <strong>{String(selectedMethodConfig?.settings?.accountName)}</strong>
+                                </p>
+                            ) : null}
+                        </div>
+                    )}
+
                     {paymentMethod === 'transfer' && (
                         <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
+                            <h4 className="font-semibold text-sm">Cuenta destino</h4>
+                            <Select
+                                value={transferData.accountId}
+                                onValueChange={(value) => setTransferData({ ...transferData, accountId: value })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona una cuenta bancaria" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {configuredTransferAccounts.map((account) => (
+                                        <SelectItem key={account.id} value={account.id}>
+                                            {account.bank_name} · {account.account_number} · {account.account_holder}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            {selectedTransferAccount ? (
+                                <p className="text-xs text-muted-foreground">
+                                    {selectedTransferAccount.account_type ? `${selectedTransferAccount.account_type} · ` : ''}
+                                    {selectedTransferAccount.document_id ? `${selectedTransferAccount.document_id} · ` : ''}
+                                    {selectedTransferAccount.currency}
+                                </p>
+                            ) : null}
+
                             <h4 className="font-semibold text-sm">Datos de Transferencia</h4>
-                            <div>
-                                <Label htmlFor="transfer-bank">Banco</Label>
-                                <Input
-                                    id="transfer-bank"
-                                    placeholder="Nombre del banco"
-                                    value={transferData.bank}
-                                    onChange={(e) => setTransferData({ ...transferData, bank: e.target.value })}
-                                />
-                            </div>
                             <div>
                                 <Label htmlFor="reference">Referencia</Label>
                                 <Input
@@ -506,7 +646,7 @@ export function DonationCheckout({
                 size="lg"
                 className="w-full h-14 text-lg"
                 onClick={handleDonate}
-                disabled={isLoading || rateLoading}
+                disabled={isLoading || rateLoading || availableMethods.length === 0}
             >
                 {isLoading ? (
                     <>

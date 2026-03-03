@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
-import { LayoutDashboard, Users, FileText, CreditCard, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, CreditCard, Settings, LogOut, Wallet } from 'lucide-react'
 import { createClient } from "@/lib/supabase/client"
 
 interface BadgeCounts {
@@ -91,6 +91,11 @@ export function AdminSidebar() {
       href: "/admin/payments",
       icon: CreditCard,
       badge: badges.payments,
+    },
+    {
+      label: "Métodos de Pago",
+      href: "/admin/payment-methods",
+      icon: Wallet,
     },
     {
       label: "Configuración",

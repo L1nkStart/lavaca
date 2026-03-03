@@ -166,9 +166,14 @@ CREATE TABLE public.campaigns (
   video_url text,
   beneficiary_name text,
   beneficiary_relationship text,
+  risk_score integer CHECK (risk_score IS NULL OR risk_score >= 0 AND risk_score <= 100),
+  reviewed_by uuid,
+  review_notes text,
+  reviewed_at timestamp with time zone,
   CONSTRAINT campaigns_pkey PRIMARY KEY (id),
   CONSTRAINT campaigns_creator_id_fkey FOREIGN KEY (creator_id) REFERENCES public.users(id),
-  CONSTRAINT campaigns_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id)
+  CONSTRAINT campaigns_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.categories(id),
+  CONSTRAINT campaigns_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.categories (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -199,6 +204,7 @@ CREATE TABLE public.donations (
   approved_at timestamp with time zone,
   message text,
   tip_amount_usd numeric DEFAULT 0,
+  admin_notes text,
   CONSTRAINT donations_pkey PRIMARY KEY (id),
   CONSTRAINT donations_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id),
   CONSTRAINT donations_donor_id_fkey FOREIGN KEY (donor_id) REFERENCES public.users(id)
@@ -225,6 +231,28 @@ CREATE TABLE public.frozen_exchange_rates (
   donation_id uuid,
   CONSTRAINT frozen_exchange_rates_pkey PRIMARY KEY (id),
   CONSTRAINT frozen_exchange_rates_donation_id_fkey FOREIGN KEY (donation_id) REFERENCES public.donations(id)
+);
+CREATE TABLE public.fund_freezes (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  campaign_id uuid,
+  frozen_amount_usd numeric NOT NULL,
+  frozen_amount_bs numeric,
+  reason text NOT NULL CHECK (reason = ANY (ARRAY['verification_rejected'::text, 'fraud_detected'::text, 'user_reported'::text, 'admin_action'::text, 'other'::text])),
+  reason_details text,
+  status text NOT NULL DEFAULT 'active'::text CHECK (status = ANY (ARRAY['active'::text, 'released'::text, 'refunded'::text])),
+  frozen_by uuid NOT NULL,
+  frozen_at timestamp with time zone NOT NULL DEFAULT now(),
+  released_by uuid,
+  released_at timestamp with time zone,
+  release_notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT fund_freezes_pkey PRIMARY KEY (id),
+  CONSTRAINT fund_freezes_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT fund_freezes_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id),
+  CONSTRAINT fund_freezes_frozen_by_fkey FOREIGN KEY (frozen_by) REFERENCES auth.users(id),
+  CONSTRAINT fund_freezes_released_by_fkey FOREIGN KEY (released_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.guarantors (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -275,6 +303,26 @@ CREATE TABLE public.payment_transactions (
   CONSTRAINT payment_transactions_pkey PRIMARY KEY (id),
   CONSTRAINT payment_transactions_donation_id_fkey FOREIGN KEY (donation_id) REFERENCES public.donations(id)
 );
+CREATE TABLE public.user_suspensions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  suspension_type text NOT NULL CHECK (suspension_type = ANY (ARRAY['temporary'::text, 'permanent'::text])),
+  reason text NOT NULL CHECK (reason = ANY (ARRAY['verification_rejected'::text, 'fraud'::text, 'tos_violation'::text, 'user_request'::text, 'other'::text])),
+  reason_details text NOT NULL,
+  suspended_at timestamp with time zone NOT NULL DEFAULT now(),
+  suspended_until timestamp with time zone,
+  lifted_at timestamp with time zone,
+  is_active boolean NOT NULL DEFAULT true,
+  suspended_by uuid NOT NULL,
+  lifted_by uuid,
+  lift_reason text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_suspensions_pkey PRIMARY KEY (id),
+  CONSTRAINT user_suspensions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_suspensions_suspended_by_fkey FOREIGN KEY (suspended_by) REFERENCES auth.users(id),
+  CONSTRAINT user_suspensions_lifted_by_fkey FOREIGN KEY (lifted_by) REFERENCES auth.users(id)
+);
 CREATE TABLE public.users (
   id uuid NOT NULL,
   email text NOT NULL UNIQUE,
@@ -296,8 +344,52 @@ CREATE TABLE public.users (
   is_banned boolean DEFAULT false,
   ban_reason text,
   last_login_at timestamp with time zone,
+  terms_version_accepted text,
+  terms_accepted_at timestamp with time zone,
+  kyc_doc_type text,
+  kyc_doc_url text,
+  verified_at timestamp with time zone,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.verification_requests (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  verification_type text NOT NULL CHECK (verification_type = ANY (ARRAY['individual'::text, 'company'::text])),
+  full_name text NOT NULL,
+  document_type text NOT NULL CHECK (document_type = ANY (ARRAY['cedula'::text, 'rif'::text, 'passport'::text])),
+  document_number text NOT NULL,
+  birth_date date,
+  nationality text,
+  phone text NOT NULL,
+  email text NOT NULL,
+  address text NOT NULL,
+  city text,
+  state text,
+  country text NOT NULL DEFAULT 'Venezuela'::text,
+  postal_code text,
+  company_name text,
+  company_rif text,
+  company_type text,
+  company_registration_date date,
+  document_front_url text NOT NULL,
+  document_back_url text,
+  selfie_url text NOT NULL,
+  proof_of_address_url text,
+  company_registration_url text,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'under_review'::text, 'approved'::text, 'rejected'::text, 'suspended'::text])),
+  rejection_reason text,
+  rejection_details text,
+  reviewed_by uuid,
+  reviewed_at timestamp with time zone,
+  ip_address text,
+  user_agent text,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT verification_requests_pkey PRIMARY KEY (id),
+  CONSTRAINT verification_requests_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT verification_requests_reviewed_by_fkey FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
 );
 CREATE TABLE public.withdrawal_accounts (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
