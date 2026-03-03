@@ -30,6 +30,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (paymentMethod === "zelle") {
+      const zelleReference =
+        typeof manualPaymentData?.reference === "string"
+          ? manualPaymentData.reference.trim()
+          : "";
+
+      if (!zelleReference) {
+        return NextResponse.json(
+          { error: "La referencia de pago es obligatoria para Zelle" },
+          { status: 400 }
+        );
+      }
+    }
+
     // Get authenticated user
     const {
       data: { user },
@@ -94,11 +108,13 @@ export async function POST(request: NextRequest) {
         is_anonymous: isAnonymous,
         donor_name: finalDonorName,
         reference_number:
-          paymentMethod === "pagomovil"
-            ? pagoMovilData?.reference || null
-            : paymentMethod === "transfer"
-              ? manualPaymentData?.reference || null
-              : null,
+          paymentMethod === "zelle"
+            ? manualPaymentData?.reference?.trim() || null
+            : paymentMethod === "pagomovil"
+              ? pagoMovilData?.reference || null
+              : paymentMethod === "transfer"
+                ? manualPaymentData?.reference?.trim() || null
+                : null,
         admin_notes: manualMethods.has(paymentMethod)
           ? "Pago pendiente de verificación manual"
           : null,

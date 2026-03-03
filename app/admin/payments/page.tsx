@@ -35,6 +35,8 @@ interface Payment {
 
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([])
+  const [methodFilter, setMethodFilter] = useState<'all' | 'zelle' | 'pagomovil' | 'transfer'>('all')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -86,7 +88,6 @@ export default function AdminPaymentsPage() {
         .from('donations')
         .update({
           payment_status: 'completed',
-          status: 'completed'
         })
         .eq('id', id)
 
@@ -116,7 +117,6 @@ export default function AdminPaymentsPage() {
         .from('donations')
         .update({
           payment_status: 'rejected',
-          status: 'failed',
           admin_notes: notes
         })
         .eq('id', id)
@@ -156,6 +156,17 @@ export default function AdminPaymentsPage() {
     return payment.email || payment.users?.email || null
   }
 
+  const filteredPayments = payments.filter((payment) => {
+    if (methodFilter === 'all') return true
+    return payment.payment_method === methodFilter
+  })
+
+  const visiblePayments = [...filteredPayments].sort((a, b) => {
+    const aTime = new Date(a.created_at).getTime()
+    const bTime = new Date(b.created_at).getTime()
+    return sortOrder === 'newest' ? bTime - aTime : aTime - bTime
+  })
+
   if (loading) {
     return (
       <div className="flex min-h-screen bg-background">
@@ -191,21 +202,73 @@ export default function AdminPaymentsPage() {
           <div className="px-8 py-6">
             <h1 className="text-3xl font-bold">Pagos Manuales</h1>
             <p className="text-muted-foreground mt-1">
-              {payments.length} pago{payments.length !== 1 ? 's' : ''} pendiente{payments.length !== 1 ? 's' : ''} de verificación
+              {filteredPayments.length} pago{filteredPayments.length !== 1 ? 's' : ''} pendiente{filteredPayments.length !== 1 ? 's' : ''} de verificación
             </p>
           </div>
         </div>
 
         <div className="p-8 space-y-4">
-          {payments.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant={methodFilter === 'all' ? 'default' : 'outline'}
+                  onClick={() => setMethodFilter('all')}
+                >
+                  Todos ({payments.length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={methodFilter === 'zelle' ? 'default' : 'outline'}
+                  onClick={() => setMethodFilter('zelle')}
+                >
+                  Zelle ({payments.filter((payment) => payment.payment_method === 'zelle').length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={methodFilter === 'pagomovil' ? 'default' : 'outline'}
+                  onClick={() => setMethodFilter('pagomovil')}
+                >
+                  Pago Móvil ({payments.filter((payment) => payment.payment_method === 'pagomovil').length})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={methodFilter === 'transfer' ? 'default' : 'outline'}
+                  onClick={() => setMethodFilter('transfer')}
+                >
+                  Transferencia ({payments.filter((payment) => payment.payment_method === 'transfer').length})
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-2 mt-3">
+                <Button
+                  size="sm"
+                  variant={sortOrder === 'newest' ? 'default' : 'outline'}
+                  onClick={() => setSortOrder('newest')}
+                >
+                  Más recientes
+                </Button>
+                <Button
+                  size="sm"
+                  variant={sortOrder === 'oldest' ? 'default' : 'outline'}
+                  onClick={() => setSortOrder('oldest')}
+                >
+                  Más antiguos
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {filteredPayments.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No hay pagos pendientes de verificación</p>
+                <p className="text-muted-foreground">No hay pagos pendientes para este filtro</p>
               </CardContent>
             </Card>
           ) : (
-            payments.map((payment) => (
+            visiblePayments.map((payment) => (
               <Card key={payment.id}>
                 <CardContent className="pt-6 space-y-4">
                   {/* Header */}
@@ -246,6 +309,26 @@ export default function AdminPaymentsPage() {
                           {payment.reference_number}
                         </p>
                       </div>
+                    )}
+
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Nombre de contacto</p>
+                        <p className="font-medium">{payment.donor_name || payment.users?.full_name || 'No disponible'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Email de contacto</p>
+                        <p className="font-medium break-all">{getDonorContactEmail(payment) || 'No disponible'}</p>
+                      </div>
+                    </div>
+
+                    {!payment.reference_number && payment.payment_method === 'zelle' && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          Esta donación por Zelle no tiene referencia registrada. Verifica manualmente antes de aprobar.
+                        </AlertDescription>
+                      </Alert>
                     )}
 
                     <div className="grid md:grid-cols-3 gap-4">

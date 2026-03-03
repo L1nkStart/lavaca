@@ -97,6 +97,10 @@ export function DonationCheckout({
         reference: "",
     });
 
+    const [zelleData, setZelleData] = useState({
+        reference: "",
+    });
+
     useEffect(() => {
         const preloadAuthenticatedEmail = async () => {
             try {
@@ -322,6 +326,11 @@ export function DonationCheckout({
                 return;
             }
 
+            if (paymentMethod === "zelle" && !zelleData.reference.trim()) {
+                setCheckoutError("La referencia de pago es obligatoria para Zelle.");
+                return;
+            }
+
             if (STRIPE_METHODS.includes(paymentMethod)) {
                 try {
                     await loadStripeSdkConditionally();
@@ -352,7 +361,11 @@ export function DonationCheckout({
                             accountId: selectedTransferAccount?.id || null,
                             accountNumber: selectedTransferAccount?.account_number || null,
                         }
-                        : null,
+                        : paymentMethod === "zelle"
+                            ? {
+                                reference: zelleData.reference.trim(),
+                            }
+                            : null,
                 }),
             });
 
@@ -583,7 +596,7 @@ export function DonationCheckout({
                     )}
 
                     {paymentMethod === 'zelle' && (
-                        <div className="space-y-2 p-4 bg-muted/30 rounded-lg">
+                        <div className="space-y-3 p-4 bg-muted/30 rounded-lg">
                             <h4 className="font-semibold text-sm">Datos para pagar por Zelle</h4>
                             <p className="text-sm text-muted-foreground">
                                 Email receptor: <strong>{String(selectedMethodConfig?.settings?.email || 'No configurado')}</strong>
@@ -593,6 +606,16 @@ export function DonationCheckout({
                                     Titular: <strong>{String(selectedMethodConfig?.settings?.accountName)}</strong>
                                 </p>
                             ) : null}
+
+                            <div>
+                                <Label htmlFor="zelle-reference">Referencia de pago (obligatoria)</Label>
+                                <Input
+                                    id="zelle-reference"
+                                    placeholder="Código de confirmación / referencia"
+                                    value={zelleData.reference}
+                                    onChange={(e) => setZelleData({ reference: e.target.value })}
+                                />
+                            </div>
                         </div>
                     )}
 

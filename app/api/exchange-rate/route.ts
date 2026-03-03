@@ -38,7 +38,30 @@ export async function GET(request: NextRequest) {
         });
       }
 
-      throw error;
+      // Secondary fallback: latest stored rate (even if expired/inactive)
+      const { data: latestRateRow, error: latestRateError } = await supabase
+        .from('exchange_rates')
+        .select('rate, expires_at')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!latestRateError && latestRateRow?.rate) {
+        return NextResponse.json({
+          rate: latestRateRow.rate,
+          expiresAt: latestRateRow.expires_at || new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          sessionId,
+          source: 'latest-rate-fallback'
+        });
+      }
+
+      // Final fallback: safe static rate to keep checkout operational
+      return NextResponse.json({
+        rate: 43.02,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        sessionId,
+        source: 'static-fallback'
+      });
     }
 
     const response = NextResponse.json({
@@ -61,12 +84,11 @@ export async function GET(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Exchange rate API error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to get exchange rate',
-        details: error.message
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      rate: 43.02,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      source: 'static-fallback-on-error',
+      warning: error?.message || 'Failed to get exchange rate'
+    });
   }
 }

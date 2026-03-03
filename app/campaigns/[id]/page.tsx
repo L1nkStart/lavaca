@@ -533,11 +533,10 @@ export default function CampaignPage() {
               </CardHeader>
               <CardContent className="text-sm text-muted-foreground space-y-3">
                 <p>
-                  Todos los fondos recaudados van directamente a la campaña. La
-                  plataforma LaVaca no retiene comisiones en campañas verificadas.
+                  En LaVaca cobramos de un 3% a 6% de comisión de plataforma para garantizar que un equipo humano verifique cada campaña manualmente, brindando soporte técnico 24/7 y manteniendo nuestros servidores activos para que tu ayuda llegue a quien más lo necesita.
                 </p>
                 <p>
-                  Los retiros se procesan dentro de 24-48 horas hábiles.
+                  Ten en cuenta que los procesadores de pago (Tarjetas, Zelle, Cripto) pueden aplicar sus propias tarifas externas según el método elegido.
                 </p>
               </CardContent>
             </Card>
