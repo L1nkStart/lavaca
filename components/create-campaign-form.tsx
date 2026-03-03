@@ -248,6 +248,11 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
+        if (currentStep !== 4) {
+            setError('Completa todos los pasos y usa "Enviar a revisión" en la pantalla final.')
+            return
+        }
+
         if (!validateStep(3)) return
 
         setLoading(true)

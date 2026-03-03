@@ -25,6 +25,7 @@ interface Campaign {
   title: string
   slug: string
   story: string
+  review_notes: string | null
   goal_amount_usd: number
   current_amount_usd: number
   status: 'draft' | 'pending_review' | 'active' | 'closed' | 'completed' | 'rejected'
@@ -312,7 +313,11 @@ export default async function CreatorCampaignsPage() {
                             <Alert className="mb-4 border-destructive/30 bg-destructive/10">
                               <AlertCircle className="h-4 w-4 text-destructive" />
                               <AlertDescription className="text-destructive">
-                                Esta campaña fue rechazada. Para solicitar su reactivación, envía un correo al equipo de soporte con el ID de la campaña y los ajustes realizados desde la sección de contacto.
+                                Esta campaña fue rechazada.
+                                {campaign.review_notes
+                                  ? ` Motivo: ${campaign.review_notes}`
+                                  : ' El equipo de revisión no dejó un motivo detallado en el registro.'}
+                                {' '}Para solicitar su reactivación, envía un correo al equipo de soporte con el ID de la campaña y los ajustes realizados desde la sección de contacto.
                               </AlertDescription>
                             </Alert>
                           )}

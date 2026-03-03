@@ -47,6 +47,8 @@ interface Campaign {
 }
 
 export default function AdminCampaignsPage() {
+    const ITEMS_PER_PAGE = 10
+
     const [campaigns, setCampaigns] = useState<Campaign[]>([])
     const [filteredCampaigns, setFilteredCampaigns] = useState<Campaign[]>([])
     const [loading, setLoading] = useState(true)
@@ -54,6 +56,7 @@ export default function AdminCampaignsPage() {
     const [searchTerm, setSearchTerm] = useState("")
     const [statusFilter, setStatusFilter] = useState<string>("all")
     const [processing, setProcessing] = useState<string | null>(null)
+    const [currentPage, setCurrentPage] = useState(1)
 
     useEffect(() => {
         fetchCampaigns()
@@ -62,6 +65,10 @@ export default function AdminCampaignsPage() {
     useEffect(() => {
         filterCampaigns()
     }, [searchTerm, statusFilter, campaigns])
+
+    useEffect(() => {
+        setCurrentPage(1)
+    }, [searchTerm, statusFilter])
 
     const fetchCampaigns = async () => {
         try {
@@ -198,6 +205,7 @@ export default function AdminCampaignsPage() {
             completed: { color: 'bg-blue-500', text: 'Completada', icon: CheckCircle },
             rejected: { color: 'bg-red-500', text: 'Rechazada', icon: Ban },
             pending_review: { color: 'bg-yellow-500', text: 'En Revisión', icon: AlertCircle },
+            closed: { color: 'bg-slate-600', text: 'Cerrada', icon: XCircle },
             draft: { color: 'bg-gray-500', text: 'Borrador', icon: AlertCircle },
         }
         const variant = variants[status] || variants.draft
@@ -228,6 +236,11 @@ export default function AdminCampaignsPage() {
     }
 
     const availableStatuses = Array.from(new Set(campaigns.map((campaign) => campaign.status))).filter(Boolean)
+    const totalPages = Math.max(1, Math.ceil(filteredCampaigns.length / ITEMS_PER_PAGE))
+    const paginatedCampaigns = filteredCampaigns.slice(
+        (currentPage - 1) * ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+    )
 
     if (loading) {
         return (
@@ -320,7 +333,7 @@ export default function AdminCampaignsPage() {
                         </Card>
                     ) : (
                         <div className="space-y-4">
-                            {filteredCampaigns.map((campaign) => (
+                            {paginatedCampaigns.map((campaign) => (
                                 <Card key={campaign.id}>
                                     <CardContent className="pt-6">
                                         <div className="flex gap-4">
@@ -410,8 +423,26 @@ export default function AdminCampaignsPage() {
                                                         </Button>
                                                     )}
 
-                                                    {/* Suspend */}
+                                                    {/* Close active */}
                                                     {campaign.status === 'active' && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-orange-600 hover:text-orange-700"
+                                                            onClick={() => handleStatusChange(campaign.id, campaign.status, 'closed', campaign.creator_id)}
+                                                            disabled={processing === campaign.id}
+                                                        >
+                                                            {processing === campaign.id ? (
+                                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                            ) : (
+                                                                <XCircle className="w-4 h-4 mr-2" />
+                                                            )}
+                                                            Cerrar
+                                                        </Button>
+                                                    )}
+
+                                                    {/* Reject pending review */}
+                                                    {campaign.status === 'pending_review' && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
@@ -449,6 +480,34 @@ export default function AdminCampaignsPage() {
                                     </CardContent>
                                 </Card>
                             ))}
+
+                            {totalPages > 1 && (
+                                <Card>
+                                    <CardContent className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                        <p className="text-sm text-muted-foreground">
+                                            Página {currentPage} de {totalPages}
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                                                disabled={currentPage === 1}
+                                            >
+                                                Anterior
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                                                disabled={currentPage === totalPages}
+                                            >
+                                                Siguiente
+                                            </Button>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            )}
                         </div>
                     )}
                 </div>

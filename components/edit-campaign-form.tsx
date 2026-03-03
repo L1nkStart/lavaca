@@ -491,7 +491,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
 
                         <Button type="submit" disabled={loading}>
                             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-                            Guardar meta y urgencia
+                            Guardar
                         </Button>
                     </form>
                 </CardContent>

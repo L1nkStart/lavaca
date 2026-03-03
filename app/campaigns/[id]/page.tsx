@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams, notFound } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ import { createClient } from '@/lib/supabase/client';
 
 interface Campaign {
   id: string;
+  creator_id: string;
   title: string;
   slug: string;
   story: string;
@@ -94,6 +95,20 @@ export default function CampaignPage() {
     try {
       setLoading(true);
 
+      const { data: authData } = await supabase.auth.getUser();
+      const currentUser = authData?.user || null;
+
+      let currentUserRole: string | null = null;
+      if (currentUser) {
+        const { data: profileData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+        currentUserRole = profileData?.role || null;
+      }
+
       // Fetch campaign data
       const { data: campaignData, error: campaignError } = await supabase
         .from('campaigns')
@@ -109,14 +124,26 @@ export default function CampaignPage() {
           )
         `)
         .eq('id', campaignId)
-        .eq('status', 'active')
-        .single();
+        .maybeSingle();
 
       if (campaignError) {
-        if (campaignError.code === 'PGRST116') {
-          notFound();
-        }
         throw campaignError;
+      }
+
+      if (!campaignData) {
+        setCampaign(null);
+        setError('Campaña no encontrada o sin permisos para verla.');
+        return;
+      }
+
+      const isAdmin = currentUserRole === 'admin';
+      const isOwner = !!currentUser && campaignData.creator_id === currentUser.id;
+      const isPubliclyVisible = campaignData.status === 'active';
+
+      if (!isPubliclyVisible && !isAdmin && !isOwner) {
+        setCampaign(null);
+        setError('No tienes permisos para ver esta campaña.');
+        return;
       }
 
       const { data: campaignDetailsData } = await supabase
@@ -265,6 +292,7 @@ export default function CampaignPage() {
   };
 
   const totalUpdatePages = Math.max(1, Math.ceil(updatesCount / UPDATES_PAGE_SIZE));
+  const canDonate = campaign.status === 'active';
 
   return (
     <main className="flex flex-col min-h-screen bg-background">
@@ -509,12 +537,27 @@ export default function CampaignPage() {
           {/* Sidebar */}
           <div className="space-y-4">
             {/* Donate Button */}
-            <Button size="lg" className="w-full bg-primary hover:bg-primary/90 h-12 text-base" asChild>
-              <Link href={`/campaigns/${campaign.id}/donate`}>
+            {canDonate ? (
+              <Button size="lg" className="w-full bg-primary hover:bg-primary/90 h-12 text-base" asChild>
+                <Link href={`/campaigns/${campaign.id}/donate`}>
+                  <Heart className="w-5 h-5 mr-2" />
+                  Donar Ahora
+                </Link>
+              </Button>
+            ) : (
+              <Button size="lg" className="w-full h-12 text-base" variant="outline" disabled>
                 <Heart className="w-5 h-5 mr-2" />
-                Donar Ahora
-              </Link>
-            </Button>
+                Donaciones deshabilitadas
+              </Button>
+            )}
+
+            {!canDonate && (
+              <Alert className="bg-muted/40">
+                <AlertDescription className="text-xs">
+                  Esta campaña está en estado <strong>{campaign.status}</strong> y no puede recibir donaciones hasta estar activa.
+                </AlertDescription>
+              </Alert>
+            )}
 
             {/* Share Button */}
             <CampaignShare
