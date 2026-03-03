@@ -5,7 +5,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 const ALLOWED_STATUSES = new Set([
     "draft",
     "pending_review",
-    "under_review",
     "active",
     "completed",
     "closed",
@@ -70,7 +69,7 @@ export async function PATCH(
         }
 
         const requiresReviewNotes =
-            existingCampaign.status === "under_review" && ["active", "rejected", "completed", "closed"].includes(newStatus);
+            existingCampaign.status === "pending_review" && ["active", "rejected", "completed", "closed"].includes(newStatus);
 
         if (requiresReviewNotes && !reviewNotes) {
             return NextResponse.json(

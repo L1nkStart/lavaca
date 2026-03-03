@@ -152,7 +152,6 @@ export default async function CreatorDashboard() {
     switch (status) {
       case 'active':
         return <Badge>En recaudación</Badge>
-      case 'under_review':
       case 'pending_review':
         return <Badge variant="secondary">En revisión</Badge>
       case 'completed':

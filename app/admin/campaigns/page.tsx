@@ -113,7 +113,7 @@ export default function AdminCampaignsPage() {
             setProcessing(campaignId)
 
             const requiresReviewNotes =
-                currentStatus === 'under_review' && ['active', 'rejected', 'completed', 'closed'].includes(newStatus)
+                currentStatus === 'pending_review' && ['active', 'rejected', 'completed', 'closed'].includes(newStatus)
 
             let reviewNotes: string | null = null
             if (requiresReviewNotes) {
@@ -197,7 +197,6 @@ export default function AdminCampaignsPage() {
             active: { color: 'bg-green-500', text: 'Activa', icon: CheckCircle },
             completed: { color: 'bg-blue-500', text: 'Completada', icon: CheckCircle },
             rejected: { color: 'bg-red-500', text: 'Rechazada', icon: Ban },
-            under_review: { color: 'bg-yellow-500', text: 'En Revisión', icon: AlertCircle },
             pending_review: { color: 'bg-yellow-500', text: 'En Revisión', icon: AlertCircle },
             draft: { color: 'bg-gray-500', text: 'Borrador', icon: AlertCircle },
         }
@@ -220,8 +219,7 @@ export default function AdminCampaignsPage() {
             active: 'Activas',
             completed: 'Completadas',
             rejected: 'Rechazadas',
-            under_review: 'En revisión',
-            pending_review: 'Pendiente revisión',
+            pending_review: 'En revisión',
             draft: 'Borradores',
             closed: 'Cerradas',
         }

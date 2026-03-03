@@ -113,7 +113,16 @@ INSERT INTO categories (name, description, icon_emoji, order_index) VALUES
   ('Emprendimiento', 'Negocios y startups', '💼', 3),
   ('Comunitaria', 'Proyectos comunitarios', '🤝', 4),
   ('Vivienda', 'Apoyo de vivienda', '🏠', 5),
-  ('Emergencias', 'Situaciones de emergencia', '🆘', 6)
+  ('Emergencias', 'Situaciones de emergencia', '🆘', 6),
+  ('Alimentación', 'Comidas, insumos básicos y comedores', '🍽️', 7),
+  ('Transporte', 'Traslados médicos, escolares o comunitarios', '🚌', 8),
+  ('Tecnología', 'Equipos y conectividad para estudiar o trabajar', '💻', 9),
+  ('Deportes', 'Formación y apoyo deportivo', '⚽', 10),
+  ('Arte y Cultura', 'Proyectos artísticos y culturales', '🎨', 11),
+  ('Medio Ambiente', 'Iniciativas ecológicas y de sostenibilidad', '🌱', 12),
+  ('Animales', 'Rescate y cuidado animal', '🐾', 13),
+  ('Adultos Mayores', 'Apoyo integral para adultos mayores', '👵', 14),
+  ('Discapacidad e Inclusión', 'Accesibilidad, terapias y apoyo inclusivo', '♿', 15)
 ON CONFLICT (name) DO NOTHING;
 
 -- Enable RLS on categories

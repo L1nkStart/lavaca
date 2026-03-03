@@ -24,7 +24,17 @@ INSERT INTO categories (id, name, description, icon_emoji, order_index) VALUES
 ('22222222-2222-2222-2222-222222222222', 'Educación', 'Proyectos educativos', '📚', 2),
 ('33333333-3333-3333-3333-333333333333', 'Emergencia', 'Situaciones de emergencia', '🚨', 3),
 ('44444444-4444-4444-4444-444444444444', 'Comunidad', 'Proyectos comunitarios', '🏘️', 4),
-('55555555-5555-5555-5555-555555555555', 'Emprendimiento', 'Negocios y emprendimientos', '💼', 5)
+('55555555-5555-5555-5555-555555555555', 'Emprendimiento', 'Negocios y emprendimientos', '💼', 5),
+('66666666-6666-6666-6666-666666666666', 'Vivienda', 'Apoyo para vivienda y mejoras del hogar', '🏠', 6),
+('77777777-7777-7777-7777-777777777777', 'Alimentación', 'Comidas, insumos básicos y comedores', '🍽️', 7),
+('88888888-8888-8888-8888-888888888888', 'Transporte', 'Traslados médicos, escolares o comunitarios', '🚌', 8),
+('99999999-9999-9999-9999-999999999999', 'Tecnología', 'Equipos y conectividad para estudiar o trabajar', '💻', 9),
+('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Deportes', 'Formación y apoyo deportivo', '⚽', 10),
+('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'Arte y Cultura', 'Proyectos artísticos y culturales', '🎨', 11),
+('cccccccc-cccc-cccc-cccc-cccccccccccc', 'Medio Ambiente', 'Iniciativas ecológicas y de sostenibilidad', '🌱', 12),
+('dddddddd-dddd-dddd-dddd-dddddddddddd', 'Animales', 'Rescate y cuidado animal', '🐾', 13),
+('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee', 'Adultos Mayores', 'Apoyo integral para adultos mayores', '👵', 14),
+('ffffffff-ffff-ffff-ffff-ffffffffffff', 'Discapacidad e Inclusión', 'Accesibilidad, terapias y apoyo inclusivo', '♿', 15)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================

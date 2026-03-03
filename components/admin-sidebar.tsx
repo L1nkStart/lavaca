@@ -49,7 +49,7 @@ export function AdminSidebar() {
         supabase
           .from('campaigns')
           .select('id', { count: 'exact', head: true })
-          .in('status', ['under_review', 'draft']),
+          .in('status', ['pending_review', 'draft']),
 
         // Pending payments
         supabase

@@ -27,7 +27,7 @@ interface Campaign {
   story: string
   goal_amount_usd: number
   current_amount_usd: number
-  status: 'draft' | 'under_review' | 'pending_review' | 'active' | 'closed' | 'completed' | 'rejected'
+  status: 'draft' | 'pending_review' | 'active' | 'closed' | 'completed' | 'rejected'
   urgency_level: 'low' | 'medium' | 'high' | 'critical'
   main_image_url: string | null
   location: string | null
@@ -90,14 +90,13 @@ export default async function CreatorCampaignsPage() {
   const stats = {
     total: campaigns?.length || 0,
     active: campaigns?.filter(c => c.status === 'active').length || 0,
-    pending: campaigns?.filter(c => c.status === 'under_review').length || 0,
+    pending: campaigns?.filter(c => c.status === 'pending_review').length || 0,
     totalRaised: campaigns?.reduce((sum, c) => sum + c.current_amount_usd, 0) || 0
   }
 
   const getStatusVariant = (status: string) => {
     switch (status) {
       case 'active': return 'default'
-      case 'under_review': return 'secondary'
       case 'pending_review': return 'secondary'
       case 'draft': return 'outline'
       case 'completed': return 'outline'
@@ -110,7 +109,6 @@ export default async function CreatorCampaignsPage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'active': return 'Activa'
-      case 'under_review': return 'En Revisión'
       case 'pending_review': return 'En Revisión'
       case 'draft': return 'Borrador'
       case 'completed': return 'Finalizada'
@@ -123,7 +121,6 @@ export default async function CreatorCampaignsPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'active': return <CheckCircle className="h-4 w-4" />
-      case 'under_review': return <Clock className="h-4 w-4" />
       case 'pending_review': return <Clock className="h-4 w-4" />
       case 'draft': return <Edit className="h-4 w-4" />
       case 'completed': return <XCircle className="h-4 w-4" />
