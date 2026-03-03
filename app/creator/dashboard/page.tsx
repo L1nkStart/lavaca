@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart, Wallet } from 'lucide-react';
 
 type CampaignRow = {
   id: string
@@ -29,6 +29,12 @@ type DonationAggregateRow = {
 
 type ViewAggregateRow = {
   campaign_id: string
+}
+
+type WithdrawalAggregateRow = {
+  campaign_id: string | null
+  amount_usd: number
+  status: string
 }
 
 export default async function CreatorDashboard() {
@@ -97,6 +103,26 @@ export default async function CreatorDashboard() {
     : { data: [] as ViewAggregateRow[], error: null }
 
   const viewCountByCampaign = new Map<string, number>()
+
+  const { data: withdrawalRows } = campaignIds.length > 0
+    ? await supabase
+      .from('withdrawal_requests')
+      .select('campaign_id, amount_usd, status')
+      .eq('creator_id', user.id)
+      .in('campaign_id', campaignIds)
+    : { data: [] as WithdrawalAggregateRow[] }
+
+  const withdrawnAmountByCampaign = new Map<string, number>()
+
+  for (const withdrawal of (withdrawalRows || []) as WithdrawalAggregateRow[]) {
+    if (!withdrawal.campaign_id) continue
+    if (withdrawal.status !== 'processed') continue
+
+    withdrawnAmountByCampaign.set(
+      withdrawal.campaign_id,
+      (withdrawnAmountByCampaign.get(withdrawal.campaign_id) || 0) + Number(withdrawal.amount_usd || 0)
+    )
+  }
 
   if (!viewRowsError) {
     for (const row of (viewRows || []) as ViewAggregateRow[]) {
@@ -175,6 +201,53 @@ export default async function CreatorDashboard() {
       default: return paymentMethod
     }
   }
+
+  const formatWithdrawalAccountType = (type: string) => {
+    switch (type) {
+      case 'bank_bs': return 'Cuenta Bancaria (Bs.)'
+      case 'pagomovil': return 'PagoMóvil'
+      case 'zelle': return 'Zelle'
+      case 'paypal': return 'PayPal'
+      case 'crypto': return 'Criptomoneda'
+      default: return type
+    }
+  }
+
+  const getWithdrawalStatusBadge = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return <Badge variant="secondary">Pendiente</Badge>
+      case 'processed':
+        return <Badge>Procesado</Badge>
+      case 'failed':
+        return <Badge variant="destructive">Fallido</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  const { data: withdrawalRequests } = await supabase
+    .from('withdrawal_requests')
+    .select(`
+      id,
+      amount_usd,
+      status,
+      exchange_rate_used,
+      reference_number,
+      rejection_reason,
+      created_at,
+      processed_at,
+      campaigns (
+        title
+      ),
+      withdrawal_accounts (
+        account_type,
+        account_holder_name
+      )
+    `)
+    .eq('creator_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(8)
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -310,72 +383,185 @@ export default async function CreatorDashboard() {
               ) : recentCampaigns.map((campaign) => (
                 <Card key={campaign.id}>
                   <CardContent className="pt-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h3 className="font-semibold line-clamp-2">
-                          {campaign.title}
-                        </h3>
-                        <div className="flex items-center gap-2 mt-2">
-                          {getStatusBadge(campaign.status)}
-                          {campaign.status === "active" && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              Activa
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/creator/campaigns/${campaign.id}/edit`}>
-                          Editar
-                        </Link>
-                      </Button>
-                    </div>
+                    {(() => {
+                      const withdrawnAmount = withdrawnAmountByCampaign.get(campaign.id) || 0
+                      const availableAmount = Math.max(Number(campaign.current_amount_usd || 0) - withdrawnAmount, 0)
+                      const totalProgress = campaign.goal_amount_usd > 0
+                        ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100
+                        : 0
+                      const withdrawnProgress = campaign.goal_amount_usd > 0
+                        ? (withdrawnAmount / campaign.goal_amount_usd) * 100
+                        : 0
 
-                    <div className="space-y-3">
-                      {/* Progress */}
-                      <div>
-                        <div className="flex justify-between text-sm mb-2">
-                          <span className="font-semibold text-primary">
-                            ${campaign.current_amount_usd.toFixed(2)}
-                          </span>
-                          <span className="text-muted-foreground">
-                            de ${campaign.goal_amount_usd.toFixed(2)}
-                          </span>
-                        </div>
-                        <Progress
-                          value={campaign.goal_amount_usd > 0 ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100 : 0}
-                          className="h-2"
-                        />
-                      </div>
+                      return (
+                        <>
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                              <h3 className="font-semibold line-clamp-2">
+                                {campaign.title}
+                              </h3>
+                              <div className="flex items-center gap-2 mt-2">
+                                {getStatusBadge(campaign.status)}
+                                {campaign.status === "active" && (
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    Activa
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <Button variant="outline" size="sm" asChild>
+                              <Link href={`/creator/campaigns/${campaign.id}/edit`}>
+                                Editar
+                              </Link>
+                            </Button>
+                          </div>
 
-                      {/* Stats */}
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <p className="text-muted-foreground text-xs">Donantes</p>
-                          <p className="font-semibold">{getCampaignDonorCount(campaign)}</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground text-xs">Vistas</p>
-                          <p className="font-semibold flex items-center gap-1">
-                            <Eye className="w-4 h-4" />
-                            {getCampaignViewCount(campaign)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground text-xs">Progreso</p>
-                          <p className="font-semibold">
-                            {campaign.goal_amount_usd > 0
-                              ? `${Math.round((campaign.current_amount_usd / campaign.goal_amount_usd) * 100)}%`
-                              : '0%'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                          <div className="space-y-3">
+                            {/* Progress */}
+                            <div>
+                              <div className="flex justify-between text-sm mb-2">
+                                <span className="font-semibold text-primary">
+                                  ${campaign.current_amount_usd.toFixed(2)} acumulados
+                                </span>
+                                <span className="text-muted-foreground">
+                                  de ${campaign.goal_amount_usd.toFixed(2)}
+                                </span>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full bg-green-500 transition-all"
+                                    style={{ width: `${Math.min(totalProgress, 100)}%` }}
+                                  />
+                                </div>
+                                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full bg-purple-500 transition-all"
+                                    style={{ width: `${Math.min(withdrawnProgress, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2 text-xs">
+                                <div className="rounded-md border bg-muted/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Total:</span> ${Number(campaign.current_amount_usd || 0).toFixed(2)}
+                                </div>
+                                <div className="rounded-md border bg-purple-50 dark:bg-purple-950/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Retirado:</span> ${withdrawnAmount.toFixed(2)}
+                                </div>
+                                <div className="rounded-md border bg-green-50 dark:bg-green-950/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Disponible:</span> ${availableAmount.toFixed(2)}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <p className="text-muted-foreground text-xs">Donantes</p>
+                                <p className="font-semibold">{getCampaignDonorCount(campaign)}</p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground text-xs">Vistas</p>
+                                <p className="font-semibold flex items-center gap-1">
+                                  <Eye className="w-4 h-4" />
+                                  {getCampaignViewCount(campaign)}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-muted-foreground text-xs">Progreso</p>
+                                <p className="font-semibold">
+                                  {campaign.goal_amount_usd > 0
+                                    ? `${Math.round(totalProgress)}%`
+                                    : '0%'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )
+                    })()}
                   </CardContent>
                 </Card>
               ))}
             </div>
+          </div>
+
+          {/* Recent Donations */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Mis solicitudes de retiro</h2>
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/contact">Soporte de retiros</Link>
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Últimas solicitudes enviadas</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {(withdrawalRequests || []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-6">
+                      Aún no has enviado solicitudes de retiro.
+                    </p>
+                  ) : (withdrawalRequests || []).map((request: any) => (
+                    <div
+                      key={request.id}
+                      className="py-3 border-b border-border last:border-0 space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <p className="font-medium text-sm flex items-center gap-2">
+                            <Wallet className="w-4 h-4 text-primary" />
+                            ${Number(request.amount_usd || 0).toFixed(2)} USD
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Campaña: {request.campaigns?.title || 'Campaña'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Destino: {formatWithdrawalAccountType(request.withdrawal_accounts?.account_type || 'cuenta')} • {request.withdrawal_accounts?.account_holder_name || 'Sin titular'}
+                          </p>
+                        </div>
+                        <div className="text-right space-y-1">
+                          {getWithdrawalStatusBadge(request.status)}
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(request.created_at).toLocaleDateString('es-VE')}
+                          </p>
+                        </div>
+                      </div>
+
+                      {(request.status === 'processed' || request.status === 'failed') && (
+                        <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1">
+                          {request.exchange_rate_used && (
+                            <p className="text-xs text-muted-foreground">
+                              Exchange rate usado: {Number(request.exchange_rate_used).toFixed(2)}
+                            </p>
+                          )}
+                          {request.reference_number && (
+                            <p className="text-xs text-muted-foreground">
+                              Referencia: {request.reference_number}
+                            </p>
+                          )}
+                          {request.processed_at && (
+                            <p className="text-xs text-muted-foreground">
+                              Procesado: {new Date(request.processed_at).toLocaleString('es-VE')}
+                            </p>
+                          )}
+
+                          {request.status === 'failed' && request.rejection_reason && (
+                            <p className="text-xs text-destructive">
+                              Motivo del fallo: {request.rejection_reason}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Recent Donations */}

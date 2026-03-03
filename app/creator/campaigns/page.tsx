@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { RequestWithdrawalDialog } from '@/components/request-withdrawal-dialog'
 import {
   PlusCircle,
   Eye,
@@ -86,6 +87,44 @@ export default async function CreatorCampaignsPage() {
   if (campaignsError) {
     console.error('Campaigns error:', campaignsError)
   }
+
+  const campaignIds = (campaigns || []).map((campaign: Campaign) => campaign.id)
+
+  const { data: campaignWithdrawalRequests } = campaignIds.length > 0
+    ? await supabase
+      .from('withdrawal_requests')
+      .select('campaign_id, amount_usd, status')
+      .in('campaign_id', campaignIds)
+      .eq('creator_id', user.id)
+    : { data: [] as { campaign_id: string | null; amount_usd: number; status: string }[] }
+
+  const processedWithdrawalsByCampaign = new Map<string, number>()
+  const pendingWithdrawalByCampaign = new Map<string, boolean>()
+
+  for (const request of campaignWithdrawalRequests || []) {
+    if (!request.campaign_id) continue
+
+    if (request.status === 'processed') {
+      processedWithdrawalsByCampaign.set(
+        request.campaign_id,
+        (processedWithdrawalsByCampaign.get(request.campaign_id) || 0) + Number(request.amount_usd || 0)
+      )
+    }
+
+    if (request.status === 'pending') {
+      pendingWithdrawalByCampaign.set(request.campaign_id, true)
+    }
+  }
+
+  const { data: withdrawalAccounts } = await supabase
+    .from('withdrawal_accounts')
+    .select('id, account_type, account_holder_name, is_primary, verified')
+    .eq('creator_id', user.id)
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  const creatorWithdrawalAccounts = withdrawalAccounts || []
+  const hasWithdrawalAccounts = creatorWithdrawalAccounts.length > 0
 
   // Get campaign statistics
   const stats = {
@@ -216,12 +255,31 @@ export default async function CreatorCampaignsPage() {
           </div>
 
           {/* Campaigns List */}
+          {!hasWithdrawalAccounts && (
+            <Alert className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
+              <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+                Aún no tienes cuentas de retiro configuradas. Agrega una en tu perfil para poder enviar solicitudes de retiro.
+                {' '}
+                <Link href="/profile" className="underline font-medium">Configurar cuentas</Link>
+                {' '}o{' '}
+                <Link href="/contact" className="underline font-medium">contactar soporte</Link>.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {campaigns && campaigns.length > 0 ? (
             <div className="space-y-4">
               {campaigns.map((campaign: Campaign) => {
                 const progressPercentage = campaign.goal_amount_usd > 0
                   ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100
                   : 0
+                const withdrawnAmount = processedWithdrawalsByCampaign.get(campaign.id) || 0
+                const availableAmount = Math.max(Number(campaign.current_amount_usd || 0) - withdrawnAmount, 0)
+                const withdrawnProgressPercentage = campaign.goal_amount_usd > 0
+                  ? (withdrawnAmount / campaign.goal_amount_usd) * 100
+                  : 0
+                const hasPendingWithdrawal = pendingWithdrawalByCampaign.get(campaign.id) || false
 
                 return (
                   <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow bg-card">
@@ -290,6 +348,13 @@ export default async function CreatorCampaignsPage() {
                                   Editar
                                 </Link>
                               </Button>
+                              <RequestWithdrawalDialog
+                                campaignId={campaign.id}
+                                campaignTitle={campaign.title}
+                                availableAmountUsd={availableAmount}
+                                hasPendingRequest={hasPendingWithdrawal}
+                                accounts={creatorWithdrawalAccounts}
+                              />
                               {campaign.status === 'active' && (
                                 <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
                                   <Link href={`/campaigns/${campaign.id}`} target="_blank">
@@ -327,16 +392,45 @@ export default async function CreatorCampaignsPage() {
                             <div>
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm mb-2">
                                 <span className="font-medium">
-                                  ${campaign.current_amount_usd.toFixed(2)} recaudados
+                                  ${campaign.current_amount_usd.toFixed(2)} acumulados
                                 </span>
                                 <span className="text-muted-foreground">
                                   Meta: ${campaign.goal_amount_usd.toFixed(2)}
                                 </span>
                               </div>
-                              <Progress value={Math.min(progressPercentage, 100)} className="h-2" />
+                              <div className="space-y-1">
+                                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full bg-green-500 transition-all"
+                                    style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                                  />
+                                </div>
+                                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full bg-purple-500 transition-all"
+                                    style={{ width: `${Math.min(withdrawnProgressPercentage, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
                               <div className="text-right text-xs text-muted-foreground mt-1">
                                 {progressPercentage.toFixed(1)}% completado
                               </div>
+                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                <div className="rounded-md border bg-muted/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Total:</span> ${Number(campaign.current_amount_usd || 0).toFixed(2)}
+                                </div>
+                                <div className="rounded-md border bg-purple-50 dark:bg-purple-950/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Retirado:</span> ${withdrawnAmount.toFixed(2)}
+                                </div>
+                                <div className="rounded-md border bg-green-50 dark:bg-green-950/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Disponible:</span> ${availableAmount.toFixed(2)}
+                                </div>
+                              </div>
+                              {hasPendingWithdrawal && (
+                                <p className="text-xs text-amber-600 mt-2">
+                                  Tienes una solicitud de retiro pendiente para esta campaña.
+                                </p>
+                              )}
                             </div>
 
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm text-muted-foreground">

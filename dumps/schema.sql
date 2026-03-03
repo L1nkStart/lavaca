@@ -287,6 +287,36 @@ CREATE TABLE public.notifications (
   CONSTRAINT fk_notification_user FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT notifications_campaign_id_fkey FOREIGN KEY (campaign_id) REFERENCES public.campaigns(id)
 );
+CREATE TABLE public.payment_method_bank_accounts (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  method_code text NOT NULL DEFAULT 'transfer'::text,
+  bank_name text NOT NULL,
+  account_holder text NOT NULL,
+  account_number text NOT NULL,
+  account_type text,
+  document_id text,
+  currency text NOT NULL DEFAULT 'BS'::text,
+  instructions text,
+  is_active boolean NOT NULL DEFAULT true,
+  display_order integer NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT payment_method_bank_accounts_pkey PRIMARY KEY (id),
+  CONSTRAINT payment_method_bank_accounts_method_code_fkey FOREIGN KEY (method_code) REFERENCES public.payment_method_configs(code)
+);
+CREATE TABLE public.payment_method_configs (
+  code text NOT NULL CHECK (code = ANY (ARRAY['card'::text, 'crypto'::text, 'zelle'::text, 'pagomovil'::text, 'transfer'::text])),
+  name text NOT NULL,
+  description text,
+  is_active boolean NOT NULL DEFAULT false,
+  display_order integer NOT NULL DEFAULT 0,
+  settings jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT payment_method_configs_pkey PRIMARY KEY (code),
+  CONSTRAINT payment_method_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.payment_transactions (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   donation_id uuid NOT NULL,

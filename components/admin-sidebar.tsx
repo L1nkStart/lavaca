@@ -5,12 +5,12 @@ import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { LayoutDashboard, Users, FileText, CreditCard, Settings, LogOut, Wallet } from 'lucide-react'
-import { createClient } from "@/lib/supabase/client"
 
 interface BadgeCounts {
   verifications: number
   campaigns: number
   payments: number
+  withdrawals: number
 }
 
 export function AdminSidebar() {
@@ -18,10 +18,9 @@ export function AdminSidebar() {
   const [badges, setBadges] = useState<BadgeCounts>({
     verifications: 0,
     campaigns: 0,
-    payments: 0
+    payments: 0,
+    withdrawals: 0,
   })
-
-  const supabase = createClient()
 
   useEffect(() => {
     fetchBadgeCounts()
@@ -34,34 +33,22 @@ export function AdminSidebar() {
 
   const fetchBadgeCounts = async () => {
     try {
-      const [
-        verificationsResult,
-        campaignsResult,
-        paymentsResult
-      ] = await Promise.all([
-        // Pending verifications
-        supabase
-          .from('verification_requests')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pending'),
+      const response = await fetch('/api/admin/sidebar-badges', {
+        method: 'GET',
+        cache: 'no-store',
+      })
 
-        // Pending campaigns (under review or draft)
-        supabase
-          .from('campaigns')
-          .select('id', { count: 'exact', head: true })
-          .in('status', ['pending_review', 'draft']),
+      const result = await response.json()
 
-        // Pending payments
-        supabase
-          .from('donations')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'pending')
-      ])
+      if (!response.ok) {
+        throw new Error(result?.error || result?.details || 'No se pudieron cargar los badges')
+      }
 
       setBadges({
-        verifications: verificationsResult.count || 0,
-        campaigns: campaignsResult.count || 0,
-        payments: paymentsResult.count || 0
+        verifications: result?.verifications || 0,
+        campaigns: result?.campaigns || 0,
+        payments: result?.payments || 0,
+        withdrawals: result?.withdrawals || 0,
       })
     } catch (error) {
       console.error('Error fetching badge counts:', error)
@@ -91,6 +78,12 @@ export function AdminSidebar() {
       href: "/admin/payments",
       icon: CreditCard,
       badge: badges.payments,
+    },
+    {
+      label: "Retiros",
+      href: "/admin/withdrawals",
+      icon: Wallet,
+      badge: badges.withdrawals,
     },
     {
       label: "Métodos de Pago",
