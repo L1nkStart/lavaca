@@ -20,6 +20,14 @@ export const PAYMENT_MODE = (process.env.NEXT_PUBLIC_PAYMENT_MODE || 'test') as 
 export const isTestMode = () => PAYMENT_MODE === 'test';
 
 /**
+ * Indica si el proveedor tiene credenciales reales configuradas.
+ * En modo test esto siempre es true (el MockProvider se hace cargo).
+ */
+function hasCredentials(...keys: Array<string | undefined>): boolean {
+    return keys.every((value) => typeof value === 'string' && value.length > 0);
+}
+
+/**
  * Inicializa el sistema de pagos con todas las configuraciones
  */
 export function initializePayments() {
@@ -28,7 +36,7 @@ export function initializePayments() {
     // ============================================
     // STRIPE
     // ============================================
-    if (process.env.STRIPE_SECRET_KEY || isTestMode()) {
+    if (isTestMode() || hasCredentials(process.env.STRIPE_SECRET_KEY)) {
         configs.push({
             provider: PaymentProvider.STRIPE,
             enabled: true,
@@ -42,20 +50,34 @@ export function initializePayments() {
     // ============================================
     // PAYPAL
     // ============================================
-    if (process.env.PAYPAL_CLIENT_ID || isTestMode()) {
+    if (
+        isTestMode() ||
+        hasCredentials(process.env.PAYPAL_CLIENT_ID, process.env.PAYPAL_CLIENT_SECRET)
+    ) {
         configs.push({
             provider: PaymentProvider.PAYPAL,
             enabled: true,
             apiKey: process.env.PAYPAL_CLIENT_ID,
             apiSecret: process.env.PAYPAL_CLIENT_SECRET,
             environment: isTestMode() ? 'sandbox' : 'production',
+            customConfig: {
+                baseUrl: process.env.PAYPAL_BASE_URL,
+                webhookId: process.env.PAYPAL_WEBHOOK_ID,
+            },
         });
     }
 
     // ============================================
-    // BINANCE
+    // BINANCE PAY
     // ============================================
-    if (process.env.BINANCE_API_KEY || isTestMode()) {
+    if (
+        isTestMode() ||
+        hasCredentials(
+            process.env.BINANCE_API_KEY,
+            process.env.BINANCE_API_SECRET,
+            process.env.BINANCE_PAY_CERT_SN,
+        )
+    ) {
         configs.push({
             provider: PaymentProvider.BINANCE,
             enabled: true,
@@ -65,6 +87,31 @@ export function initializePayments() {
             customConfig: {
                 certificateSn: process.env.BINANCE_PAY_CERT_SN,
                 baseUrl: process.env.BINANCE_PAY_BASE_URL || 'https://bpay.binanceapi.com',
+            },
+        });
+    }
+
+    // ============================================
+    // CHINCHIN (Venezuela C2P)
+    // ============================================
+    if (
+        isTestMode() ||
+        hasCredentials(
+            process.env.CHINCHIN_API_KEY,
+            process.env.CHINCHIN_API_SECRET,
+            process.env.CHINCHIN_MERCHANT_ID,
+        )
+    ) {
+        configs.push({
+            provider: PaymentProvider.CHINCHIN,
+            enabled: true,
+            apiKey: process.env.CHINCHIN_API_KEY,
+            apiSecret: process.env.CHINCHIN_API_SECRET,
+            webhookSecret: process.env.CHINCHIN_WEBHOOK_SECRET,
+            environment: isTestMode() ? 'sandbox' : 'production',
+            customConfig: {
+                merchantId: process.env.CHINCHIN_MERCHANT_ID,
+                baseUrl: process.env.CHINCHIN_BASE_URL || 'https://api.chinchin.app',
             },
         });
     }
@@ -83,7 +130,7 @@ export function initializePayments() {
     });
 
     // ============================================
-    // PAGO MÓVIL (Manual - siempre habilitado)
+    // PAGO MÓVIL (Manual por ahora)
     // ============================================
     configs.push({
         provider: PaymentProvider.PAGO_MOVIL,
@@ -97,7 +144,7 @@ export function initializePayments() {
     });
 
     // ============================================
-    // BANCOS VENEZOLANOS
+    // BANCOS VENEZOLANOS (Manual)
     // ============================================
     const venezuelanBanks = [
         PaymentProvider.BANCO_VENEZUELA,
@@ -128,7 +175,6 @@ export function initializePayments() {
 /**
  * Obtiene la configuración de un proveedor específico
  */
-export function getProviderConfig(provider: PaymentProvider): ProviderConfig | null {
-    // Implementar si necesitas acceso directo a la config
+export function getProviderConfig(_provider: PaymentProvider): ProviderConfig | null {
     return null;
 }

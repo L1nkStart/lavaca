@@ -20,7 +20,7 @@ interface DonationCheckoutProps {
 }
 
 type Currency = 'USD' | 'BS';
-type PaymentMethod = 'card' | 'paypal' | 'googlepay' | 'zelle' | 'crypto' | 'pagomovil' | 'transfer';
+type PaymentMethod = 'card' | 'paypal' | 'googlepay' | 'zelle' | 'crypto' | 'pagomovil' | 'transfer' | 'chinchin';
 
 interface PaymentMethodConfig {
     code: PaymentMethod;
@@ -54,12 +54,13 @@ const METHOD_META: Record<PaymentMethod, { icon: string; defaultName: string }> 
     googlepay: { icon: '📱', defaultName: 'Google Pay' },
     zelle: { icon: '💵', defaultName: 'Zelle' },
     crypto: { icon: '₿', defaultName: 'Binance Pay' },
+    chinchin: { icon: '💸', defaultName: 'ChinChin' },
     pagomovil: { icon: '📱', defaultName: 'Pago Móvil' },
     transfer: { icon: '🏦', defaultName: 'Transferencia Bancaria' },
 };
 
-const USD_ALLOWED_METHODS: PaymentMethod[] = ['card', 'zelle', 'crypto'];
-const BS_ALLOWED_METHODS: PaymentMethod[] = ['pagomovil', 'transfer'];
+const USD_ALLOWED_METHODS: PaymentMethod[] = ['card', 'paypal', 'zelle', 'crypto'];
+const BS_ALLOWED_METHODS: PaymentMethod[] = ['pagomovil', 'transfer', 'chinchin'];
 
 export function DonationCheckout({
     campaignId,
@@ -100,6 +101,55 @@ export function DonationCheckout({
     const [zelleData, setZelleData] = useState({
         reference: "",
     });
+
+    // Comprobante (capture) opcional para pagos manuales.
+    const [captureFile, setCaptureFile] = useState<File | null>(null);
+    const [captureUrl, setCaptureUrl] = useState<string | null>(null);
+    const [captureUploading, setCaptureUploading] = useState(false);
+    const [captureError, setCaptureError] = useState<string | null>(null);
+
+    const resetCapture = () => {
+        setCaptureFile(null);
+        setCaptureUrl(null);
+        setCaptureError(null);
+    };
+
+    const handleCaptureSelect = async (file: File | null) => {
+        setCaptureError(null);
+        if (!file) {
+            resetCapture();
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            setCaptureError("El archivo no puede superar 5 MB");
+            return;
+        }
+        const allowed = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+        if (!allowed.includes(file.type)) {
+            setCaptureError("Formato no permitido. Usa JPG, PNG, WebP o PDF");
+            return;
+        }
+        setCaptureFile(file);
+        setCaptureUploading(true);
+        try {
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("campaignId", campaignId);
+            const response = await fetch("/api/donations/capture-upload", {
+                method: "POST",
+                body: fd,
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data?.error || "Error al subir");
+            setCaptureUrl(data.url || null);
+        } catch (error: any) {
+            setCaptureError(error?.message || "Error al subir el comprobante");
+            setCaptureFile(null);
+            setCaptureUrl(null);
+        } finally {
+            setCaptureUploading(false);
+        }
+    };
 
     useEffect(() => {
         const preloadAuthenticatedEmail = async () => {
@@ -366,6 +416,7 @@ export function DonationCheckout({
                                 reference: zelleData.reference.trim(),
                             }
                             : null,
+                    captureUrl: MANUAL_METHODS.includes(paymentMethod) ? captureUrl : null,
                 }),
             });
 
@@ -656,6 +707,39 @@ export function DonationCheckout({
                                     onChange={(e) => setTransferData({ ...transferData, reference: e.target.value })}
                                 />
                             </div>
+                        </div>
+                    )}
+
+                    {/* Comprobante (capture) opcional para pagos manuales */}
+                    {MANUAL_METHODS.includes(paymentMethod) && (
+                        <div className="space-y-2 p-4 bg-muted/30 rounded-lg">
+                            <h4 className="font-semibold text-sm">Comprobante de pago (opcional pero recomendado)</h4>
+                            <p className="text-xs text-muted-foreground">
+                                Sube una captura (JPG, PNG, WebP) o el PDF del comprobante.
+                                Esto acelera la aprobación de tu donación. Máx 5 MB.
+                            </p>
+                            <Input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                onChange={(e) => handleCaptureSelect(e.target.files?.[0] || null)}
+                                disabled={captureUploading}
+                                className="cursor-pointer"
+                            />
+                            {captureUploading && (
+                                <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Subiendo comprobante…
+                                </p>
+                            )}
+                            {captureUrl && !captureUploading && (
+                                <p className="text-xs text-green-600 flex items-center gap-2">
+                                    <CheckCircle className="h-3 w-3" />
+                                    Comprobante listo ({captureFile?.name})
+                                </p>
+                            )}
+                            {captureError && (
+                                <p className="text-xs text-destructive">{captureError}</p>
+                            )}
                         </div>
                     )}
 

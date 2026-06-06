@@ -13,6 +13,7 @@ export enum PaymentProvider {
     STRIPE = 'stripe',
     PAYPAL = 'paypal',
     BINANCE = 'binance',
+    CHINCHIN = 'chinchin',
     ZELLE = 'zelle',
     BANCO_VENEZUELA = 'banco_venezuela',
     BANCO_MERCANTIL = 'banco_mercantil',
@@ -193,6 +194,20 @@ export interface BinancePaymentData {
     currency: 'USDT' | 'BUSD' | 'BTC' | 'ETH';
     network?: string;
     walletAddress?: string;
+}
+
+// ChinChin (pasarela venezolana tipo C2P / cripto local)
+// Placeholder hasta que el proveedor confirme su API definitiva.
+export interface ChinchinPaymentData {
+    orderId?: string;
+    bankCode?: string;
+    phoneNumber?: string;
+    documentNumber?: string;
+    confirmationNumber?: string;
+    /** URL del checkout hospedado o deeplink de la app */
+    checkoutUrl?: string;
+    /** Codigo QR si el proveedor lo retorna */
+    qrContent?: string;
 }
 
 // Zelle

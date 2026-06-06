@@ -274,7 +274,7 @@ export default function AdminCampaignsPage() {
             <main className="flex-1 overflow-auto">
                 {/* Header */}
                 <div className="border-b border-border bg-card sticky top-0 z-40">
-                    <div className="px-8 py-6">
+                    <div className="px-4 sm:px-8 py-4 sm:py-6">
                         <h1 className="text-3xl font-bold">Gestión de Campañas</h1>
                         <p className="text-muted-foreground mt-1">
                             {filteredCampaigns.length} de {campaigns.length} campañas
@@ -282,7 +282,7 @@ export default function AdminCampaignsPage() {
                     </div>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="p-4 sm:p-8 space-y-4 sm:space-y-6">
                     {/* Filters */}
                     <Card>
                         <CardContent className="pt-6">

@@ -42,9 +42,13 @@ interface Campaign {
     full_name: string;
     kyc_status: string;
   };
-  guarantor?: {
+  guarantors?: Array<{
+    id: string;
     full_name: string;
-  };
+    organization_name: string | null;
+    profession_field: string | null;
+    accepted_at: string;
+  }>;
   campaign_details?: {
     gallery_images: string[] | null;
     support_documents: string[] | null;
@@ -152,9 +156,42 @@ export default function CampaignPage() {
         .eq('campaign_id', campaignId)
         .maybeSingle()
 
+      // Fetch guarantors aceptados con KYC verificado para el sello público
+      const { data: guarantorRows } = await supabase
+        .from('campaign_guarantors')
+        .select(`
+          accepted_at,
+          guarantors:guarantors!campaign_guarantors_guarantor_id_fkey (
+            id,
+            organization_name,
+            profession_field,
+            kyc_status,
+            users:users!guarantors_user_id_fkey (
+              full_name
+            )
+          )
+        `)
+        .eq('campaign_id', campaignId)
+        .eq('status', 'accepted')
+
+      const guarantors = (guarantorRows || [])
+        .map((row: any) => {
+          const g = row.guarantors
+          if (!g || g.kyc_status !== 'verified') return null
+          return {
+            id: g.id,
+            full_name: g.users?.full_name || 'Garante',
+            organization_name: g.organization_name || null,
+            profession_field: g.profession_field || null,
+            accepted_at: row.accepted_at,
+          }
+        })
+        .filter(Boolean) as Campaign['guarantors']
+
       const normalizedCampaignData = {
         ...campaignData,
-        campaign_details: campaignDetailsData || null
+        campaign_details: campaignDetailsData || null,
+        guarantors: guarantors || [],
       }
 
       setCampaign(normalizedCampaignData as Campaign);
@@ -365,6 +402,13 @@ export default function CampaignPage() {
                     <Badge variant="default" className="bg-primary">
                       <CheckCircle2 className="w-3 h-3 mr-1" />
                       Verificado
+                    </Badge>
+                  )}
+                  {campaign.guarantors && campaign.guarantors.length > 0 && (
+                    <Badge className="bg-accent text-accent-foreground">
+                      <CheckCircle2 className="w-3 h-3 mr-1" />
+                      Avalado por {campaign.guarantors[0].organization_name || campaign.guarantors[0].full_name}
+                      {campaign.guarantors.length > 1 ? ` y ${campaign.guarantors.length - 1} más` : ''}
                     </Badge>
                   )}
                 </div>

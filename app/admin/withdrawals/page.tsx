@@ -213,7 +213,7 @@ export default function AdminWithdrawalsPage() {
 
             <main className="flex-1 overflow-auto">
                 <div className="border-b border-border bg-card sticky top-0 z-40">
-                    <div className="px-8 py-6">
+                    <div className="px-4 sm:px-8 py-4 sm:py-6">
                         <h1 className="text-3xl font-bold">Solicitudes de Retiro</h1>
                         <p className="text-muted-foreground mt-1">
                             {visibleRequests.length} de {requests.length} solicitudes
@@ -221,7 +221,7 @@ export default function AdminWithdrawalsPage() {
                     </div>
                 </div>
 
-                <div className="p-8 space-y-4">
+                <div className="p-4 sm:p-8 space-y-4">
                     {error && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />

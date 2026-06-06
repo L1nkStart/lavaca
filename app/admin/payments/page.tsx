@@ -22,6 +22,7 @@ interface Payment {
   payment_method: string
   reference_number: string | null
   payment_status: string
+  capture_url: string | null
   created_at: string
   campaigns: {
     title: string
@@ -199,7 +200,7 @@ export default function AdminPaymentsPage() {
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <div className="border-b border-border bg-card sticky top-0 z-40">
-          <div className="px-8 py-6">
+          <div className="px-4 sm:px-8 py-4 sm:py-6">
             <h1 className="text-3xl font-bold">Pagos Manuales</h1>
             <p className="text-muted-foreground mt-1">
               {filteredPayments.length} pago{filteredPayments.length !== 1 ? 's' : ''} pendiente{filteredPayments.length !== 1 ? 's' : ''} de verificación
@@ -207,7 +208,7 @@ export default function AdminPaymentsPage() {
           </div>
         </div>
 
-        <div className="p-8 space-y-4">
+        <div className="p-4 sm:p-8 space-y-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex flex-wrap gap-2">
@@ -329,6 +330,35 @@ export default function AdminPaymentsPage() {
                           Esta donación por Zelle no tiene referencia registrada. Verifica manualmente antes de aprobar.
                         </AlertDescription>
                       </Alert>
+                    )}
+
+                    {payment.capture_url && (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Comprobante</p>
+                        <a
+                          href={payment.capture_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-xs text-primary hover:underline"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Ver comprobante adjunto
+                        </a>
+                        {/\.(jpe?g|png|webp)(\?|$)/i.test(payment.capture_url) && (
+                          <a
+                            href={payment.capture_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block mt-2"
+                          >
+                            <img
+                              src={payment.capture_url}
+                              alt="Comprobante de pago"
+                              className="max-h-48 sm:max-h-64 rounded border border-border object-contain bg-muted/30"
+                            />
+                          </a>
+                        )}
+                      </div>
                     )}
 
                     <div className="grid md:grid-cols-3 gap-4">

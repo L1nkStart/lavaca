@@ -330,7 +330,7 @@ export default function AdminPaymentMethodsPage() {
 
             <main className="flex-1 overflow-auto">
                 <div className="border-b border-border bg-card sticky top-0 z-40">
-                    <div className="px-8 py-6">
+                    <div className="px-4 sm:px-8 py-4 sm:py-6">
                         <h1 className="text-3xl font-bold">Métodos de Pago</h1>
                         <p className="text-muted-foreground mt-1">
                             Activa, desactiva y configura los datos de cobro que verá el donante.
@@ -338,7 +338,7 @@ export default function AdminPaymentMethodsPage() {
                     </div>
                 </div>
 
-                <div className="p-8 space-y-6">
+                <div className="p-4 sm:p-8 space-y-4 sm:space-y-6">
                     {error && (
                         <Alert variant="destructive">
                             <AlertCircle className="h-4 w-4" />

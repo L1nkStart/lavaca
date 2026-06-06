@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { EditCampaignForm } from '@/components/edit-campaign-form'
+import { InviteGuarantorDialog } from '@/components/invite-guarantor-dialog'
 import { FilePenLine } from 'lucide-react'
 
 interface EditCampaignPageProps {
@@ -62,20 +63,23 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
         <div className="min-h-screen bg-background p-4">
             <div className="max-w-4xl mx-auto space-y-6">
                 <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shrink-0">
                                 <FilePenLine className="h-5 w-5 text-primary-foreground" />
                             </div>
-                            <div>
-                                <h1 className="text-2xl font-bold">Editar campaña</h1>
-                                <p className="text-muted-foreground">Gestiona tu historia, documentos y actualizaciones.</p>
+                            <div className="min-w-0">
+                                <h1 className="text-xl sm:text-2xl font-bold">Editar campaña</h1>
+                                <p className="text-sm text-muted-foreground">Gestiona tu historia, documentos y actualizaciones.</p>
                             </div>
                         </div>
 
-                        <Button variant="outline" asChild>
-                            <Link href="/creator/campaigns">Finalizar</Link>
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                            <InviteGuarantorDialog campaignId={id} />
+                            <Button variant="outline" asChild>
+                                <Link href="/creator/campaigns">Finalizar</Link>
+                            </Button>
+                        </div>
                     </div>
                 </div>
 

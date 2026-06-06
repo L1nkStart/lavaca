@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PaymentManager } from "@/lib/payments/payment-manager";
 import { PaymentProvider, PaymentType } from "@/lib/payments/types";
 import { initializePayments } from "@/lib/payments/config";
+import { getActiveExchangeRate } from "@/lib/exchange-rate";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,10 +19,16 @@ export async function POST(request: NextRequest) {
       donorName,
       pagoMovilData,
       manualPaymentData,
+      captureUrl,
     } = body;
 
+    const safeCaptureUrl =
+      typeof captureUrl === "string" && captureUrl.startsWith("http")
+        ? captureUrl
+        : null;
+
     const manualMethods = new Set(["zelle", "pagomovil", "transfer"]);
-    const apiMethods = new Set(["card", "paypal", "googlepay", "crypto"]);
+    const apiMethods = new Set(["card", "paypal", "googlepay", "crypto", "chinchin"]);
 
     if (!manualMethods.has(paymentMethod) && !apiMethods.has(paymentMethod)) {
       return NextResponse.json(
@@ -94,6 +101,11 @@ export async function POST(request: NextRequest) {
     // Initialize payment system
     initializePayments();
 
+    // Resolve live Bs/USD rate so the donation snapshot reflects what the
+    // donor actually saw (rather than a hard-coded placeholder).
+    const liveExchangeRate = await getActiveExchangeRate();
+    const amountBs = Number((amountUSD * liveExchangeRate).toFixed(2));
+
     // Create donation record
     const { data: donation, error } = await supabase
       .from("donations")
@@ -102,7 +114,7 @@ export async function POST(request: NextRequest) {
         donor_id: user?.id || null,
         email: finalDonorEmail,
         amount_usd: amountUSD,
-        amount_bs: amountUSD * 41.25, // Should get live rate
+        amount_bs: amountBs,
         payment_method: paymentMethod,
         payment_status: "pending",
         is_anonymous: isAnonymous,
@@ -115,6 +127,7 @@ export async function POST(request: NextRequest) {
               : paymentMethod === "transfer"
                 ? manualPaymentData?.reference?.trim() || null
                 : null,
+        capture_url: manualMethods.has(paymentMethod) ? safeCaptureUrl : null,
         admin_notes: manualMethods.has(paymentMethod)
           ? "Pago pendiente de verificación manual"
           : null,
@@ -130,6 +143,7 @@ export async function POST(request: NextRequest) {
       googlepay: PaymentProvider.STRIPE,
       paypal: PaymentProvider.PAYPAL,
       crypto: PaymentProvider.BINANCE,
+      chinchin: PaymentProvider.CHINCHIN,
       zelle: PaymentProvider.ZELLE,
       pagomovil: PaymentProvider.PAGO_MOVIL,
     };
@@ -155,7 +169,8 @@ export async function POST(request: NextRequest) {
       const paymentResult = await PaymentManager.processPayment({
         amount: {
           usd: amountUSD,
-          bs: amountUSD * 41.25,
+          bs: amountBs,
+          exchangeRate: liveExchangeRate,
         },
         provider,
         paymentType: PaymentType.CARD,

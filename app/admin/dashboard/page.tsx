@@ -176,7 +176,7 @@ export default function AdminDashboard() {
       <main className="flex-1 overflow-auto">
         {/* Header */}
         <div className="border-b border-border bg-card sticky top-0 z-40">
-          <div className="px-8 py-6">
+          <div className="px-4 sm:px-8 py-4 sm:py-6">
             <h1 className="text-3xl font-bold">Panel de Administración</h1>
             <p className="text-muted-foreground mt-1">
               Bienvenido. Aquí puedes gestionar la plataforma.
@@ -184,7 +184,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <div className="p-8 space-y-8">
+        <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
           {/* Alert */}
           {stats && stats.pendingVerifications > 0 && (
             <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
           )}
 
           {/* Stats Grid */}
-          <div className="grid md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
