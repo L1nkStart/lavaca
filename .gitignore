@@ -1,3 +1,11 @@
 /.env
+/.env.local
 /.next
 /node_modules
+/.claude
+/.mcp.json
+*.local
+.DS_Store
+Thumbs.db
+*.log
+tsconfig.tsbuildinfo
