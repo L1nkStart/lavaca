@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -22,9 +24,38 @@ import {
     DollarSign,
     Users,
     Target,
-    AlertCircle
+    AlertCircle,
+    ChevronsUpDown
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
+
+const VENEZUELA_STATES = [
+    'Amazonas',
+    'Anzoátegui',
+    'Apure',
+    'Aragua',
+    'Barinas',
+    'Bolívar',
+    'Carabobo',
+    'Cojedes',
+    'Delta Amacuro',
+    'Distrito Capital',
+    'Falcón',
+    'Guárico',
+    'Lara',
+    'La Guaira',
+    'Mérida',
+    'Miranda',
+    'Monagas',
+    'Nueva Esparta',
+    'Portuguesa',
+    'Sucre',
+    'Táchira',
+    'Trujillo',
+    'Yaracuy',
+    'Zulia',
+]
 
 interface Profile {
     id: string
@@ -37,7 +68,7 @@ interface Profile {
 interface Category {
     id: string
     name: string
-    description: string | null
+    description: string | "En desarrollo"
     icon: string | null
 }
 
@@ -52,13 +83,16 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
     const [uploading, setUploading] = useState(false)
+    const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
 
     const [formData, setFormData] = useState({
         title: '',
         category_id: '',
+        description: '',
         goal_amount_usd: '',
         story: '',
         location: '',
+        state: '',
         urgency_level: 'medium',
         main_image: null as File | null,
         gallery_images: [] as File[],
@@ -214,6 +248,11 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
+        if (currentStep !== 4) {
+            setError('Completa todos los pasos y usa "Enviar a revisión" en la pantalla final.')
+            return
+        }
+
         if (!validateStep(3)) return
 
         setLoading(true)
@@ -233,17 +272,12 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 )
             )
 
-            // Upload support documents
-            const documentUrls = await Promise.all(
-                formData.support_documents.map(file =>
-                    handleFileUpload(file, 'campaign-support', 'documents')
-                )
-            )
-
-            setUploading(false)
-
             // Create campaign
             const slug = generateSlug(formData.title)
+
+            // All campaigns must pass manual underwriting review before publication
+            const initialStatus = 'pending_review'
+
             const { data: campaign, error: campaignError } = await supabase
                 .from('campaigns')
                 .insert({
@@ -251,13 +285,16 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                     title: formData.title,
                     slug: slug,
                     story: formData.story,
+                    description: 'descripción en desarrollo',
+                    category: 'no necesario',
                     goal_amount_usd: parseFloat(formData.goal_amount_usd),
                     current_amount_usd: 0,
                     category_id: formData.category_id,
-                    location: formData.location || null,
+                    location: fullLocation || null,
                     urgency_level: formData.urgency_level,
                     main_image_url: mainImageUrl,
-                    status: 'pending_review'
+                    featured_image_url: mainImageUrl,
+                    status: initialStatus
                 })
                 .select()
                 .single()
@@ -267,21 +304,50 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 return
             }
 
-            // Create campaign details
+            // Upload support documents in dedicated documents/<campaignId>/ folder
+            const documentUrls = await Promise.all(
+                formData.support_documents.map(file =>
+                    handleFileUpload(file, 'campaigns', `documents/${campaign.id}`)
+                )
+            )
+
+            setUploading(false)
+
+            // Create campaign details (compatible with both support_documents and support_documents_urls schemas)
             const { error: detailsError } = await supabase
                 .from('campaign_details')
                 .insert({
                     campaign_id: campaign.id,
                     gallery_images: galleryUrls,
-                    support_documents: documentUrls
+                    support_documents: documentUrls,
+                    full_story: formData.story,
                 })
 
             if (detailsError) {
-                setError(detailsError.message)
-                return
+                const shouldFallbackToLegacyColumn =
+                    detailsError.message?.toLowerCase().includes('support_documents')
+
+                if (!shouldFallbackToLegacyColumn) {
+                    setError(detailsError.message)
+                    return
+                }
+
+                const { error: detailsLegacyError } = await supabase
+                    .from('campaign_details')
+                    .insert({
+                        campaign_id: campaign.id,
+                        gallery_images: galleryUrls,
+                        support_documents_urls: documentUrls,
+                        full_story: formData.story,
+                    })
+
+                if (detailsLegacyError) {
+                    setError(detailsLegacyError.message)
+                    return
+                }
             }
 
-            setSuccess('¡Campaña creada exitosamente! Está siendo revisada por nuestro equipo.')
+            setSuccess('Tu campaña fue enviada a revisión de seguridad. Este proceso toma entre 24 y 48 horas antes de activarse para donaciones.')
 
             // Redirect after success
             setTimeout(() => {
@@ -298,33 +364,48 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     }
 
     const selectedCategory = categories.find(c => c.id === formData.category_id)
+    const fullLocation = [formData.location?.trim(), formData.state?.trim()].filter(Boolean).join(', ')
+    const urgencyLabels: Record<string, string> = {
+        low: 'Baja',
+        medium: 'Media',
+        high: 'Alta',
+        critical: 'Crítica',
+    }
+    const urgencyDescriptions: Record<string, string> = {
+        low: 'No hay prisa específica.',
+        medium: 'Importante, pero no crítica.',
+        high: 'Situación urgente que requiere atención pronta.',
+        critical: 'Emergencia inmediata con alta prioridad.',
+    }
 
     return (
         <div className="space-y-8">
             {/* Progress Steps */}
-            <div className="flex items-center justify-between">
-                {steps.map((step, index) => (
-                    <div key={step.number} className="flex items-center">
-                        <div className={`
+            <div className="rounded-xl border bg-muted/30 p-4 md:p-5">
+                <div className="flex items-center justify-between">
+                    {steps.map((step, index) => (
+                        <div key={step.number} className="flex items-center">
+                            <div className={`
               flex items-center justify-center w-8 h-8 rounded-full border-2 text-sm font-medium
               ${currentStep >= step.number
-                                ? 'bg-primary text-primary-foreground border-primary'
-                                : 'bg-background text-muted-foreground border-muted'
-                            }
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background text-muted-foreground border-muted'
+                                }
             `}>
-                            {currentStep > step.number ? <Check className="h-4 w-4" /> : step.number}
+                                {currentStep > step.number ? <Check className="h-4 w-4" /> : step.number}
+                            </div>
+                            {index < steps.length - 1 && (
+                                <div className={`w-16 h-0.5 mx-2 ${currentStep > step.number ? 'bg-primary' : 'bg-muted'
+                                    }`} />
+                            )}
                         </div>
-                        {index < steps.length - 1 && (
-                            <div className={`w-16 h-0.5 mx-2 ${currentStep > step.number ? 'bg-primary' : 'bg-muted'
-                                }`} />
-                        )}
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
 
-            <div className="text-center">
-                <h3 className="text-lg font-medium">{steps[currentStep - 1].title}</h3>
-                <p className="text-sm text-muted-foreground">{steps[currentStep - 1].description}</p>
+                <div className="text-center mt-4">
+                    <h3 className="text-lg font-medium">{steps[currentStep - 1].title}</h3>
+                    <p className="text-sm text-muted-foreground">{steps[currentStep - 1].description}</p>
+                </div>
             </div>
 
             {error && (
@@ -339,10 +420,10 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 </Alert>
             )}
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Step 1: Basic Information */}
                 {currentStep === 1 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         <div className="space-y-2">
                             <Label htmlFor="title">Título de la Campaña *</Label>
                             <Input
@@ -406,15 +487,64 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             </p>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="location">Ubicación (Opcional)</Label>
-                            <Input
-                                id="location"
-                                value={formData.location}
-                                onChange={(e) => updateFormData('location', e.target.value)}
-                                placeholder="Ciudad, Estado"
-                                disabled={loading}
-                            />
+                        <div className="grid md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="location">Ciudad (Opcional)</Label>
+                                <Input
+                                    id="location"
+                                    value={formData.location}
+                                    onChange={(e) => updateFormData('location', e.target.value)}
+                                    placeholder="Ej: Caracas"
+                                    disabled={loading}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="state">Estado (Opcional)</Label>
+                                <Popover open={stateDropdownOpen} onOpenChange={setStateDropdownOpen}>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            role="combobox"
+                                            aria-expanded={stateDropdownOpen}
+                                            className="w-full justify-between"
+                                            disabled={loading}
+                                        >
+                                            {formData.state || 'Selecciona un estado'}
+                                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                                        <Command>
+                                            <CommandInput placeholder="Buscar estado..." />
+                                            <CommandList>
+                                                <CommandEmpty>No se encontró el estado.</CommandEmpty>
+                                                <CommandGroup>
+                                                    {VENEZUELA_STATES.map((stateName) => (
+                                                        <CommandItem
+                                                            key={stateName}
+                                                            value={stateName}
+                                                            onSelect={(selected) => {
+                                                                updateFormData('state', selected)
+                                                                setStateDropdownOpen(false)
+                                                            }}
+                                                        >
+                                                            <Check
+                                                                className={cn(
+                                                                    'mr-2 h-4 w-4',
+                                                                    formData.state === stateName ? 'opacity-100' : 'opacity-0'
+                                                                )}
+                                                            />
+                                                            {stateName}
+                                                        </CommandItem>
+                                                    ))}
+                                                </CommandGroup>
+                                            </CommandList>
+                                        </Command>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
                         </div>
 
                         <div className="space-y-2">
@@ -424,43 +554,27 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                 onValueChange={(value) => updateFormData('urgency_level', value)}
                                 disabled={loading}
                             >
-                                <SelectTrigger>
-                                    <SelectValue />
+                                <SelectTrigger id="urgency" className="h-11 px-3">
+                                    <SelectValue placeholder="Selecciona un nivel" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="low">
-                                        <div className="space-y-1">
-                                            <div className="font-medium">Baja</div>
-                                            <div className="text-sm text-muted-foreground">No hay prisa específica</div>
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="medium">
-                                        <div className="space-y-1">
-                                            <div className="font-medium">Media</div>
-                                            <div className="text-sm text-muted-foreground">Importante pero no crítica</div>
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="high">
-                                        <div className="space-y-1">
-                                            <div className="font-medium">Alta</div>
-                                            <div className="text-sm text-muted-foreground">Situación urgente</div>
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="critical">
-                                        <div className="space-y-1">
-                                            <div className="font-medium">Crítica</div>
-                                            <div className="text-sm text-muted-foreground">Emergencia inmediata</div>
-                                        </div>
-                                    </SelectItem>
+                                    <SelectItem value="low" className="py-2">Baja</SelectItem>
+                                    <SelectItem value="medium" className="py-2">Media</SelectItem>
+                                    <SelectItem value="high" className="py-2">Alta</SelectItem>
+                                    <SelectItem value="critical" className="py-2">Crítica</SelectItem>
                                 </SelectContent>
                             </Select>
+                            <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                <span className="font-medium text-foreground">{urgencyLabels[formData.urgency_level] || 'Urgencia'}:</span>{' '}
+                                {urgencyDescriptions[formData.urgency_level] || 'Selecciona el nivel que mejor describa tu caso.'}
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {/* Step 2: Story */}
                 {currentStep === 2 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         <div className="space-y-2">
                             <Label htmlFor="story">Historia de tu Campaña *</Label>
                             <Textarea
@@ -478,7 +592,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             </div>
                         </div>
 
-                        <Card>
+                        <Card className="border-border/70 bg-muted/30">
                             <CardHeader>
                                 <CardTitle className="text-base">Consejos para una buena historia</CardTitle>
                             </CardHeader>
@@ -511,12 +625,12 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
 
                 {/* Step 3: Media */}
                 {currentStep === 3 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         {/* Main Image */}
                         <div className="space-y-3">
                             <Label>Imagen Principal *</Label>
                             <div
-                                className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
+                                className="border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-6 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
                                 onClick={() => mainImageRef.current?.click()}
                             >
                                 {formData.main_image ? (
@@ -558,7 +672,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                         <div className="space-y-3">
                             <Label>Galería de Imágenes (Opcional)</Label>
                             <div
-                                className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
+                                className="border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-4 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
                                 onClick={() => galleryRef.current?.click()}
                             >
                                 <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
@@ -577,7 +691,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             {formData.gallery_images.length > 0 && (
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                     {formData.gallery_images.map((file, index) => (
-                                        <div key={index} className="relative bg-muted rounded-lg p-3">
+                                        <div key={index} className="relative bg-muted/60 border rounded-lg p-3">
                                             <div className="flex items-center gap-2">
                                                 <ImageIcon className="h-4 w-4 text-muted-foreground" />
                                                 <span className="text-xs truncate flex-1">{file.name}</span>
@@ -604,7 +718,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                 Sube documentos que respalden tu campaña (informes médicos, presupuestos, etc.)
                             </p>
                             <div
-                                className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
+                                className="border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-4 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
                                 onClick={() => documentsRef.current?.click()}
                             >
                                 <FileText className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
@@ -624,7 +738,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             {formData.support_documents.length > 0 && (
                                 <div className="space-y-2">
                                     {formData.support_documents.map((file, index) => (
-                                        <div key={index} className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                                        <div key={index} className="flex items-center gap-3 p-3 bg-muted/60 border rounded-lg">
                                             <FileText className="h-4 w-4 text-muted-foreground" />
                                             <span className="text-sm flex-1 truncate">{file.name}</span>
                                             <span className="text-xs text-muted-foreground">
@@ -649,7 +763,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
 
                 {/* Step 4: Review */}
                 {currentStep === 4 && (
-                    <div className="space-y-6">
+                    <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         <Card>
                             <CardHeader>
                                 <CardTitle>Resumen de tu Campaña</CardTitle>
@@ -659,27 +773,27 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <div className="grid md:grid-cols-2 gap-4">
-                                    <div>
+                                    <div className="rounded-lg border bg-muted/30 p-3">
                                         <Label className="text-xs text-muted-foreground">TÍTULO</Label>
                                         <p className="font-medium">{formData.title}</p>
                                     </div>
-                                    <div>
+                                    <div className="rounded-lg border bg-muted/30 p-3">
                                         <Label className="text-xs text-muted-foreground">CATEGORÍA</Label>
                                         <p className="font-medium">{selectedCategory?.name}</p>
                                     </div>
-                                    <div>
+                                    <div className="rounded-lg border bg-muted/30 p-3">
                                         <Label className="text-xs text-muted-foreground">META</Label>
                                         <p className="font-medium">${formData.goal_amount_usd} USD</p>
                                     </div>
-                                    <div>
+                                    <div className="rounded-lg border bg-muted/30 p-3">
                                         <Label className="text-xs text-muted-foreground">UBICACIÓN</Label>
-                                        <p className="font-medium">{formData.location || 'No especificada'}</p>
+                                        <p className="font-medium">{fullLocation || 'No especificada'}</p>
                                     </div>
                                 </div>
 
                                 <Separator />
 
-                                <div>
+                                <div className="rounded-lg border bg-muted/30 p-3">
                                     <Label className="text-xs text-muted-foreground">HISTORIA</Label>
                                     <p className="text-sm mt-1 line-clamp-3">{formData.story}</p>
                                 </div>
@@ -703,9 +817,9 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             </CardContent>
                         </Card>
 
-                        <Alert className="bg-blue-50 border-blue-200">
-                            <AlertCircle className="h-4 w-4 text-blue-600" />
-                            <AlertDescription className="text-blue-800">
+                        <Alert className="bg-primary/10 border-primary/20">
+                            <AlertCircle className="h-4 w-4 text-primary" />
+                            <AlertDescription>
                                 Tu campaña será revisada por nuestro equipo antes de ser publicada.
                                 Este proceso usualmente toma 24-48 horas.
                             </AlertDescription>
@@ -734,6 +848,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                         variant="outline"
                         onClick={prevStep}
                         disabled={currentStep === 1 || loading || uploading}
+                        className="min-w-[120px]"
                     >
                         Anterior
                     </Button>
@@ -743,6 +858,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             type="button"
                             onClick={nextStep}
                             disabled={loading || uploading}
+                            className="min-w-[120px]"
                         >
                             Siguiente
                         </Button>
@@ -758,7 +874,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                     {uploading ? 'Subiendo...' : 'Creando...'}
                                 </>
                             ) : (
-                                'Crear Campaña'
+                                'Enviar a revisión'
                             )}
                         </Button>
                     )}

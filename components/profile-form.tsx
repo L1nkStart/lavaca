@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -32,10 +31,10 @@ export function ProfileForm({ profile }: ProfileFormProps) {
         full_name: profile.full_name || '',
         phone: profile.phone || '',
         bio: profile.bio || '',
-        location: profile.location || '',
-        role: profile.role || 'donor'
+        location: profile.location || ''
     })
     const [loading, setLoading] = useState(false)
+    const [upgradingRole, setUpgradingRole] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
@@ -60,7 +59,6 @@ export function ProfileForm({ profile }: ProfileFormProps) {
                     phone: formData.phone || null,
                     bio: formData.bio || null,
                     location: formData.location || null,
-                    role: formData.role,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', profile.id)
@@ -82,6 +80,39 @@ export function ProfileForm({ profile }: ProfileFormProps) {
             setError('Ocurrió un error inesperado')
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleBecomeCreator = async () => {
+        if (profile.role === 'creator') return
+
+        setUpgradingRole(true)
+        setError(null)
+        setSuccess(null)
+
+        try {
+            const { error: upgradeError } = await supabase
+                .from('users')
+                .update({
+                    role: 'creator',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', profile.id)
+
+            if (upgradeError) {
+                setError(upgradeError.message)
+                return
+            }
+
+            setSuccess('Tu cuenta ahora es Creador de Campañas. Recargando...')
+            setTimeout(() => {
+                window.location.reload()
+            }, 900)
+        } catch (err) {
+            console.error('Role upgrade error:', err)
+            setError('No se pudo actualizar el tipo de cuenta')
+        } finally {
+            setUpgradingRole(false)
         }
     }
 
@@ -164,47 +195,42 @@ export function ProfileForm({ profile }: ProfileFormProps) {
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="role">Tipo de cuenta</Label>
-                <Select
-                    value={formData.role}
-                    onValueChange={(value) => updateFormData('role', value)}
-                    disabled={loading}
-                >
-                    <SelectTrigger>
-                        <SelectValue placeholder="Selecciona tu rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="donor">
-                            <div className="space-y-1">
-                                <div className="font-medium">Donante</div>
-                                <div className="text-sm text-muted-foreground">
-                                    Solo deseo donar a campañas
-                                </div>
-                            </div>
-                        </SelectItem>
-                        <SelectItem value="creator">
-                            <div className="space-y-1">
-                                <div className="font-medium">Creador de Campañas</div>
-                                <div className="text-sm text-muted-foreground">
-                                    Quiero crear y gestionar mis propias campañas
-                                </div>
-                            </div>
-                        </SelectItem>
-                        <SelectItem value="guarantor">
-                            <div className="space-y-1">
-                                <div className="font-medium">Garante/Veedor</div>
-                                <div className="text-sm text-muted-foreground">
-                                    Quiero avalar campañas de terceros
-                                </div>
-                            </div>
-                        </SelectItem>
-                    </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                    {formData.role !== 'donor' &&
-                        'Nota: Para roles de Creador o Garante necesitarás completar la verificación KYC.'
-                    }
-                </p>
+                <Label>Tipo de cuenta</Label>
+                <div className="rounded-lg border border-border p-4 space-y-3 bg-muted/30">
+                    <p className="text-sm">
+                        <strong>Estado actual:</strong> {getRoleDisplayName(profile.role)}
+                    </p>
+
+                    {profile.role !== 'creator' ? (
+                        <>
+                            <p className="text-sm text-muted-foreground">
+                                Puedes cambiar tu cuenta a <strong>Creador de Campañas</strong> para habilitar funciones de recaudación.
+                            </p>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={handleBecomeCreator}
+                                disabled={upgradingRole || loading}
+                            >
+                                {upgradingRole ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Actualizando...
+                                    </>
+                                ) : (
+                                    'Cambiar a Creador de Campañas'
+                                )}
+                            </Button>
+                            <p className="text-xs text-muted-foreground">
+                                Al cambiar, la página se recargará para activar las funciones de creador.
+                            </p>
+                        </>
+                    ) : (
+                        <p className="text-sm text-muted-foreground">
+                            Tu cuenta ya tiene habilitadas las funciones de creador.
+                        </p>
+                    )}
+                </div>
             </div>
 
             <div className="space-y-2">

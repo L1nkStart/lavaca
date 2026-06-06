@@ -26,28 +26,25 @@ export default async function CreateCampaignPage() {
         redirect('/auth/login')
     }
 
-    // Check if user is verified and can create campaigns
-    if (profile.kyc_status !== 'verified') {
-        redirect('/profile?verify=true&becomeCreator=true')
-    }
+    // Users can create campaigns without KYC verification
+    // But they need to be verified to publish them
 
-    if (profile.role !== 'creator' && profile.role !== 'admin') {
-        redirect('/profile?becomeCreator=true')
-    }
+    // No role restriction - any user can create campaigns
+    // They will be created as drafts initially
 
     // Get categories for the form
     const { data: categories } = await supabase
         .from('categories')
         .select('*')
-        .order('name')
+        .order('order_index', { ascending: true })
+        .order('name', { ascending: true })
 
     return (
-        <div className="min-h-screen bg-background p-4">
-            <div className="max-w-4xl mx-auto space-y-6">
-                {/* Header */}
-                <div className="space-y-2">
+        <div className="min-h-screen bg-muted/30">
+            <div className="bg-gradient-to-br from-primary/10 to-accent/10 border-b">
+                <div className="max-w-4xl mx-auto px-4 py-8">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                        <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center shadow-sm">
                             <Plus className="h-5 w-5 text-primary-foreground" />
                         </div>
                         <div>
@@ -58,6 +55,9 @@ export default async function CreateCampaignPage() {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
 
                 {/* Verification Status */}
                 {profile.kyc_status === 'verified' && (
@@ -70,7 +70,7 @@ export default async function CreateCampaignPage() {
                 )}
 
                 {/* Create Campaign Form */}
-                <Card>
+                <Card className="shadow-sm border-border/60">
                     <CardHeader>
                         <CardTitle>Información de la Campaña</CardTitle>
                         <CardDescription>
@@ -86,32 +86,32 @@ export default async function CreateCampaignPage() {
                 </Card>
 
                 {/* Tips for Success */}
-                <Card>
+                <Card className="shadow-sm border-border/60">
                     <CardHeader>
                         <CardTitle>Consejos para una Campaña Exitosa</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <h4 className="font-medium text-green-700">✓ Títulos efectivos</h4>
+                                <h4 className="font-medium text-primary">✓ Títulos efectivos</h4>
                                 <p className="text-sm text-muted-foreground">
                                     Usa títulos claros y específicos que describan exactamente para qué necesitas ayuda.
                                 </p>
                             </div>
                             <div className="space-y-2">
-                                <h4 className="font-medium text-green-700">✓ Historia compelling</h4>
+                                <h4 className="font-medium text-primary">✓ Historia compelling</h4>
                                 <p className="text-sm text-muted-foreground">
                                     Cuenta tu historia de manera personal y auténtica. Explica por qué es importante.
                                 </p>
                             </div>
                             <div className="space-y-2">
-                                <h4 className="font-medium text-green-700">✓ Metas realistas</h4>
+                                <h4 className="font-medium text-primary">✓ Metas realistas</h4>
                                 <p className="text-sm text-muted-foreground">
                                     Establece una meta alcanzable basada en tus necesidades reales.
                                 </p>
                             </div>
                             <div className="space-y-2">
-                                <h4 className="font-medium text-green-700">✓ Evidencia visual</h4>
+                                <h4 className="font-medium text-primary">✓ Evidencia visual</h4>
                                 <p className="text-sm text-muted-foreground">
                                     Incluye fotos y documentos que respalden tu causa.
                                 </p>

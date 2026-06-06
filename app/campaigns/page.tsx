@@ -1,189 +1,163 @@
-"use client";
+import { Suspense } from 'react';
+import { createClient } from '@/lib/supabase/server';
+import CampaignsClient from './campaigns-client';
+import { Loader2 } from 'lucide-react';
 
-import { useState, useMemo } from "react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { CampaignCard } from "@/components/campaign-card";
-import { CampaignFilters, FilterState } from "@/components/campaign-filters";
-import { Search, ArrowLeft } from 'lucide-react';
+interface PageProps {
+  searchParams: {
+    page?: string;
+    search?: string;
+    category?: string;
+    location?: string;
+    status?: string;
+    verified?: string;
+    sort?: string;
+  };
+}
 
-// Mock data
-const ALL_CAMPAIGNS = [
-  {
-    id: "1",
-    title: "Cirugía urgente - Niño con malformación cardíaca",
-    description:
-      "Necesitamos $15,000 para una cirugía de corazón abierto para salvar la vida de un niño de 8 años.",
-    image: "/medical-surgery-child.jpg",
-    goalAmount: 15000,
-    raisedAmount: 12500,
-    category: "Salud",
-    creator: "Fundación Salud Infantil",
-    verified: true,
-    guarantor: "Hospital Metropolitano",
-    donorCount: 487,
-  },
-  {
-    id: "2",
-    title: "Educación superior para jóvenes de bajos recursos",
-    description:
-      "Becas completas para 50 estudiantes de comunidades vulnerables.",
-    image:
-      "/students-education-classroom.jpg",
-    goalAmount: 50000,
-    raisedAmount: 23400,
-    category: "Educación",
-    creator: "Fundación Educativa Venezuela",
-    verified: true,
-    donorCount: 892,
-  },
-  {
-    id: "3",
-    title: "Microempresa de mujeres emprendedoras",
-    description: "Capital inicial para 20 mujeres de comunidades marginadas.",
-    image:
-      "/women-business-entrepreneurship.jpg",
-    goalAmount: 25000,
-    raisedAmount: 8900,
-    category: "Emprendimiento",
-    creator: "Red de Mujeres Emprendedoras",
-    verified: true,
-    donorCount: 234,
-  },
-  {
-    id: "4",
-    title: "Agua potable para comunidad indígena",
-    description: "Sistema de purificación de agua para 500 personas.",
-    image: "/water-community-indigenous.jpg",
-    goalAmount: 12000,
-    raisedAmount: 7200,
-    category: "Comunitaria",
-    creator: "ONG Agua Pura",
-    verified: true,
-    donorCount: 156,
-  },
-  {
-    id: "5",
-    title: "Medicinas para hospital comunitario",
-    description: "Medicamentos urgentes para atender emergencias médicas.",
-    image: "/hospital-medical-supplies.jpg",
-    goalAmount: 8000,
-    raisedAmount: 6400,
-    category: "Salud",
-    creator: "Clínica Comunitaria Bolívar",
-    verified: false,
-    donorCount: 98,
-  },
-  {
-    id: "6",
-    title: "Biblioteca rural en comunidad lejana",
-    description: "Construcción de biblioteca y sala de estudios.",
-    image: "/library-rural-education.jpg",
-    goalAmount: 18000,
-    raisedAmount: 9500,
-    category: "Educación",
-    creator: "Fundación Lectura Venezuela",
-    verified: true,
-    guarantor: "Ministerio de Educación",
-    donorCount: 340,
-  },
-];
+const ITEMS_PER_PAGE = 12;
 
-export default function CampaignsPage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState<FilterState>({});
+async function getCampaigns(searchParams: PageProps['searchParams']) {
+  const supabase = await createClient();
 
-  const filteredCampaigns = useMemo(() => {
-    return ALL_CAMPAIGNS.filter((campaign) => {
-      // Search filter
-      if (
-        searchTerm &&
-        !campaign.title.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !campaign.description
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) &&
-        !campaign.creator.toLowerCase().includes(searchTerm.toLowerCase())
-      ) {
-        return false;
-      }
+  const page = parseInt(searchParams.page || '1');
+  const from = (page - 1) * ITEMS_PER_PAGE;
+  const to = from + ITEMS_PER_PAGE - 1;
 
-      // Category filter
-      if (filters.category && campaign.category !== filters.category) {
-        return false;
-      }
+  // Build query
+  let query = supabase
+    .from('campaigns')
+    .select(`
+      *,
+      categories (
+        name,
+        icon_emoji
+      ),
+      users!campaigns_creator_id_fkey (
+        full_name,
+        kyc_status
+      )
+    `, { count: 'exact' })
+    .eq('status', 'active');
 
-      // Verified filter
-      if (filters.verified && !campaign.verified) {
-        return false;
-      }
+  // Apply filters
+  if (searchParams.search) {
+    query = query.or(`title.ilike.%${searchParams.search}%,story.ilike.%${searchParams.search}%`);
+  }
 
-      return true;
-    });
-  }, [searchTerm, filters]);
+  if (searchParams.category) {
+    query = query.eq('category_id', searchParams.category);
+  }
+
+  if (searchParams.location) {
+    query = query.ilike('location', `%${searchParams.location}%`);
+  }
+
+  if (searchParams.verified === 'true') {
+    // Filter by verified creators - will need to join
+    const { data: verifiedUsers } = await supabase
+      .from('users')
+      .select('id')
+      .eq('kyc_status', 'verified');
+
+    if (verifiedUsers) {
+      query = query.in('creator_id', verifiedUsers.map(u => u.id));
+    }
+  }
+
+  // Apply sorting
+  const sortBy = searchParams.sort || 'recent';
+  switch (sortBy) {
+    case 'recent':
+      query = query.order('created_at', { ascending: false });
+      break;
+    case 'popular':
+      query = query.order('current_amount_usd', { ascending: false });
+      break;
+    case 'goal':
+      query = query.order('goal_amount_usd', { ascending: false });
+      break;
+    case 'ending':
+      query = query.order('end_date', { ascending: true });
+      break;
+    default:
+      query = query.order('created_at', { ascending: false });
+  }
+
+  // Apply pagination
+  query = query.range(from, to);
+
+  const { data: campaigns, error, count } = await query;
+
+  if (error) {
+    console.error('Error fetching campaigns:', error);
+    return { campaigns: [], total: 0, error: error.message };
+  }
+
+  // Get donation counts efficiently with a single query
+  const campaignIds = campaigns?.map(c => c.id) || [];
+  const { data: donationCounts } = await supabase
+    .from('donations')
+    .select('campaign_id')
+    .in('campaign_id', campaignIds)
+    .eq('payment_status', 'completed');
+
+  // Count donations per campaign
+  const donationCountMap = donationCounts?.reduce((acc: Record<string, number>, donation) => {
+    acc[donation.campaign_id] = (acc[donation.campaign_id] || 0) + 1;
+    return acc;
+  }, {}) || {};
+
+  // Add donation counts to campaigns
+  const campaignsWithCounts = campaigns?.map(campaign => ({
+    ...campaign,
+    donation_count: donationCountMap[campaign.id] || 0,
+  })) || [];
+
+  return {
+    campaigns: campaignsWithCounts,
+    total: count || 0,
+    error: null,
+  };
+}
+
+async function getCategories() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('categories')
+    .select('id, name, icon_emoji')
+    .order('name');
+
+  return data || [];
+}
+
+export default async function CampaignsPage({ searchParams }: PageProps) {
+  // Await searchParams to fix Next.js 15 requirement
+  const params = await searchParams;
+
+  const [{ campaigns, total, error }, categories] = await Promise.all([
+    getCampaigns(params),
+    getCategories(),
+  ]);
+
+  const currentPage = parseInt(params.page || '1');
+  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
   return (
-    <main className="flex flex-col min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card sticky top-20 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver
-          </Link>
-          <h1 className="text-3xl font-bold mb-4">Todas las campañas</h1>
-          <p className="text-muted-foreground">
-            {filteredCampaigns.length} campañas encontradas
-          </p>
-        </div>
+    <Suspense fallback={
+      <div className="flex justify-center items-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
-
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
-        <div className="grid lg:grid-cols-4 gap-8">
-          {/* Sidebar */}
-          <div className="lg:col-span-1">
-            <CampaignFilters onFilterChange={setFilters} />
-          </div>
-
-          {/* Main Content */}
-          <div className="lg:col-span-3 space-y-6">
-            {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <Input
-                placeholder="Buscar campañas, creadores..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-background"
-              />
-            </div>
-
-            {/* Campaigns Grid */}
-            {filteredCampaigns.length > 0 ? (
-              <div className="grid md:grid-cols-2 gap-6">
-                {filteredCampaigns.map((campaign) => (
-                  <CampaignCard key={campaign.id} {...campaign} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16">
-                <p className="text-muted-foreground text-lg mb-4">
-                  No se encontraron campañas
-                </p>
-                <Button variant="outline" onClick={() => {
-                  setSearchTerm("");
-                  setFilters({});
-                }}>
-                  Limpiar búsqueda
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </main>
+    }>
+      <CampaignsClient
+        campaigns={campaigns}
+        categories={categories}
+        total={total}
+        currentPage={currentPage}
+        totalPages={totalPages}
+        searchParams={params}
+        error={error}
+      />
+    </Suspense>
   );
 }

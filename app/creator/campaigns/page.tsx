@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { CreatorSidebar } from '@/components/creator-sidebar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { RequestWithdrawalDialog } from '@/components/request-withdrawal-dialog'
 import {
   PlusCircle,
   Eye,
@@ -26,9 +26,10 @@ interface Campaign {
   title: string
   slug: string
   story: string
+  review_notes: string | null
   goal_amount_usd: number
   current_amount_usd: number
-  status: 'draft' | 'pending_review' | 'active' | 'paused' | 'closed'
+  status: 'draft' | 'pending_review' | 'active' | 'closed' | 'completed' | 'rejected'
   urgency_level: 'low' | 'medium' | 'high' | 'critical'
   main_image_url: string | null
   location: string | null
@@ -36,7 +37,7 @@ interface Campaign {
   updated_at: string
   categories: {
     name: string
-    icon: string | null
+    icon_emoji: string | null
   } | null
 }
 
@@ -77,7 +78,7 @@ export default async function CreatorCampaignsPage() {
             *,
             categories (
                 name,
-                icon
+                icon_emoji
             )
         `)
     .eq('creator_id', user.id)
@@ -86,6 +87,44 @@ export default async function CreatorCampaignsPage() {
   if (campaignsError) {
     console.error('Campaigns error:', campaignsError)
   }
+
+  const campaignIds = (campaigns || []).map((campaign: Campaign) => campaign.id)
+
+  const { data: campaignWithdrawalRequests } = campaignIds.length > 0
+    ? await supabase
+      .from('withdrawal_requests')
+      .select('campaign_id, amount_usd, status')
+      .in('campaign_id', campaignIds)
+      .eq('creator_id', user.id)
+    : { data: [] as { campaign_id: string | null; amount_usd: number; status: string }[] }
+
+  const processedWithdrawalsByCampaign = new Map<string, number>()
+  const pendingWithdrawalByCampaign = new Map<string, boolean>()
+
+  for (const request of campaignWithdrawalRequests || []) {
+    if (!request.campaign_id) continue
+
+    if (request.status === 'processed') {
+      processedWithdrawalsByCampaign.set(
+        request.campaign_id,
+        (processedWithdrawalsByCampaign.get(request.campaign_id) || 0) + Number(request.amount_usd || 0)
+      )
+    }
+
+    if (request.status === 'pending') {
+      pendingWithdrawalByCampaign.set(request.campaign_id, true)
+    }
+  }
+
+  const { data: withdrawalAccounts } = await supabase
+    .from('withdrawal_accounts')
+    .select('id, account_type, account_holder_name, is_primary, verified')
+    .eq('creator_id', user.id)
+    .order('is_primary', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  const creatorWithdrawalAccounts = withdrawalAccounts || []
+  const hasWithdrawalAccounts = creatorWithdrawalAccounts.length > 0
 
   // Get campaign statistics
   const stats = {
@@ -100,8 +139,9 @@ export default async function CreatorCampaignsPage() {
       case 'active': return 'default'
       case 'pending_review': return 'secondary'
       case 'draft': return 'outline'
+      case 'completed': return 'outline'
       case 'closed': return 'outline'
-      case 'paused': return 'destructive'
+      case 'rejected': return 'destructive'
       default: return 'outline'
     }
   }
@@ -111,8 +151,9 @@ export default async function CreatorCampaignsPage() {
       case 'active': return 'Activa'
       case 'pending_review': return 'En Revisión'
       case 'draft': return 'Borrador'
-      case 'closed': return 'Finalizada'
-      case 'paused': return 'Pausada'
+      case 'completed': return 'Finalizada'
+      case 'closed': return 'Cerrada'
+      case 'rejected': return 'Rechazada'
       default: return status
     }
   }
@@ -122,8 +163,9 @@ export default async function CreatorCampaignsPage() {
       case 'active': return <CheckCircle className="h-4 w-4" />
       case 'pending_review': return <Clock className="h-4 w-4" />
       case 'draft': return <Edit className="h-4 w-4" />
+      case 'completed': return <XCircle className="h-4 w-4" />
       case 'closed': return <XCircle className="h-4 w-4" />
-      case 'paused': return <AlertCircle className="h-4 w-4" />
+      case 'rejected': return <AlertCircle className="h-4 w-4" />
       default: return null
     }
   }
@@ -139,85 +181,112 @@ export default async function CreatorCampaignsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <CreatorSidebar />
-
-      <main className="flex-1 p-6 overflow-auto">
-        <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-muted/30">
+      <main>
+        <div className="max-w-7xl mx-auto px-4 py-8 space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold">Mis Campañas</h1>
-              <p className="text-muted-foreground">
-                Gestiona y monitorea tus campañas de recaudación
-              </p>
-            </div>
+          <div className="bg-gradient-to-br from-primary/10 to-accent/10 border rounded-xl p-6">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-bold">Mis Campañas</h1>
+                <p className="text-muted-foreground">
+                  Gestiona y monitorea tus campañas de recaudación
+                </p>
+              </div>
 
-            <Button asChild size="lg">
-              <Link href="/creator/campaigns/create">
-                <PlusCircle className="mr-2 h-5 w-5" />
-                Nueva Campaña
-              </Link>
-            </Button>
+              <Button asChild size="lg">
+                <Link href="/creator/campaigns/create">
+                  <PlusCircle className="mr-2 h-5 w-5" />
+                  Nueva Campaña
+                </Link>
+              </Button>
+            </div>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Campañas</CardTitle>
-                <Heart className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stats.total}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total campañas</p>
+                    <p className="text-2xl font-bold">{stats.total}</p>
+                  </div>
+                  <Heart className="h-8 w-8 text-primary" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Activas</CardTitle>
-                <CheckCircle className="h-4 w-4 text-green-600" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Activas</p>
+                    <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+                  </div>
+                  <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">En Revisión</CardTitle>
-                <Clock className="h-4 w-4 text-yellow-600" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">En revisión</p>
+                    <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+                  </div>
+                  <Clock className="h-8 w-8 text-yellow-500" />
+                </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Recaudado</CardTitle>
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">${stats.totalRaised.toFixed(2)}</div>
+                <div className="pt-6 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Total recaudado</p>
+                    <p className="text-2xl font-bold">${stats.totalRaised.toFixed(2)}</p>
+                  </div>
+                  <DollarSign className="h-8 w-8 text-blue-500" />
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Campaigns List */}
+          {!hasWithdrawalAccounts && (
+            <Alert className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
+              <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+                Aún no tienes cuentas de retiro configuradas. Agrega una en tu perfil para poder enviar solicitudes de retiro.
+                {' '}
+                <Link href="/profile" className="underline font-medium">Configurar cuentas</Link>
+                {' '}o{' '}
+                <Link href="/contact" className="underline font-medium">contactar soporte</Link>.
+              </AlertDescription>
+            </Alert>
+          )}
+
           {campaigns && campaigns.length > 0 ? (
             <div className="space-y-4">
               {campaigns.map((campaign: Campaign) => {
                 const progressPercentage = campaign.goal_amount_usd > 0
                   ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100
                   : 0
+                const withdrawnAmount = processedWithdrawalsByCampaign.get(campaign.id) || 0
+                const availableAmount = Math.max(Number(campaign.current_amount_usd || 0) - withdrawnAmount, 0)
+                const withdrawnProgressPercentage = campaign.goal_amount_usd > 0
+                  ? (withdrawnAmount / campaign.goal_amount_usd) * 100
+                  : 0
+                const hasPendingWithdrawal = pendingWithdrawalByCampaign.get(campaign.id) || false
 
                 return (
-                  <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow bg-card">
                     <CardContent className="p-0">
-                      <div className="flex gap-6">
+                      <div className="flex flex-col md:flex-row md:gap-6">
                         {/* Image */}
-                        <div className="relative w-48 h-48 bg-muted flex-shrink-0">
+                        <div className="relative w-full h-48 md:w-48 md:h-48 bg-muted flex-shrink-0">
                           {campaign.main_image_url ? (
                             <img
                               src={campaign.main_image_url}
@@ -232,10 +301,10 @@ export default async function CreatorCampaignsPage() {
                         </div>
 
                         {/* Content */}
-                        <div className="flex-1 py-6 pr-6">
-                          <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1 px-4 py-4 md:py-6 md:pr-6 md:pl-0">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between mb-4">
                             <div className="flex-1">
-                              <div className="flex items-center gap-3 mb-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
                                 <h3 className="font-bold text-xl line-clamp-2 flex-1">
                                   {campaign.title}
                                 </h3>
@@ -247,7 +316,7 @@ export default async function CreatorCampaignsPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-4 mb-3">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3">
                                 <Badge variant={getStatusVariant(campaign.status)} className="flex items-center gap-1">
                                   {getStatusIcon(campaign.status)}
                                   {getStatusText(campaign.status)}
@@ -255,7 +324,7 @@ export default async function CreatorCampaignsPage() {
 
                                 {campaign.categories && (
                                   <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                    {campaign.categories.icon && <span>{campaign.categories.icon}</span>}
+                                    {campaign.categories.icon_emoji && <span>{campaign.categories.icon_emoji}</span>}
                                     <span>{campaign.categories.name}</span>
                                   </div>
                                 )}
@@ -272,42 +341,99 @@ export default async function CreatorCampaignsPage() {
                               </p>
                             </div>
 
-                            <div className="flex gap-2 ml-4">
-                              <Button size="sm" variant="outline" asChild>
+                            <div className="flex w-full md:w-auto gap-2 md:ml-4">
+                              <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
                                 <Link href={`/creator/campaigns/${campaign.id}/edit`}>
                                   <Edit className="h-4 w-4 mr-1" />
                                   Editar
                                 </Link>
                               </Button>
+                              <RequestWithdrawalDialog
+                                campaignId={campaign.id}
+                                campaignTitle={campaign.title}
+                                availableAmountUsd={availableAmount}
+                                hasPendingRequest={hasPendingWithdrawal}
+                                accounts={creatorWithdrawalAccounts}
+                              />
                               {campaign.status === 'active' && (
-                                <Button size="sm" variant="outline" asChild>
-                                  <Link href={`/campaigns/${campaign.slug}`} target="_blank">
+                                <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
+                                  <Link href={`/campaigns/${campaign.id}`} target="_blank">
                                     <ExternalLink className="h-4 w-4 mr-1" />
                                     Ver
+                                  </Link>
+                                </Button>
+                              )}
+                              {campaign.status === 'rejected' && (
+                                <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
+                                  <Link href={`/creator/campaigns/${campaign.id}/edit`}>
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    Ver estado
                                   </Link>
                                 </Button>
                               )}
                             </div>
                           </div>
 
+                          {campaign.status === 'rejected' && (
+                            <Alert className="mb-4 border-destructive/30 bg-destructive/10">
+                              <AlertCircle className="h-4 w-4 text-destructive" />
+                              <AlertDescription className="text-destructive">
+                                Esta campaña fue rechazada.
+                                {campaign.review_notes
+                                  ? ` Motivo: ${campaign.review_notes}`
+                                  : ' El equipo de revisión no dejó un motivo detallado en el registro.'}
+                                {' '}Para solicitar su reactivación, envía un correo al equipo de soporte con el ID de la campaña y los ajustes realizados desde la sección de contacto.
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
                           {/* Progress and Stats */}
                           <div className="space-y-4">
                             <div>
-                              <div className="flex justify-between text-sm mb-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm mb-2">
                                 <span className="font-medium">
-                                  ${campaign.current_amount_usd.toFixed(2)} recaudados
+                                  ${campaign.current_amount_usd.toFixed(2)} acumulados
                                 </span>
                                 <span className="text-muted-foreground">
                                   Meta: ${campaign.goal_amount_usd.toFixed(2)}
                                 </span>
                               </div>
-                              <Progress value={Math.min(progressPercentage, 100)} className="h-2" />
+                              <div className="space-y-1">
+                                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full bg-green-500 transition-all"
+                                    style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                                  />
+                                </div>
+                                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full bg-purple-500 transition-all"
+                                    style={{ width: `${Math.min(withdrawnProgressPercentage, 100)}%` }}
+                                  />
+                                </div>
+                              </div>
                               <div className="text-right text-xs text-muted-foreground mt-1">
                                 {progressPercentage.toFixed(1)}% completado
                               </div>
+                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                                <div className="rounded-md border bg-muted/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Total:</span> ${Number(campaign.current_amount_usd || 0).toFixed(2)}
+                                </div>
+                                <div className="rounded-md border bg-purple-50 dark:bg-purple-950/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Retirado:</span> ${withdrawnAmount.toFixed(2)}
+                                </div>
+                                <div className="rounded-md border bg-green-50 dark:bg-green-950/20 px-2 py-1">
+                                  <span className="text-muted-foreground">Disponible:</span> ${availableAmount.toFixed(2)}
+                                </div>
+                              </div>
+                              {hasPendingWithdrawal && (
+                                <p className="text-xs text-amber-600 mt-2">
+                                  Tienes una solicitud de retiro pendiente para esta campaña.
+                                </p>
+                              )}
                             </div>
 
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm text-muted-foreground">
                               <span>
                                 Creada el {new Date(campaign.created_at).toLocaleDateString('es-VE')}
                               </span>
