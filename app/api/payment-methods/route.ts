@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { shouldExposeMethodToDonor } from "@/lib/payments/config";
 
 export async function GET() {
     try {
@@ -22,8 +23,15 @@ export async function GET() {
         if (methodsResult.error) throw methodsResult.error;
         if (accountsResult.error) throw accountsResult.error;
 
+        // Si el admin activó un método automatizado (card/paypal/crypto/chinchin)
+        // pero el provider aún no tiene credenciales en .env, lo escondemos del
+        // donante para no ofrecerle un checkout que va a fallar.
+        const visibleMethods = (methodsResult.data || []).filter((m) =>
+            shouldExposeMethodToDonor(m.code),
+        );
+
         return NextResponse.json({
-            methods: methodsResult.data || [],
+            methods: visibleMethods,
             transferAccounts: accountsResult.data || [],
         });
     } catch (error: any) {

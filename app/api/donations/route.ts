@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentManager } from "@/lib/payments/payment-manager";
 import { PaymentProvider, PaymentType } from "@/lib/payments/types";
-import { initializePayments } from "@/lib/payments/config";
+import { initializePayments, isProviderConfigured } from "@/lib/payments/config";
 import { getActiveExchangeRate } from "@/lib/exchange-rate";
 
 export async function POST(request: NextRequest) {
@@ -150,7 +150,29 @@ export async function POST(request: NextRequest) {
 
     const provider = providerMap[paymentMethod] || PaymentProvider.STRIPE;
 
-    if (manualMethods.has(paymentMethod)) {
+    // Si el método es manual por diseño (zelle/pagomovil/transfer) O si es un
+    // método automatizado pero el provider aún no tiene credenciales reales,
+    // dejamos la donación como `pending` para que el admin la apruebe a mano
+    // desde /admin/payments. Esto permite operar la plataforma desde el día 1
+    // aún sin integraciones de Stripe/Binance/etc.
+    const providerReady = isProviderConfigured(provider);
+    const treatAsManual = manualMethods.has(paymentMethod) || !providerReady;
+
+    if (treatAsManual) {
+      const reason = !manualMethods.has(paymentMethod) && !providerReady
+        ? `Provider ${provider} sin credenciales — pendiente de aprobación manual`
+        : "Pago pendiente de verificación manual";
+
+      // Si caímos a manual por falta de credenciales pero la donación fue
+      // creada sin admin_notes (es una pasarela automatizada), lo dejamos
+      // anotado para que el admin entienda el contexto.
+      if (!manualMethods.has(paymentMethod)) {
+        await supabase
+          .from("donations")
+          .update({ admin_notes: reason })
+          .eq("id", donation.id);
+      }
+
       return NextResponse.json({
         donation,
         payment: {
@@ -159,6 +181,8 @@ export async function POST(request: NextRequest) {
           metadata: {
             confirmationType: "manual",
             paymentMethod,
+            providerAvailable: providerReady,
+            fallbackReason: providerReady ? undefined : reason,
           },
         },
       });

@@ -28,6 +28,104 @@ function hasCredentials(...keys: Array<string | undefined>): boolean {
 }
 
 /**
+ * ¿Está este proveedor listo para procesar pagos de verdad?
+ *   - Métodos manuales (Zelle, PagoMóvil, transferencias, bancos VE):
+ *     siempre `true`, su flujo es reportar + admin aprueba.
+ *   - Stripe, PayPal, Binance, ChinChin: requieren credenciales reales.
+ *   - En modo test todo cuenta como configurado (MockProvider).
+ *
+ * Si devuelve `false`, el flujo de donación debe caer a confirmación
+ * manual (queda como `pending` y el admin lo aprueba desde
+ * `/admin/payments`).
+ */
+export function isProviderConfigured(provider: PaymentProvider): boolean {
+    if (isTestMode()) return true;
+
+    switch (provider) {
+        case PaymentProvider.STRIPE:
+            return hasCredentials(process.env.STRIPE_SECRET_KEY);
+        case PaymentProvider.PAYPAL:
+            return hasCredentials(
+                process.env.PAYPAL_CLIENT_ID,
+                process.env.PAYPAL_CLIENT_SECRET,
+            );
+        case PaymentProvider.BINANCE:
+            return hasCredentials(
+                process.env.BINANCE_API_KEY,
+                process.env.BINANCE_API_SECRET,
+                process.env.BINANCE_PAY_CERT_SN,
+            );
+        case PaymentProvider.CHINCHIN:
+            return hasCredentials(
+                process.env.CHINCHIN_API_KEY,
+                process.env.CHINCHIN_API_SECRET,
+                process.env.CHINCHIN_MERCHANT_ID,
+            );
+        case PaymentProvider.ZELLE:
+        case PaymentProvider.PAGO_MOVIL:
+        case PaymentProvider.BANCO_VENEZUELA:
+        case PaymentProvider.BANCO_MERCANTIL:
+        case PaymentProvider.BANESCO:
+        case PaymentProvider.BDV:
+            return true; // métodos manuales: el "provider" es el admin
+        default:
+            return false;
+    }
+}
+
+/**
+ * Mapea el `code` que vive en `payment_method_configs` al enum
+ * `PaymentProvider`. Útil para que la API decida si un método
+ * configurado por el admin tiene su provider listo o no.
+ */
+export function providerForMethodCode(code: string): PaymentProvider | null {
+    switch (code) {
+        case 'card':
+        case 'googlepay':
+            return PaymentProvider.STRIPE;
+        case 'paypal':
+            return PaymentProvider.PAYPAL;
+        case 'crypto':
+            return PaymentProvider.BINANCE;
+        case 'chinchin':
+            return PaymentProvider.CHINCHIN;
+        case 'zelle':
+            return PaymentProvider.ZELLE;
+        case 'pagomovil':
+            return PaymentProvider.PAGO_MOVIL;
+        case 'transfer':
+            return null; // manual genérico, no tiene provider único
+        default:
+            return null;
+    }
+}
+
+/**
+ * Códigos de método cuyo flujo es 100% manual (donante reporta,
+ * admin aprueba). Estos NO requieren credenciales y siempre están
+ * disponibles aunque no haya proveedor automatizado.
+ */
+export const ALWAYS_MANUAL_METHOD_CODES = new Set([
+    'zelle',
+    'pagomovil',
+    'transfer',
+]);
+
+/**
+ * ¿Debería mostrarse este método al donante? Reglas:
+ *   - Si es manual (zelle/pagomovil/transfer): siempre sí.
+ *   - Si tiene provider automatizado configurado: sí.
+ *   - Si tiene provider automatizado SIN credenciales: no (lo escondemos
+ *     para no ofrecer una experiencia rota).
+ */
+export function shouldExposeMethodToDonor(code: string): boolean {
+    if (ALWAYS_MANUAL_METHOD_CODES.has(code)) return true;
+    const provider = providerForMethodCode(code);
+    if (!provider) return true; // fallback conservador: mostrar
+    return isProviderConfigured(provider);
+}
+
+/**
  * Inicializa el sistema de pagos con todas las configuraciones
  */
 export function initializePayments() {

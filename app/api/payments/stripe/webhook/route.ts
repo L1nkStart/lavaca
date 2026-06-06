@@ -4,10 +4,23 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
-    apiVersion: "2026-02-25.clover",
-    typescript: true,
-});
+// Lazy init: el Stripe SDK v20+ tira "Neither apiKey nor config.authenticator
+// provided" si lo instanciamos con string vacío. Hacerlo perezosamente evita
+// que el módulo crashee al cargarse durante `next build` cuando STRIPE_SECRET_KEY
+// aún no está configurado.
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe {
+    if (stripeClient) return stripeClient;
+    const secret = process.env.STRIPE_SECRET_KEY;
+    if (!secret) {
+        throw new Error("STRIPE_SECRET_KEY not configured");
+    }
+    stripeClient = new Stripe(secret, {
+        apiVersion: "2026-02-25.clover",
+        typescript: true,
+    });
+    return stripeClient;
+}
 
 function getWebhookSecret() {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -89,7 +102,7 @@ export async function POST(request: NextRequest) {
         let event: Stripe.Event;
 
         try {
-            event = stripe.webhooks.constructEvent(payload, signature, webhookSecret);
+            event = getStripe().webhooks.constructEvent(payload, signature, webhookSecret);
         } catch (error: any) {
             console.error("Stripe webhook signature verification failed:", error?.message);
             return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
