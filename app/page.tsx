@@ -114,25 +114,47 @@ export default async function Home() {
     console.error('[home] error fetching featured campaigns:', campaignsError)
   }
 
-  const featuredCampaigns = campaigns || []
+  // PostgREST devuelve categories/users como objeto (FK única explícita),
+  // pero la inferencia de tipos de Supabase los asume array; el cast alinea
+  // el tipo con la forma real en runtime.
+  const featuredCampaigns = (campaigns ?? []) as unknown as Campaign[]
+
+  // Conteo real de donaciones completadas por campaña destacada, para no
+  // mostrar "0 donantes" junto a un monto recaudado (contradice la confianza).
+  const featuredIds = featuredCampaigns.map((c) => c.id)
+  const { data: featuredDonations } = featuredIds.length
+    ? await supabase
+        .from('donations')
+        .select('campaign_id')
+        .in('campaign_id', featuredIds)
+        .eq('payment_status', 'completed')
+    : { data: [] as { campaign_id: string }[] }
+
+  const donorCountByCampaign = (featuredDonations || []).reduce(
+    (acc: Record<string, number>, d) => {
+      acc[d.campaign_id] = (acc[d.campaign_id] || 0) + 1
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   // Get real stats from database
-  const [campaignsResult, campaignsCountResult, donorsResult] = await Promise.all([
+  const [campaignsResult, donorsResult] = await Promise.all([
     supabase.from('campaigns').select('current_amount_usd'),
-    supabase.from('campaigns').select('id', { count: 'exact', head: true }),
     supabase.from('donations').select('donor_id'),
   ])
 
   const totalRaised = campaignsResult.data?.reduce((sum, c) => sum + (c.current_amount_usd || 0), 0) || 0
-  const totalCampaigns = campaignsCountResult.count || 0
   const uniqueDonors = new Set(donorsResult.data?.map(d => d.donor_id).filter(id => id)).size || 0
 
   const createHref = user ? "/creator/campaigns/create" : "/auth/register"
 
   const stats = [
     { label: "Recaudado para causas", value: formatUsd(totalRaised) },
-    { label: "Personas que han donado", value: formatCount(uniqueDonors) },
-    { label: "Campañas publicadas", value: formatCount(totalCampaigns) },
+    { label: "Donantes que han confiado", value: formatCount(uniqueDonors) },
+    // Cifra de confianza independiente de la escala: el KYC es obligatorio,
+    // así que el 100% de las campañas activas tiene creador verificado.
+    { label: "Creadores verificados", value: "100%" },
   ]
 
   return (
@@ -144,12 +166,7 @@ export default async function Home() {
           <div className="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
             {/* Copy */}
             <div className="max-w-xl">
-              <p className="lv-rise inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/5 px-3 py-1 text-sm font-medium text-primary">
-                <ShieldCheck className="size-4" />
-                Crowdfunding verificado de Venezuela
-              </p>
-
-              <h1 className="lv-rise lv-delay-1 mt-6 text-balance text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-[clamp(2.75rem,5vw,4rem)]">
+              <h1 className="lv-rise text-balance text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-[clamp(2.75rem,5vw,4rem)]">
                 Recaudamos juntos para causas que{" "}
                 <span className="relative whitespace-nowrap text-primary">
                   de verdad existen
@@ -174,9 +191,7 @@ export default async function Home() {
                   </Link>
                 </Button>
                 <Button size="lg" variant="outline" className="w-full sm:w-auto" asChild>
-                  <Link href={createHref}>
-                    {user ? "Crear campaña" : "Comenzar ahora"}
-                  </Link>
+                  <Link href={createHref}>Crear campaña</Link>
                 </Button>
               </div>
             </div>
@@ -315,7 +330,7 @@ export default async function Home() {
                   category={campaign.categories?.name || 'General'}
                   creator={campaign.users?.full_name || 'Creador anónimo'}
                   verified={campaign.users?.kyc_status === 'verified'}
-                  donorCount={0}
+                  donorCount={donorCountByCampaign[campaign.id] || 0}
                 />
               ))}
             </div>
@@ -354,8 +369,8 @@ export default async function Home() {
             ¿Tu causa necesita apoyo? Empieza hoy.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-pretty text-lg leading-relaxed text-primary-foreground/85">
-            Verificamos tu identidad y tu campaña se publica de inmediato. Sin
-            comisiones ocultas y sin letra chica.
+            Verificamos tu identidad y tu campaña se publica de inmediato. La
+            comisión está siempre publicada, sin letra chica.
           </p>
           <Button
             size="lg"

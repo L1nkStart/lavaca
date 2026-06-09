@@ -14,6 +14,7 @@ import {
     TrendingUp,
     Clock,
     Target,
+    CalendarClock,
     ShieldCheck,
     SearchX,
 } from 'lucide-react';
@@ -277,6 +278,12 @@ export default function CampaignsClient({
                                             Mayor meta
                                         </div>
                                     </SelectItem>
+                                    <SelectItem value="ending">
+                                        <div className="flex items-center gap-2">
+                                            <CalendarClock className="size-4" />
+                                            Termina pronto
+                                        </div>
+                                    </SelectItem>
                                 </SelectContent>
                             </Select>
 
@@ -292,6 +299,50 @@ export default function CampaignsClient({
                                 Filtros
                             </Button>
                         </div>
+
+                        {/* Category quick-filters: surface discovery without opening the panel.
+                            Scrolls horizontally on mobile, wraps on larger screens. */}
+                        {categories.length > 0 && (
+                            <div className="flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
+                                <button
+                                    type="button"
+                                    onClick={() => updateParams({ category: undefined })}
+                                    disabled={isPending}
+                                    aria-pressed={!searchParams.category}
+                                    className={cn(
+                                        'inline-flex min-h-9 shrink-0 items-center rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                        !searchParams.category
+                                            ? 'border-primary bg-primary text-primary-foreground'
+                                            : 'border-border bg-card hover:bg-muted',
+                                    )}
+                                >
+                                    Todas
+                                </button>
+                                {categories.map((cat) => {
+                                    const active = searchParams.category === cat.id;
+                                    return (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            onClick={() =>
+                                                updateParams({ category: active ? undefined : cat.id })
+                                            }
+                                            disabled={isPending}
+                                            aria-pressed={active}
+                                            className={cn(
+                                                'inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                                                active
+                                                    ? 'border-primary bg-primary text-primary-foreground'
+                                                    : 'border-border bg-card hover:bg-muted',
+                                            )}
+                                        >
+                                            {cat.icon_emoji ? <span aria-hidden>{cat.icon_emoji}</span> : null}
+                                            {cat.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
 
                         {/* Active filter chips */}
                         {activeChips.length > 0 && (
@@ -417,14 +468,8 @@ export default function CampaignsClient({
                 ) : campaignCards.length > 0 ? (
                     <>
                         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                            {campaignCards.map((campaign, i) => (
-                                <div
-                                    key={campaign.id}
-                                    className="lv-rise"
-                                    style={{ animationDelay: `${Math.min(i, 7) * 0.05}s` }}
-                                >
-                                    <CampaignCard {...campaign} />
-                                </div>
+                            {campaignCards.map((campaign) => (
+                                <CampaignCard key={campaign.id} {...campaign} />
                             ))}
                         </div>
 

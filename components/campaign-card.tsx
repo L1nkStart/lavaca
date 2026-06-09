@@ -3,8 +3,15 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Heart, Share2, CheckCircle2 } from 'lucide-react';
+import { Heart, CheckCircle2 } from 'lucide-react';
 import Image from "next/image";
+
+const usd = (n: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(n || 0);
 
 interface CampaignCardProps {
   id: string;
@@ -33,89 +40,87 @@ export function CampaignCard({
   guarantor,
   donorCount,
 }: CampaignCardProps) {
-  const progressPercent = (raisedAmount / goalAmount) * 100;
+  const progressPercent = goalAmount > 0 ? (raisedAmount / goalAmount) * 100 : 0;
 
   return (
-    <Link href={`/campaigns/${id}`}>
-      <Card className="h-full overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-        {/* Image Container */}
-        <div className="relative h-48 w-full overflow-hidden bg-muted">
-          <Image
-            src={image || "/placeholder.svg"}
-            alt={title}
-            fill
-            className="object-cover hover:scale-105 transition-transform duration-300"
-          />
-          {verified && (
-            <div className="absolute top-3 right-3 bg-primary text-primary-foreground px-2 py-1 rounded-full flex items-center gap-1">
-              <CheckCircle2 className="w-4 h-4" />
-              <span className="text-xs font-semibold">Verificado</span>
-            </div>
-          )}
-          {guarantor && (
-            <div className="absolute bottom-3 right-3 bg-accent text-accent-foreground px-2 py-1 rounded-full text-xs font-semibold">
-              Avalado
-            </div>
-          )}
+    <Card className="group relative flex h-full flex-col overflow-hidden transition-shadow hover:shadow-lg">
+      {/* Image Container */}
+      <div className="relative h-48 w-full overflow-hidden bg-muted">
+        <Image
+          src={image || "/placeholder.svg"}
+          alt={title}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+        {verified && (
+          <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-primary px-2 py-1 text-primary-foreground">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="text-xs font-semibold">Verificado</span>
+          </div>
+        )}
+        {guarantor && (
+          <div className="absolute bottom-3 right-3 rounded-full bg-accent px-2 py-1 text-xs font-semibold text-accent-foreground">
+            Avalado
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <CardHeader className="pb-3">
+        <h3 className="mb-2 line-clamp-2 text-lg font-bold leading-tight">
+          {/* Stretched link: makes the whole card navigate to the detail page,
+              while the "Donar ahora" button below stays an independent link. */}
+          <Link
+            href={`/campaigns/${id}`}
+            className="rounded-sm before:absolute before:inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {title}
+          </Link>
+        </h3>
+        <Badge variant="secondary" className="w-fit text-xs">
+          {category}
+        </Badge>
+      </CardHeader>
+
+      <CardContent className="flex-1 space-y-3 pb-3">
+        <p className="line-clamp-2 text-sm text-muted-foreground">
+          {description}
+        </p>
+
+        {/* Progress */}
+        <div className="space-y-2">
+          <div className="flex items-baseline justify-between gap-2 text-sm">
+            <span className="font-mono font-semibold text-primary">
+              {usd(raisedAmount)}
+            </span>
+            <span className="font-mono text-muted-foreground">
+              de {usd(goalAmount)}
+            </span>
+          </div>
+          <Progress value={Math.min(progressPercent, 100)} className="h-2" />
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>{Math.round(progressPercent)}% recaudado</span>
+            <span>
+              {donorCount} {donorCount === 1 ? "donante" : "donantes"}
+            </span>
+          </div>
         </div>
 
-        {/* Content */}
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1">
-              <h3 className="font-bold text-lg leading-tight line-clamp-2 mb-2">
-                {title}
-              </h3>
-              <Badge variant="secondary" className="text-xs">
-                {category}
-              </Badge>
-            </div>
-          </div>
-        </CardHeader>
+        {/* Creator */}
+        <p className="text-xs text-muted-foreground">
+          Por <span className="font-semibold text-foreground">{creator}</span>
+        </p>
+      </CardContent>
 
-        <CardContent className="pb-3 space-y-3">
-          <p className="text-sm text-muted-foreground line-clamp-2">
-            {description}
-          </p>
-
-          {/* Progress */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="font-semibold text-primary">
-                ${raisedAmount.toFixed(2)}
-              </span>
-              <span className="text-muted-foreground">
-                de ${goalAmount.toFixed(2)}
-              </span>
-            </div>
-            <Progress value={Math.min(progressPercent, 100)} className="h-2" />
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>{Math.round(progressPercent)}% recaudado</span>
-              <span>{donorCount} donantes</span>
-            </div>
-          </div>
-
-          {/* Creator */}
-          <div className="text-xs text-muted-foreground">
-            Por <span className="font-semibold text-foreground">{creator}</span>
-          </div>
-        </CardContent>
-
-        {/* Footer */}
-        <CardFooter className="pt-0 flex gap-2">
-          <Button size="sm" className="flex-1 bg-primary hover:bg-primary/90">
-            Donar Ahora
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="px-3"
-            asChild
-          >
-            <Share2 className="w-4 h-4" />
-          </Button>
-        </CardFooter>
-      </Card>
-    </Link>
+      {/* Footer: real link straight to the donate flow */}
+      <CardFooter className="pt-0">
+        <Button asChild className="relative z-10 w-full">
+          <Link href={`/campaigns/${id}/donate`}>
+            <Heart className="h-4 w-4" />
+            Donar ahora
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
   );
 }
