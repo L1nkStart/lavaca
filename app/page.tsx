@@ -22,14 +22,16 @@ interface Campaign {
   goal_amount_usd: number
   current_amount_usd: number
   slug: string
+  // PostgREST devuelve esto como objeto (no array) cuando hay una sola FK
+  // que apunta a la tabla embebida.
   categories: {
     name: string
     icon_emoji: string | null
-  }[]
+  } | null
   users: {
     full_name: string
     kyc_status: string
-  }[]
+  } | null
 }
 
 const trustPillars = [
@@ -80,8 +82,12 @@ export default async function Home() {
   // Verificar si el usuario está logueado
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Get active campaigns for homepage
-  const { data: campaigns } = await supabase
+  // Get active campaigns for homepage.
+  // IMPORTANTE: el embedding `users (...)` falla silenciosamente porque la
+  // tabla `campaigns` tiene dos FKs hacia `users` (`creator_id` y
+  // `reviewed_by`). Hay que ser explícito con !campaigns_creator_id_fkey,
+  // sino PostgREST devuelve error y el array queda vacío.
+  const { data: campaigns, error: campaignsError } = await supabase
     .from('campaigns')
     .select(`
       id,
@@ -95,7 +101,7 @@ export default async function Home() {
         name,
         icon_emoji
       ),
-      users (
+      users!campaigns_creator_id_fkey (
         full_name,
         kyc_status
       )
@@ -103,6 +109,10 @@ export default async function Home() {
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(3)
+
+  if (campaignsError) {
+    console.error('[home] error fetching featured campaigns:', campaignsError)
+  }
 
   const featuredCampaigns = campaigns || []
 
@@ -302,9 +312,9 @@ export default async function Home() {
                   image={campaign.main_image_url || '/placeholder.svg'}
                   goalAmount={campaign.goal_amount_usd}
                   raisedAmount={campaign.current_amount_usd}
-                  category={campaign.categories?.[0]?.name || 'General'}
-                  creator={campaign.users?.[0]?.full_name || 'Creador anónimo'}
-                  verified={campaign.users?.[0]?.kyc_status === 'verified'}
+                  category={campaign.categories?.name || 'General'}
+                  creator={campaign.users?.full_name || 'Creador anónimo'}
+                  verified={campaign.users?.kyc_status === 'verified'}
                   donorCount={0}
                 />
               ))}

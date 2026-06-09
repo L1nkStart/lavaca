@@ -22,7 +22,7 @@ paso con `[x]` a medida que lo completes.
 8. [Métodos manuales (Zelle, PagoMóvil, transferencia)](#8-métodos-manuales)
 9. [Email transaccional (opcional)](#9-email-transaccional-opcional)
 10. [KYC de Garante (opcional)](#10-kyc-de-garante-opcional)
-11. [Deploy a Vercel](#11-deploy-a-vercel)
+11. [Deploy a Coolify](#11-deploy-a-vercel)
 12. [Activación: pasar de test a producción](#12-activación-pasar-de-test-a-producción)
 13. [Verificación final (smoke test)](#13-verificación-final-smoke-test)
 14. [Tareas recurrentes (cron)](#14-tareas-recurrentes-cron)
