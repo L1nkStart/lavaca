@@ -50,22 +50,19 @@ export default function DonatePage() {
   }, [campaignId]);
 
   return (
-    <main className="flex flex-col min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-        <div className="max-w-3xl mx-auto px-4 py-4">
-          <Link
-            href={`/campaigns/${campaignId}`}
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver a campaña
-          </Link>
-        </div>
-      </div>
+    <main className="flex min-h-screen flex-col bg-background">
+      <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
+        <Link
+          href={`/campaigns/${campaignId}`}
+          className="inline-flex items-center gap-2 text-sm font-medium text-foreground/60 transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Volver a campaña
+        </Link>
 
-      <div className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">Realizar donación</h1>
+        <h1 className="mt-4 mb-8 text-3xl font-black tracking-tight">
+          Realizar donación
+        </h1>
 
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -74,8 +71,8 @@ export default function DonatePage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-6 w-6 animate-spin" />
+          <div className="flex items-center justify-center py-10" role="status" aria-label="Cargando">
+            <Loader2 className="size-6 animate-spin" />
           </div>
         ) : (
           <DonationCheckout

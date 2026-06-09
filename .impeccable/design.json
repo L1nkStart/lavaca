@@ -1,0 +1,181 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-09T00:00:00.000Z",
+  "title": "Design System: LaVaca",
+  "extensions": {
+    "colorMeta": {
+      "verde-confianza": {
+        "role": "primary",
+        "displayName": "Verde Confianza",
+        "canonical": "oklch(0.26 0.11 183)",
+        "tonalRamp": [
+          "oklch(0.18 0.08 183)",
+          "oklch(0.26 0.11 183)",
+          "oklch(0.34 0.11 183)",
+          "oklch(0.46 0.12 183)",
+          "oklch(0.58 0.11 183)",
+          "oklch(0.70 0.09 183)",
+          "oklch(0.83 0.06 183)",
+          "oklch(0.94 0.03 183)"
+        ]
+      },
+      "terracota": {
+        "role": "secondary",
+        "displayName": "Terracota Cálida",
+        "canonical": "oklch(0.62 0.14 46)",
+        "tonalRamp": [
+          "oklch(0.32 0.09 46)",
+          "oklch(0.42 0.12 46)",
+          "oklch(0.52 0.14 46)",
+          "oklch(0.62 0.14 46)",
+          "oklch(0.72 0.16 46)",
+          "oklch(0.80 0.12 46)",
+          "oklch(0.88 0.08 46)",
+          "oklch(0.95 0.04 46)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tinta",
+        "canonical": "oklch(0.145 0 0)",
+        "tonalRamp": [
+          "oklch(0.145 0 0)",
+          "oklch(0.27 0 0)",
+          "oklch(0.40 0 0)",
+          "oklch(0.556 0 0)",
+          "oklch(0.71 0 0)",
+          "oklch(0.88 0 0)",
+          "oklch(0.94 0 0)",
+          "oklch(0.98 0 0)"
+        ]
+      },
+      "destructive": {
+        "role": "tertiary",
+        "displayName": "Destructivo",
+        "canonical": "oklch(0.577 0.245 27.325)",
+        "tonalRamp": [
+          "oklch(0.30 0.14 27)",
+          "oklch(0.40 0.18 27)",
+          "oklch(0.49 0.22 27)",
+          "oklch(0.577 0.245 27.325)",
+          "oklch(0.67 0.20 27)",
+          "oklch(0.77 0.15 27)",
+          "oklch(0.87 0.09 27)",
+          "oklch(0.95 0.04 27)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "h1 del hero y titulares de página. Techo 3rem; es producto, no cartel." },
+      "headline": { "displayName": "Headline", "purpose": "Encabezados de sección." },
+      "title": { "displayName": "Title", "purpose": "Títulos de tarjeta y subsección, nombres de campaña." },
+      "body": { "displayName": "Body", "purpose": "Prosa e historias de campaña. 65–75ch máximo." },
+      "label": { "displayName": "Label", "purpose": "Botones, labels de formulario, badges, metadatos." },
+      "mono": { "displayName": "Mono", "purpose": "Cifras tabulares: montos, tasa BCV, IDs. Nunca prosa." }
+    },
+    "shadows": [
+      { "name": "input-rest", "value": "0 1px 2px 0 rgb(0 0 0 / 0.05)", "purpose": "shadow-xs de inputs y botones outline. Un asiento, no una elevación." },
+      { "name": "card-rest", "value": "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)", "purpose": "shadow-sm base de tarjetas. Separa del fondo sin levantar." },
+      { "name": "card-hover", "value": "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)", "purpose": "shadow-lg al hover de tarjeta interactiva. Única sombra alta; solo en respuesta a intención de clic." }
+    ],
+    "motion": [
+      { "name": "state-transition", "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Transición por defecto de estado en botones, inputs, badges (transition-all / transition-[color,box-shadow])." },
+      { "name": "image-zoom", "value": "300ms cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "Zoom suave de imagen de campaña al hover (scale-105), ease-out." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "container", "value": "1280px (max-w-7xl)" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botón Primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "La acción que compromete dinero: Donar Ahora, Crear campaña.",
+      "html": "<button class=\"ds-btn-primary\">Donar Ahora</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: none; border-radius: 0.5rem; background: oklch(0.26 0.11 183); color: oklch(1 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1), box-shadow 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-primary:hover { background: color-mix(in oklch, oklch(0.26 0.11 183) 90%, transparent); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.26 0.11 183) 50%, transparent); }"
+    },
+    {
+      "name": "Botón Outline",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Acción secundaria que se calienta a terracota al hover. Firma del sistema.",
+      "html": "<button class=\"ds-btn-outline\">Ver campañas</button>",
+      "css": ".ds-btn-outline { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 8px 16px; border: 1px solid oklch(0.922 0 0); border-radius: 0.5rem; background: oklch(1 0 0); color: oklch(0.145 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1), color 150ms cubic-bezier(0.4,0,0.2,1); } .ds-btn-outline:hover { background: oklch(0.62 0.14 46); color: oklch(1 0 0); border-color: oklch(0.62 0.14 46); } .ds-btn-outline:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.26 0.11 183) 50%, transparent); }"
+    },
+    {
+      "name": "Insignia Verificado",
+      "kind": "chip",
+      "refersTo": "badge-verified",
+      "description": "La pieza de confianza más importante: marca un creador con KYC aprobado. Flota sobre la imagen de campaña.",
+      "html": "<span class=\"ds-badge-verified\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M22 11.08V12a10 10 0 1 1-5.93-9.14\"/><path d=\"m9 11 3 3L22 4\"/></svg>Verificado</span>",
+      "css": ".ds-badge-verified { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 9999px; background: oklch(0.26 0.11 183); color: oklch(1 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; } .ds-badge-verified svg { width: 16px; height: 16px; }"
+    },
+    {
+      "name": "Insignia Avalado",
+      "kind": "chip",
+      "refersTo": "badge-guaranteed",
+      "description": "Indica que un garante respaldó la veracidad de la campaña. Terracota cálida.",
+      "html": "<span class=\"ds-badge-guaranteed\">Avalado</span>",
+      "css": ".ds-badge-guaranteed { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 9999px; background: oklch(0.62 0.14 46); color: oklch(1 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; }"
+    },
+    {
+      "name": "Input de Texto",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Campo de formulario estándar. Foco en Verde Confianza, sin glow decorativo.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"Monto en USD\" />",
+      "css": ".ds-input { display: block; width: 100%; height: 36px; padding: 4px 12px; border: 1px solid oklch(0.922 0 0); border-radius: 0.5rem; background: oklch(1 0 0); color: oklch(0.145 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 1rem; box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); outline: none; transition: border-color 150ms cubic-bezier(0.4,0,0.2,1), box-shadow 150ms cubic-bezier(0.4,0,0.2,1); } .ds-input::placeholder { color: oklch(0.556 0 0); } .ds-input:focus-visible { border-color: oklch(0.26 0.11 183); box-shadow: 0 0 0 3px color-mix(in oklch, oklch(0.26 0.11 183) 50%, transparent); }"
+    },
+    {
+      "name": "Tarjeta de Campaña",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Unidad atómica de la plataforma: imagen + insignias de confianza + progreso + creador + acción. Plana en reposo, elevada al hover.",
+      "html": "<a class=\"ds-campaign-card\" href=\"#\"><div class=\"ds-cc-media\"><span class=\"ds-cc-verified\">Verificado</span></div><div class=\"ds-cc-body\"><h3 class=\"ds-cc-title\">Ayuda para la operación de Luis</h3><span class=\"ds-cc-cat\">Salud</span><div class=\"ds-cc-progress\"><div class=\"ds-cc-amounts\"><span class=\"ds-cc-raised\">$420.00</span><span class=\"ds-cc-goal\">de $1,000.00</span></div><div class=\"ds-cc-bar\"><div class=\"ds-cc-fill\"></div></div></div><button class=\"ds-cc-cta\">Donar Ahora</button></div></a>",
+      "css": ".ds-campaign-card { display: block; overflow: hidden; border: 1px solid oklch(0.922 0 0); border-radius: 0.875rem; background: oklch(0.98 0 0); color: oklch(0.145 0 0); text-decoration: none; box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); transition: box-shadow 150ms cubic-bezier(0.4,0,0.2,1); } .ds-campaign-card:hover { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); } .ds-cc-media { position: relative; height: 140px; background: linear-gradient(135deg, oklch(0.83 0.06 183), oklch(0.88 0.08 46)); } .ds-cc-verified { position: absolute; top: 12px; right: 12px; padding: 4px 8px; border-radius: 9999px; background: oklch(0.26 0.11 183); color: oklch(1 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 600; } .ds-cc-body { padding: 20px; } .ds-cc-title { margin: 0 0 8px; font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 1.125rem; font-weight: 700; line-height: 1.3; } .ds-cc-cat { display: inline-flex; padding: 2px 8px; border-radius: 0.5rem; background: oklch(0.88 0 0); color: oklch(0.145 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 500; } .ds-cc-progress { margin: 16px 0; } .ds-cc-amounts { display: flex; justify-content: space-between; font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; } .ds-cc-raised { font-weight: 600; color: oklch(0.26 0.11 183); } .ds-cc-goal { color: oklch(0.40 0 0); } .ds-cc-bar { margin-top: 8px; height: 8px; border-radius: 9999px; background: oklch(0.922 0 0); overflow: hidden; } .ds-cc-fill { width: 42%; height: 100%; background: oklch(0.26 0.11 183); } .ds-cc-cta { width: 100%; height: 36px; margin-top: 8px; border: none; border-radius: 0.5rem; background: oklch(0.26 0.11 183); color: oklch(1 0 0); font-family: Geist, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: background 150ms cubic-bezier(0.4,0,0.2,1); } .ds-cc-cta:hover { background: color-mix(in oklch, oklch(0.26 0.11 183) 90%, transparent); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "El Puente entre Vecinos",
+    "overview": "LaVaca no es un banco ni una ONG de lástima: es la infraestructura de confianza que deja que un desconocido done a otro desconocido sin que la fe se rompa. El sistema visual trata la verificación como la estructura firme del puente (el Verde Confianza, las insignias, el progreso medible) y el calor humano como quien lo cruza (la Terracota Cálida, la fotografía de gente real, el copy directo en español venezolano). La estructura nunca grita; sostiene en silencio mientras el calor se mueve por encima. El registro es producto: el diseño sirve a la tarea de mover dinero, no se exhibe. Los controles son los que el usuario ya conoce; la personalidad cálida vive en el color de acento, la tipografía y la imagen, jamás en reinventar un botón.",
+    "keyCharacteristics": [
+      "Verificación visible como material de diseño, no como eslogan.",
+      "Móvil lento como caso base, no como degradado.",
+      "Familiaridad de componente, calidez de marca: cada cosa en su capa.",
+      "Plano en reposo, profundidad solo como respuesta a la interacción.",
+      "Español venezolano neutro, claro, sin jerga financiera."
+    ],
+    "rules": [
+      { "name": "La Regla del Aval Verde", "body": "El Verde Confianza marca lo que fue verificado y las acciones que comprometen dinero, nada más. No se usa como relleno ni decoración. Su autoridad viene de que siempre significa lo mismo.", "section": "colors" },
+      { "name": "La Regla de la Terracota Escasa", "body": "La Terracota Cálida nunca cubre más del ~15% de una pantalla. Su calidez funciona porque es rara.", "section": "colors" },
+      { "name": "La Regla de la Escala Fija", "body": "Las tipografías de producto usan rem fijos, no clamp() fluido, salvo el h1 del hero. La densidad se ajusta por breakpoint estructural, no estirando la fuente.", "section": "typography" },
+      { "name": "La Regla de Cero Mayúsculas de Cuerpo", "body": "Prohibido el eyebrow en mayúsculas con tracking ancho sobre cada sección. Si una sección necesita etiqueta, es un Title en peso normal o un Badge.", "section": "typography" },
+      { "name": "La Regla de la Sombra como Respuesta", "body": "Las superficies son planas en reposo. La sombra alta aparece solo como reacción a estado. Una sombra ambiente 'para que se vea premium' es la marca de una app de 2014 y está prohibida.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do usar Verde Confianza para acciones de dinero e insignias de verificación, y nada más.",
+      "Do mantener la Terracota Cálida por debajo del ~15% de cualquier pantalla.",
+      "Do diseñar primero para móvil lento: imágenes optimizadas, targets táctiles ≥44px, input a 16px para no disparar el zoom de iOS.",
+      "Do mostrar la confianza con elementos reales (insignia Verificado, barra de progreso, identidad del creador, aval del garante), no afirmarla con adjetivos.",
+      "Do mantener cuerpo de texto en Tinta y subir el Gris Texto Apagado hacia la tinta sobre fondos tintados; verificar ≥4.5:1 siempre.",
+      "Do dejar las superficies planas en reposo; reservar shadow-lg para el hover de elementos clickeables.",
+      "Do acompañar toda animación con su alternativa @media (prefers-reduced-motion: reduce)."
+    ],
+    "donts": [
+      "Don't caer en el cripto/Web3 ostentoso: nada de gradientes neón, glow, dark-mode agresivo por defecto, ni copy de hype.",
+      "Don't dejar el look de SaaS genérico de v0/shadcn: grid de cards idénticas icono+título+texto, eyebrows en mayúsculas, template hero-stats.",
+      "Don't parecer ONG anticuada: sin stock photos tristes, paleta apagada ni jerarquía plana de plantilla 2010.",
+      "Don't parecer banco corporativo frío: sin azul sin alma, legalismo ni cero calidez.",
+      "Don't usar border-left/border-right mayor a 1px como franja de color; usar borde completo, tinte de fondo o icono.",
+      "Don't usar texto con gradiente (background-clip: text); el énfasis va por peso y tamaño en color sólido.",
+      "Don't usar glassmorphism decorativo ni sombras ambiente 'premium' en reposo.",
+      "Don't poner Gris Texto Apagado (oklch 0.556) sobre fondos tintados o como placeholder sin verificar contraste.",
+      "Don't usar Geist Mono para prosa; es solo para cifras tabulares."
+    ]
+  }
+}

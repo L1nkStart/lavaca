@@ -17,7 +17,7 @@ import { CampaignComments } from "@/components/campaign-comments";
 import { CampaignReactions } from "@/components/campaign-reactions";
 import { CampaignFollow } from "@/components/campaign-follow";
 import { CampaignReport } from "@/components/campaign-report";
-import { CheckCircle2, MapPin, User, FileText, ArrowLeft, Heart, Loader2 } from 'lucide-react';
+import { CheckCircle2, MapPin, User, FileText, ArrowLeft, Heart, Loader2, Clock, ShieldCheck, Download } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { DonationStatusBanner } from '@/components/donation-status-banner';
 
@@ -317,13 +317,17 @@ export default function CampaignPage() {
   const getUrgencyBadge = (level: string) => {
     switch (level) {
       case 'critical':
-        return <Badge variant="destructive">Crítico</Badge>;
+        return <Badge className="bg-destructive text-white">Urgencia crítica</Badge>;
       case 'high':
-        return <Badge className="bg-orange-500">Alto</Badge>;
+        return <Badge className="bg-accent text-accent-foreground">Urgencia alta</Badge>;
       case 'medium':
-        return <Badge className="bg-yellow-500">Medio</Badge>;
+        return (
+          <Badge variant="outline" className="border-accent/40 bg-accent/10 text-accent">
+            Urgencia media
+          </Badge>
+        );
       case 'low':
-        return <Badge variant="secondary">Bajo</Badge>;
+        return <Badge variant="secondary">Urgencia baja</Badge>;
       default:
         return null;
     }
@@ -331,31 +335,39 @@ export default function CampaignPage() {
 
   const totalUpdatePages = Math.max(1, Math.ceil(updatesCount / UPDATES_PAGE_SIZE));
   const canDonate = campaign.status === 'active';
+  const donorCount = donations.length;
+  const remaining = Math.max(0, campaign.goal_amount_usd - campaign.current_amount_usd);
+  const usd = (n: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0,
+    }).format(n || 0);
+  const isVerified = campaign.users.kyc_status === 'verified';
+  const hasGuarantors = !!campaign.guarantors && campaign.guarantors.length > 0;
+  const donateHref = `/campaigns/${campaign.id}/donate`;
 
   return (
-    <main className="flex flex-col min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <Link
-            href="/campaigns"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Volver a campañas
-          </Link>
-        </div>
-      </div>
+    <main className="flex min-h-screen flex-col bg-background pb-24 lg:pb-0">
+      <div className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:py-8">
+        <Link
+          href="/campaigns"
+          className="inline-flex items-center gap-2 text-sm font-medium text-foreground/60 transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Volver a campañas
+        </Link>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 sm:py-8 space-y-6">
         {/* Banner que aparece cuando el donante vuelve del checkout
             (success / pending / cancelled / failed). Lee el ?donation= query
             param. Si no hay param, no renderiza nada. */}
-        <DonationStatusBanner />
+        <div className="mt-4">
+          <DonationStatusBanner />
+        </div>
 
-        <div className="grid lg:grid-cols-3 gap-8">
+        <div className="mt-6 grid gap-8 lg:grid-cols-3">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="space-y-8 lg:col-span-2">
             {/* Gallery */}
             <CampaignGallery
               mainImage={campaign.main_image_url || '/placeholder.jpg'}
@@ -363,120 +375,63 @@ export default function CampaignPage() {
               title={campaign.title}
             />
 
-            {/* Info Cards */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <User className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Creador</p>
-                      <p className="font-semibold flex items-center gap-2">
-                        {campaign.users.full_name}
-                        {campaign.users.kyc_status === 'verified' && (
-                          <CheckCircle2 className="w-4 h-4 text-primary" />
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            {/* Hero: badges, title, meta */}
+            <div className="lv-rise space-y-5">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">
+                  {campaign.categories?.name || 'Sin categoría'}
+                </Badge>
+                {getUrgencyBadge(campaign.urgency_level)}
+                {isVerified && (
+                  <Badge className="bg-primary">
+                    <CheckCircle2 className="mr-1 size-3" />
+                    Verificado
+                  </Badge>
+                )}
+                {hasGuarantors && (
+                  <Badge className="bg-accent text-accent-foreground">
+                    <ShieldCheck className="mr-1 size-3" />
+                    Avalado
+                    {campaign.guarantors!.length > 1
+                      ? ` por ${campaign.guarantors!.length} garantes`
+                      : ''}
+                  </Badge>
+                )}
+              </div>
 
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-accent" />
-                    <div>
-                      <p className="text-xs text-muted-foreground">Ubicación</p>
-                      <p className="font-semibold">{campaign.location || 'No especificada'}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+              <h1 className="text-balance text-3xl font-black tracking-tight md:text-4xl">
+                {campaign.title}
+              </h1>
 
-            {/* Title and Badges */}
-            <div className="space-y-4">
-              <div>
-                <h1 className="text-3xl md:text-4xl font-bold mb-4 text-pretty">
-                  {campaign.title}
-                </h1>
-                <div className="flex flex-wrap items-center gap-2 mb-4">
-                  <Badge>{campaign.categories?.name || 'Sin categoría'}</Badge>
-                  {getUrgencyBadge(campaign.urgency_level)}
-                  {campaign.users.kyc_status === 'verified' && (
-                    <Badge variant="default" className="bg-primary">
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                      Verificado
-                    </Badge>
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-foreground/70">
+                <span className="inline-flex items-center gap-1.5">
+                  <User className="size-4 text-foreground/50" />
+                  <span className="font-medium text-foreground">
+                    {campaign.users.full_name}
+                  </span>
+                  {isVerified && (
+                    <CheckCircle2 className="size-4 text-primary" aria-label="Creador verificado" />
                   )}
-                  {campaign.guarantors && campaign.guarantors.length > 0 && (
-                    <Badge className="bg-accent text-accent-foreground">
-                      <CheckCircle2 className="w-3 h-3 mr-1" />
-                      Avalado por {campaign.guarantors[0].organization_name || campaign.guarantors[0].full_name}
-                      {campaign.guarantors.length > 1 ? ` y ${campaign.guarantors.length - 1} más` : ''}
-                    </Badge>
-                  )}
-                </div>
+                </span>
+                {campaign.location && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <MapPin className="size-4 text-foreground/50" />
+                    {campaign.location}
+                  </span>
+                )}
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="size-4 text-foreground/50" />
+                  {Math.max(0, daysActive)} días activos
+                </span>
+              </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <CampaignReactions
-                    campaignId={campaign.id}
-                    initialCount={0}
-                  />
-                  <CampaignFollow campaignId={campaign.id} />
-                  <CampaignReport campaignId={campaign.id} />
-                </div>
+              {/* Secondary actions */}
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <CampaignReactions campaignId={campaign.id} initialCount={0} />
+                <CampaignFollow campaignId={campaign.id} />
+                <CampaignReport campaignId={campaign.id} />
               </div>
             </div>
-
-            {/* Progress Section */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Progreso de recaudación</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div>
-                  <div className="flex justify-between items-baseline mb-2">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Recaudado</p>
-                      <p className="text-3xl font-bold text-primary">
-                        ${campaign.current_amount_usd.toFixed(2)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm text-muted-foreground">Meta</p>
-                      <p className="text-xl font-semibold">
-                        ${campaign.goal_amount_usd.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                  <Progress value={Math.min(progressPercent, 100)} className="h-2" />
-                  <p className="text-sm text-muted-foreground mt-2">
-                    {Math.round(progressPercent)}% del objetivo alcanzado
-                    {donations.length > 0 && ` • ${donations.length} ${donations.length === 1 ? 'donante' : 'donantes'}`}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">
-                      Falta recaudar
-                    </p>
-                    <p className="text-lg font-bold text-accent">
-                      ${(campaign.goal_amount_usd - campaign.current_amount_usd).toFixed(2)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">
-                      Días activos
-                    </p>
-                    <p className="text-lg font-bold">{daysActive} días</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -553,19 +508,20 @@ export default function CampaignPage() {
                             href={doc.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted transition-colors"
+                            className="flex items-center justify-between rounded-lg border border-border p-4 transition-colors hover:bg-muted"
                           >
                             <div className="flex items-center gap-3">
-                              <FileText className="w-5 h-5 text-primary" />
+                              <FileText className="size-5 text-primary" />
                               <div>
                                 <p className="font-medium">{doc.name}</p>
-                                <p className="text-xs text-muted-foreground">
+                                <p className="text-xs text-foreground/60">
                                   {doc.size}
                                 </p>
                               </div>
                             </div>
-                            <span className="text-xs font-medium text-primary">
-                              DESCARGAR
+                            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
+                              <Download className="size-4" />
+                              Descargar
                             </span>
                           </a>
                         ))}
@@ -585,57 +541,158 @@ export default function CampaignPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-4">
-            {/* Donate Button */}
-            {canDonate ? (
-              <Button size="lg" className="w-full bg-primary hover:bg-primary/90 h-12 text-base" asChild>
-                <Link href={`/campaigns/${campaign.id}/donate`}>
-                  <Heart className="w-5 h-5 mr-2" />
-                  Donar Ahora
-                </Link>
-              </Button>
-            ) : (
-              <Button size="lg" className="w-full h-12 text-base" variant="outline" disabled>
-                <Heart className="w-5 h-5 mr-2" />
-                Donaciones deshabilitadas
-              </Button>
-            )}
+          <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+            {/* Donation module — the conversion moment */}
+            <Card>
+              <CardContent className="space-y-5 pt-6">
+                <div>
+                  <p className="font-mono text-3xl font-bold tracking-tight text-primary">
+                    {usd(campaign.current_amount_usd)}
+                  </p>
+                  <p className="mt-1 text-sm text-foreground/70">
+                    recaudado de{' '}
+                    <span className="font-medium text-foreground">
+                      {usd(campaign.goal_amount_usd)}
+                    </span>
+                  </p>
+                </div>
 
-            {!canDonate && (
-              <Alert className="bg-muted/40">
-                <AlertDescription className="text-xs">
-                  Esta campaña está en estado <strong>{campaign.status}</strong> y no puede recibir donaciones hasta estar activa.
-                </AlertDescription>
-              </Alert>
-            )}
+                <Progress value={Math.min(progressPercent, 100)} className="h-2.5" />
 
-            {/* Share Button */}
-            <CampaignShare
-              campaignId={campaign.id}
-              campaignTitle={campaign.title}
-              campaignUrl={`https://lavaca.app/campaigns/${campaign.id}`}
-            />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-semibold">
+                    {Math.round(progressPercent)}% alcanzado
+                  </span>
+                  <span className="text-foreground/70">
+                    {donorCount} {donorCount === 1 ? 'donante' : 'donantes'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
+                  <div>
+                    <p className="text-xs text-foreground/60">Falta recaudar</p>
+                    <p className="font-mono text-lg font-bold text-accent">
+                      {usd(remaining)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-foreground/60">Días activos</p>
+                    <p className="font-mono text-lg font-bold">
+                      {Math.max(0, daysActive)}
+                    </p>
+                  </div>
+                </div>
+
+                {canDonate ? (
+                  <Button size="lg" className="h-12 w-full text-base" asChild>
+                    <Link href={donateHref}>
+                      <Heart className="size-5" />
+                      Donar ahora
+                    </Link>
+                  </Button>
+                ) : (
+                  <div className="space-y-3">
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      disabled
+                      className="h-12 w-full text-base"
+                    >
+                      <Heart className="size-5" />
+                      Donaciones deshabilitadas
+                    </Button>
+                    <Alert className="bg-muted/40">
+                      <AlertDescription className="text-xs">
+                        Esta campaña está en estado <strong>{campaign.status}</strong> y
+                        no puede recibir donaciones hasta estar activa.
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                )}
+
+                <div className="flex justify-center">
+                  <CampaignShare
+                    campaignId={campaign.id}
+                    campaignTitle={campaign.title}
+                    campaignUrl={`https://lavaca.app/campaigns/${campaign.id}`}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Guarantor trust card — reinforce at the decision point */}
+            {hasGuarantors && (
+              <Card className="border-accent/30 bg-accent/5">
+                <CardContent className="space-y-3 pt-6">
+                  <div className="flex items-center gap-2 text-accent">
+                    <ShieldCheck className="size-5" />
+                    <p className="font-semibold">Campaña avalada</p>
+                  </div>
+                  <div className="space-y-2">
+                    {campaign.guarantors!.slice(0, 2).map((g) => (
+                      <div key={g.id} className="text-sm">
+                        <p className="font-medium text-foreground">
+                          {g.organization_name || g.full_name}
+                        </p>
+                        {g.profession_field && (
+                          <p className="text-foreground/60">{g.profession_field}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-foreground/60">
+                    Un garante con identidad verificada respalda la veracidad de esta
+                    campaña.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Donors List */}
             <CampaignDonorsList donations={donationsList} />
 
-            {/* Info Card */}
-            <Card className="bg-primary/5 border-primary/20">
+            {/* Commission disclosure */}
+            <Card className="border-primary/20 bg-primary/5">
               <CardHeader>
-                <CardTitle className="text-base">Información importante</CardTitle>
+                <CardTitle className="text-base">Cómo se usa tu donación</CardTitle>
               </CardHeader>
-              <CardContent className="text-sm text-muted-foreground space-y-3">
+              <CardContent className="space-y-3 text-sm text-foreground/75">
                 <p>
-                  En LaVaca cobramos de un 3% a 6% de comisión de plataforma para garantizar que un equipo humano verifique cada campaña manualmente, brindando soporte técnico 24/7 y manteniendo nuestros servidores activos para que tu ayuda llegue a quien más lo necesita.
+                  LaVaca cobra entre 3% y 6% de comisión para que un equipo humano
+                  verifique cada campaña manualmente, dar soporte 24/7 y mantener la
+                  plataforma activa, de modo que tu ayuda llegue a quien la necesita.
                 </p>
                 <p>
-                  Ten en cuenta que los procesadores de pago (Tarjetas, Zelle, Cripto) pueden aplicar sus propias tarifas externas según el método elegido.
+                  Los procesadores de pago (tarjetas, Zelle, cripto) pueden aplicar sus
+                  propias tarifas según el método que elijas.
                 </p>
               </CardContent>
             </Card>
-          </div>
+          </aside>
         </div>
       </div>
+
+      {/* Mobile sticky donate bar — keep the CTA reachable on small screens */}
+      {canDonate && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="mx-auto flex max-w-7xl items-center gap-4">
+            <div className="min-w-0">
+              <p className="font-mono text-lg font-bold leading-none text-primary">
+                {usd(campaign.current_amount_usd)}
+              </p>
+              <p className="mt-1 truncate text-xs text-foreground/70">
+                {Math.round(progressPercent)}% de {usd(campaign.goal_amount_usd)}
+              </p>
+            </div>
+            <Button className="ml-auto h-11 shrink-0 px-6" asChild>
+              <Link href={donateHref}>
+                <Heart className="size-5" />
+                Donar ahora
+              </Link>
+            </Button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

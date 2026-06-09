@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -61,6 +61,20 @@ const METHOD_META: Record<PaymentMethod, { icon: string; defaultName: string }> 
 
 const USD_ALLOWED_METHODS: PaymentMethod[] = ['card', 'paypal', 'zelle', 'crypto'];
 const BS_ALLOWED_METHODS: PaymentMethod[] = ['pagomovil', 'transfer', 'chinchin'];
+
+const AMOUNT_LIMITS: Record<Currency, { min: number; max: number; presets: number[] }> = {
+    USD: { min: 1, max: 1_000_000, presets: [10, 25, 50, 100] },
+    BS: { min: 50, max: 50_000_000, presets: [500, 1000, 2000, 5000] },
+};
+
+const formatMoney = (value: number) =>
+    new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    }).format(Number.isFinite(value) ? value : 0);
+
+const moneyLabel = (value: number, currency: Currency) =>
+    currency === 'USD' ? `$${formatMoney(value)} USD` : `${formatMoney(value)} Bs`;
 
 export function DonationCheckout({
     campaignId,
@@ -200,29 +214,32 @@ export function DonationCheckout({
         fetchPaymentConfigs();
     }, []);
 
-    // Fetch exchange rate
-    useEffect(() => {
-        const fetchExchangeRate = async () => {
-            try {
-                const response = await fetch('/api/exchange-rate');
-                const data = await response.json();
+    // Fetch exchange rate (reusable so the user can refresh an expired rate)
+    const fetchExchangeRate = useCallback(async () => {
+        try {
+            setRateLoading(true);
+            const response = await fetch('/api/exchange-rate', { cache: 'no-store' });
+            const data = await response.json();
 
-                if (response.ok) {
-                    setExchangeRate(data.rate);
-                    setRateExpiresAt(data.expiresAt);
-                } else {
-                    setExchangeRate(43.02);
-                }
-            } catch (error) {
-                console.error('Error fetching exchange rate:', error);
+            if (response.ok) {
+                setExchangeRate(data.rate);
+                setRateExpiresAt(data.expiresAt);
+            } else {
                 setExchangeRate(43.02);
-            } finally {
-                setRateLoading(false);
+                setRateExpiresAt(null);
             }
-        };
-
-        fetchExchangeRate();
+        } catch (error) {
+            console.error('Error fetching exchange rate:', error);
+            setExchangeRate(43.02);
+            setRateExpiresAt(null);
+        } finally {
+            setRateLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        fetchExchangeRate();
+    }, [fetchExchangeRate]);
 
     // Countdown timer
     useEffect(() => {
@@ -336,12 +353,38 @@ export function DonationCheckout({
     const selectedTransferAccount = configuredTransferAccounts.find((account) => account.id === transferData.accountId);
 
     const amountInUSD = currency === 'USD' ? amount : amount / (exchangeRate || 43.02);
+    const amountLimits = AMOUNT_LIMITS[currency];
+    const rateExpired = currency === 'BS' && timeRemaining === 'Expirado';
+    const amountBelowMin = amount > 0 && amount < amountLimits.min;
 
     const handleDonate = async () => {
         setIsLoading(true);
         setCheckoutError(null);
         try {
             // Validation
+            const limits = AMOUNT_LIMITS[currency];
+            const symbol = currency === 'USD' ? '$' : 'Bs ';
+
+            if (!Number.isFinite(amount) || amount <= 0) {
+                setCheckoutError("Ingresa un monto válido para donar.");
+                return;
+            }
+
+            if (amount < limits.min) {
+                setCheckoutError(`El monto mínimo por donación es ${symbol}${formatMoney(limits.min)} ${currency}.`);
+                return;
+            }
+
+            if (amount > limits.max) {
+                setCheckoutError(`El monto máximo por donación es ${symbol}${formatMoney(limits.max)} ${currency}.`);
+                return;
+            }
+
+            if (currency === 'BS' && rateExpired) {
+                setCheckoutError("La tasa de cambio expiró. Actualízala antes de continuar para que el monto en dólares sea correcto.");
+                return;
+            }
+
             const normalizedDonorEmail = donorEmail.trim().toLowerCase();
             const normalizedDonorName = donorName.trim().replace(/\s+/g, ' ');
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -463,34 +506,49 @@ export function DonationCheckout({
             </Alert>
 
             {/* Exchange Rate Info - Solo si moneda es BS */}
-            {currency === 'BS' && exchangeRate && rateExpiresAt && (
-                <Alert className="bg-blue-500/5 border-blue-500/20">
-                    <TrendingUp className="h-4 w-4 text-blue-500" />
-                    <AlertDescription className="flex items-center justify-between">
+            {currency === 'BS' && exchangeRate && (
+                <Alert className={cn(rateExpired ? 'border-destructive/30 bg-destructive/5' : 'border-primary/20 bg-primary/5')}>
+                    <TrendingUp className={cn('h-4 w-4', rateExpired ? 'text-destructive' : 'text-primary')} />
+                    <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
                         <span className="text-sm">
                             <strong>Tasa BCV:</strong> {exchangeRate.toFixed(2)} Bs/USD
                         </span>
-                        <span className="text-xs flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            Válida: <strong>{timeRemaining}</strong>
-                        </span>
+                        {rateExpired ? (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={fetchExchangeRate}
+                                disabled={rateLoading}
+                            >
+                                <RefreshCcw className={cn('h-3 w-3', rateLoading && 'animate-spin')} />
+                                Actualizar tasa
+                            </Button>
+                        ) : rateExpiresAt ? (
+                            <span className="flex items-center gap-1 text-xs">
+                                <Clock className="h-3 w-3" />
+                                Válida: <strong>{timeRemaining}</strong>
+                            </span>
+                        ) : null}
                     </AlertDescription>
                 </Alert>
             )}
 
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-xl">Donación para: {campaignTitle}</CardTitle>
+                    <CardTitle className="text-xl break-words">Donación para: {campaignTitle}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                    {checkoutError && (
-                        <Alert variant="destructive">
-                            <AlertDescription>{checkoutError}</AlertDescription>
-                        </Alert>
-                    )}
+                    <div aria-live="assertive">
+                        {checkoutError && (
+                            <Alert variant="destructive">
+                                <AlertDescription>{checkoutError}</AlertDescription>
+                            </Alert>
+                        )}
+                    </div>
 
                     {internationalMethodWarning && (
-                        <Alert className="bg-yellow-500/5 border-yellow-500/30">
+                        <Alert className="border-accent/30 bg-accent/5">
                             <AlertDescription>
                                 {internationalMethodWarning}
                             </AlertDescription>
@@ -498,7 +556,7 @@ export function DonationCheckout({
                     )}
 
                     {availableMethods.length === 0 && (
-                        <Alert className="bg-yellow-500/5 border-yellow-500/30">
+                        <Alert className="border-accent/30 bg-accent/5">
                             <AlertDescription>
                                 No hay métodos de pago activos para esta moneda en este momento.
                             </AlertDescription>
@@ -527,15 +585,19 @@ export function DonationCheckout({
                         </div>
                     ) : (
                         <div className="space-y-3">
-                            <Label className="text-base font-semibold">Monto a donar</Label>
+                            <Label htmlFor="donation-amount" className="text-base font-semibold">
+                                Monto a donar
+                            </Label>
 
                             {/* Quick amounts */}
                             <div className="grid grid-cols-4 gap-2">
-                                {(currency === 'USD' ? [10, 25, 50, 100] : [500, 1000, 2000, 5000]).map((preset) => (
+                                {amountLimits.presets.map((preset) => (
                                     <Button
                                         key={preset}
+                                        type="button"
                                         variant={amount === preset ? "default" : "outline"}
                                         size="sm"
+                                        aria-pressed={amount === preset}
                                         onClick={() => setAmount(preset)}
                                     >
                                         {currency === 'USD' ? '$' : 'Bs'} {preset}
@@ -545,24 +607,51 @@ export function DonationCheckout({
 
                             {/* Custom amount */}
                             <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground/60">
                                     {currency === 'USD' ? '$' : 'Bs'}
                                 </span>
                                 <Input
+                                    id="donation-amount"
                                     type="number"
-                                    value={amount}
-                                    onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
-                                    className="pl-8 text-lg font-semibold h-12"
-                                    min={currency === 'USD' ? 1 : 50}
+                                    inputMode="decimal"
+                                    value={amount || ''}
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        if (raw === '') {
+                                            setAmount(0);
+                                            return;
+                                        }
+                                        const parsed = parseFloat(raw);
+                                        setAmount(Number.isFinite(parsed) && parsed >= 0 ? parsed : 0);
+                                    }}
+                                    className="h-12 pl-8 text-lg font-semibold"
+                                    min={amountLimits.min}
+                                    max={amountLimits.max}
+                                    step="0.01"
+                                    aria-describedby="amount-hint"
+                                    aria-invalid={amountBelowMin}
                                 />
                             </div>
 
-                            {/* Equivalence - Solo si paga en BS */}
-                            {currency === 'BS' && exchangeRate && (
-                                <p className="text-sm text-muted-foreground">
-                                    Equivalente: <strong>${amountInUSD.toFixed(2)} USD</strong> al cambio BCV
-                                </p>
-                            )}
+                            <p id="amount-hint" className="text-sm">
+                                {amountBelowMin ? (
+                                    <span className="text-destructive">
+                                        El monto mínimo es {currency === 'USD' ? '$' : 'Bs '}
+                                        {formatMoney(amountLimits.min)} {currency}.
+                                    </span>
+                                ) : currency === 'BS' && exchangeRate ? (
+                                    <span className="text-foreground/70">
+                                        Equivalente:{' '}
+                                        <strong className="text-foreground">${formatMoney(amountInUSD)} USD</strong>{' '}
+                                        al cambio BCV
+                                    </span>
+                                ) : (
+                                    <span className="text-foreground/60">
+                                        Mínimo {currency === 'USD' ? '$' : 'Bs '}
+                                        {formatMoney(amountLimits.min)} {currency}.
+                                    </span>
+                                )}
+                            </p>
                         </div>
                     )}
 
@@ -573,23 +662,25 @@ export function DonationCheckout({
                             {availableMethods.map((method) => (
                                 <button
                                     key={method.id}
+                                    type="button"
+                                    aria-pressed={paymentMethod === method.id}
                                     onClick={() => handleSelectPaymentMethod(method.id)}
                                     className={cn(
-                                        "flex items-center gap-3 p-4 rounded-lg border-2 transition-all text-left",
+                                        "flex items-center gap-3 rounded-lg border-2 p-4 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                                         paymentMethod === method.id
                                             ? "border-primary bg-primary/5"
                                             : "border-border hover:border-primary/50"
                                     )}
                                 >
-                                    <span className="text-2xl">{method.icon}</span>
-                                    <div>
-                                        <span className="font-medium block">{method.name}</span>
+                                    <span className="text-2xl" aria-hidden>{method.icon}</span>
+                                    <div className="min-w-0">
+                                        <span className="block font-medium">{method.name}</span>
                                         {method.description ? (
-                                            <span className="text-xs text-muted-foreground">{method.description}</span>
+                                            <span className="text-xs text-foreground/60">{method.description}</span>
                                         ) : null}
                                     </div>
                                     {paymentMethod === method.id && (
-                                        <CheckCircle className="ml-auto h-5 w-5 text-primary" />
+                                        <CheckCircle className="ml-auto size-5 shrink-0 text-primary" />
                                     )}
                                 </button>
                             ))}
@@ -732,9 +823,9 @@ export function DonationCheckout({
                                 </p>
                             )}
                             {captureUrl && !captureUploading && (
-                                <p className="text-xs text-green-600 flex items-center gap-2">
-                                    <CheckCircle className="h-3 w-3" />
-                                    Comprobante listo ({captureFile?.name})
+                                <p className="flex items-center gap-2 text-xs text-primary">
+                                    <CheckCircle className="h-3 w-3 shrink-0" />
+                                    <span className="min-w-0 break-all">Comprobante listo ({captureFile?.name})</span>
                                 </p>
                             )}
                             {captureError && (
@@ -834,12 +925,12 @@ export function DonationCheckout({
                 "en revisión" hasta que el admin lo apruebe. Evita la
                 sensación de "doné y no veo nada en la campaña". */}
             {MANUAL_METHODS.includes(paymentMethod) && (
-                <Alert className="bg-amber-50 border-amber-300 dark:bg-amber-950/40 dark:border-amber-800">
-                    <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <AlertDescription className="text-sm text-amber-900 dark:text-amber-100">
-                        <strong>Pago manual:</strong> tu donación quedará en
+                <Alert className="border-accent/30 bg-accent/5">
+                    <Clock className="h-4 w-4 text-accent" />
+                    <AlertDescription className="text-sm text-foreground/80">
+                        <strong className="text-foreground">Pago manual:</strong> tu donación quedará en
                         revisión. Nuestro equipo la verifica y aprueba en menos
-                        de 24 horas hábiles — recién ahí aparecerá en la
+                        de 24 horas hábiles; recién ahí aparecerá en la
                         campaña. Te avisamos por correo cuando esté lista.
                     </AlertDescription>
                 </Alert>
@@ -848,21 +939,25 @@ export function DonationCheckout({
             {/* Donate Button */}
             <Button
                 size="lg"
-                className="w-full h-14 text-lg"
+                className="h-14 w-full text-lg"
                 onClick={handleDonate}
-                disabled={isLoading || rateLoading || availableMethods.length === 0}
+                disabled={
+                    isLoading ||
+                    rateLoading ||
+                    availableMethods.length === 0 ||
+                    amount < amountLimits.min ||
+                    rateExpired
+                }
             >
                 {isLoading ? (
                     <>
-                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        <Loader2 className="mr-2 size-5 animate-spin" />
                         {MANUAL_METHODS.includes(paymentMethod)
                             ? 'Enviando tu reporte…'
                             : 'Procesando…'}
                     </>
                 ) : (
-                    <>
-                        Donar {currency === 'USD' ? `$${amount.toFixed(2)} USD` : `${amount.toFixed(2)} Bs`}
-                    </>
+                    <>Donar {moneyLabel(amount, currency)}</>
                 )}
             </Button>
 
