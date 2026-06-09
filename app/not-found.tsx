@@ -45,11 +45,11 @@ const SUGGESTIONS = [
 
 export default function NotFound() {
     return (
-        <main className="flex-1 flex flex-col items-center justify-center py-16 sm:py-24 px-4 bg-gradient-to-b from-background via-background to-muted/20">
+        <main className="flex-1 flex flex-col items-center justify-center py-16 sm:py-24 px-4 bg-background">
             <div className="max-w-3xl w-full mx-auto text-center space-y-8">
                 {/* 404 ilustración */}
                 <div className="relative inline-block">
-                    <div className="text-[10rem] sm:text-[14rem] font-bold leading-none bg-gradient-to-br from-primary via-primary/70 to-accent bg-clip-text text-transparent select-none">
+                    <div className="text-[10rem] sm:text-[14rem] font-black leading-none text-primary select-none">
                         404
                     </div>
                     <div className="absolute -top-2 -right-2 sm:-top-4 sm:-right-4">

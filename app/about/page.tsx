@@ -21,21 +21,20 @@ export const metadata = {
 
 export default function AboutPage() {
     return (
-        <main className="flex flex-col min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+        <main className="flex flex-col min-h-screen bg-background">
             {/* Hero */}
-            <section className="relative py-16 sm:py-20 px-4 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent" />
-                <div className="max-w-5xl mx-auto relative z-10 text-center">
+            <section className="border-b border-border bg-muted/40 py-16 sm:py-20 px-4">
+                <div className="max-w-5xl mx-auto text-center">
                     <div className="inline-flex items-center gap-2 bg-primary/10 rounded-full px-4 py-2 mb-6">
                         <Sparkles className="w-4 h-4 text-primary" />
                         <span className="text-sm font-medium text-primary">
                             Crowdfunding hecho en Venezuela
                         </span>
                     </div>
-                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight mb-6 text-primary">
                         Acerca de LaVaca
                     </h1>
-                    <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+                    <p className="text-lg sm:text-xl text-foreground/70 max-w-3xl mx-auto leading-relaxed text-pretty">
                         Construimos la plataforma de recaudación de fondos
                         más transparente y confiable para Venezuela.
                         Aquí cada bolívar y cada dólar tiene un destino claro.
@@ -68,8 +67,8 @@ export default function AboutPage() {
                             </div>
                             <h2 className="text-2xl font-bold">Nuestra visión</h2>
                             <p className="text-muted-foreground leading-relaxed">
-                                Que cuando un venezolano necesite ayuda — para un
-                                tratamiento, un negocio, una causa comunitaria —
+                                Que cuando un venezolano necesite ayuda (para un
+                                tratamiento, un negocio, una causa comunitaria),
                                 LaVaca sea el primer lugar al que recurra, y que
                                 cualquiera del mundo pueda apoyarlo en segundos.
                             </p>

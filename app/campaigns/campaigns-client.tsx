@@ -302,7 +302,7 @@ export default function CampaignsClient({
                                         type="button"
                                         onClick={chip.onRemove}
                                         disabled={isPending}
-                                        className="group inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 py-1 pl-3 pr-2 text-sm font-medium text-primary transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        className="group inline-flex min-h-9 items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 py-1.5 pl-3.5 pr-2.5 text-sm font-medium text-primary transition-colors hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                     >
                                         {chip.label}
                                         <X className="size-3.5 opacity-70 group-hover:opacity-100" />
@@ -312,7 +312,7 @@ export default function CampaignsClient({
                                     type="button"
                                     onClick={clearFilters}
                                     disabled={isPending}
-                                    className="rounded-full px-3 py-1 text-sm font-medium text-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                    className="inline-flex min-h-9 items-center rounded-full px-3 py-1.5 text-sm font-medium text-foreground/60 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 >
                                     Limpiar todo
                                 </button>

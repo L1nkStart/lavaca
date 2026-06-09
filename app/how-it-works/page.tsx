@@ -18,20 +18,19 @@ import {
 
 export default function HowItWorksPage() {
     return (
-        <main className="flex flex-col min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+        <main className="flex flex-col min-h-screen bg-background">
             {/* Hero Section */}
-            <section className="relative py-20 px-4 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent" />
-                <div className="max-w-6xl mx-auto relative z-10">
+            <section className="border-b border-border bg-muted/40 py-20 px-4">
+                <div className="max-w-6xl mx-auto">
                     <div className="text-center mb-12">
                         <div className="inline-flex items-center gap-2 bg-primary/10 rounded-full px-4 py-2 mb-6">
                             <Sparkles className="w-4 h-4 text-primary" />
                             <span className="text-sm font-medium text-primary">Crowdfunding Para Venezuela</span>
                         </div>
-                        <h1 className="text-5xl md:text-6xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                        <h1 className="text-5xl md:text-6xl font-black tracking-tight mb-6 text-primary">
                             ¿Cómo Funciona LaVaca?
                         </h1>
-                        <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
+                        <p className="text-xl text-foreground/70 max-w-3xl mx-auto leading-relaxed text-pretty">
                             La plataforma de crowdfunding más confiable de Venezuela.
                             Conectamos personas que necesitan ayuda con donantes que quieren hacer la diferencia.
                         </p>
@@ -291,12 +290,12 @@ export default function HowItWorksPage() {
             </section>
 
             {/* CTA Section */}
-            <section className="py-20 px-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
+            <section className="border-t border-border bg-muted/40 py-20 px-4">
                 <div className="max-w-4xl mx-auto text-center">
-                    <h2 className="text-3xl md:text-4xl font-bold mb-6">
-                        ¿Listo Para Comenzar?
+                    <h2 className="text-3xl md:text-4xl font-bold mb-6 text-balance">
+                        ¿Listo para comenzar?
                     </h2>
-                    <p className="text-xl text-muted-foreground mb-8">
+                    <p className="text-xl text-foreground/70 mb-8 text-pretty">
                         Únete a miles de venezolanos que ya están haciendo la diferencia
                     </p>
                     <div className="flex flex-col sm:flex-row gap-4 justify-center">

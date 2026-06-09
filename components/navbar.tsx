@@ -224,7 +224,7 @@ export function Navbar() {
                             </>
                         ) : (
                             <>
-                                <Button variant="ghost" size="sm" asChild>
+                                <Button variant="ghost" size="sm" className="hidden md:flex" asChild>
                                     <Link href="/auth/login">Iniciar sesión</Link>
                                 </Button>
                                 <Button size="sm" asChild>
@@ -306,6 +306,15 @@ export function Navbar() {
                                 onClick={() => setMobileMenuOpen(false)}
                             >
                                 Dashboard admin
+                            </Link>
+                        )}
+                        {!authLoading && !user && (
+                            <Link
+                                href="/auth/login"
+                                className="block rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
+                                onClick={() => setMobileMenuOpen(false)}
+                            >
+                                Iniciar sesión
                             </Link>
                         )}
                     </div>

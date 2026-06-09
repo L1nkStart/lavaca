@@ -44,7 +44,7 @@ const PLACEHOLDER_POSTS = [
 
 export default function BlogPage() {
     return (
-        <main className="flex flex-col min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+        <main className="flex flex-col min-h-screen bg-background">
             {/* Hero */}
             <section className="py-16 sm:py-20 px-4">
                 <div className="max-w-5xl mx-auto text-center space-y-5">
@@ -54,7 +54,7 @@ export default function BlogPage() {
                             Blog en construcción
                         </span>
                     </div>
-                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight text-primary">
                         Blog LaVaca
                     </h1>
                     <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
@@ -101,7 +101,7 @@ export default function BlogPage() {
             {/* Newsletter / CTA */}
             <section className="py-12 sm:py-16 px-4">
                 <div className="max-w-4xl mx-auto">
-                    <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5">
+                    <Card className="border-primary/20 bg-primary/5">
                         <CardContent className="pt-8 pb-8 text-center space-y-5">
                             <div className="inline-flex w-14 h-14 rounded-full bg-primary/10 items-center justify-center">
                                 <Mail className="h-7 w-7 text-primary" />

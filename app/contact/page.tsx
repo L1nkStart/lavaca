@@ -35,7 +35,7 @@ const CHANNELS = [
 
 export default function ContactPage() {
     return (
-        <main className="flex flex-col min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+        <main className="flex flex-col min-h-screen bg-background">
             {/* Hero */}
             <section className="py-12 sm:py-16 px-4">
                 <div className="max-w-3xl mx-auto text-center space-y-4">
@@ -45,7 +45,7 @@ export default function ContactPage() {
                             Estamos para ayudarte
                         </span>
                     </div>
-                    <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-primary">
                         Contacto
                     </h1>
                     <p className="text-base sm:text-lg text-muted-foreground">

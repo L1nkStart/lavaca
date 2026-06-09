@@ -210,7 +210,6 @@ export default function CampaignPage() {
         console.error('Error fetching donations:', donationsError);
       }
 
-      console.log('Donations fetched:', donationsData?.length || 0);
       setDonations(donationsData || []);
 
       await fetchUpdates(campaignId, 1);
@@ -261,13 +260,20 @@ export default function CampaignPage() {
 
   if (error || !campaign) {
     return (
-      <main className="flex flex-col min-h-screen bg-background">
-        <div className="flex-1 flex items-center justify-center">
-          <Alert variant="destructive" className="max-w-md">
-            <AlertDescription>
-              {error || 'Campaña no encontrada'}
-            </AlertDescription>
-          </Alert>
+      <main className="flex min-h-screen flex-col bg-background">
+        <div className="mx-auto flex max-w-md flex-1 flex-col items-center justify-center gap-6 px-4 text-center">
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold">No pudimos abrir esta campaña</h1>
+            <p className="text-pretty text-foreground/70">
+              {error || 'La campaña no existe o ya no está disponible.'}
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/campaigns">
+              <ArrowLeft className="size-4" />
+              Volver a campañas
+            </Link>
+          </Button>
         </div>
       </main>
     );

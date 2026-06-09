@@ -138,7 +138,7 @@ const SECTIONS: Section[] = [
 
 export default function FAQPage() {
     return (
-        <main className="flex flex-col min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
+        <main className="flex flex-col min-h-screen bg-background">
             {/* Hero */}
             <section className="py-12 sm:py-16 px-4">
                 <div className="max-w-3xl mx-auto text-center space-y-4">
@@ -148,7 +148,7 @@ export default function FAQPage() {
                             Preguntas frecuentes
                         </span>
                     </div>
-                    <h1 className="text-4xl sm:text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    <h1 className="text-4xl sm:text-5xl font-black tracking-tight text-primary">
                         Resolvemos tus dudas
                     </h1>
                     <p className="text-base sm:text-lg text-muted-foreground">
@@ -200,7 +200,7 @@ export default function FAQPage() {
             {/* CTA Contacto */}
             <section className="py-12 sm:py-16 px-4">
                 <div className="max-w-3xl mx-auto">
-                    <div className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 p-8 text-center space-y-4">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/5 p-8 text-center space-y-4">
                         <div className="inline-flex w-12 h-12 rounded-full bg-primary/10 items-center justify-center">
                             <MessageCircle className="h-6 w-6 text-primary" />
                         </div>
