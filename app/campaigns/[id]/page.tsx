@@ -19,6 +19,7 @@ import { CampaignFollow } from "@/components/campaign-follow";
 import { CampaignReport } from "@/components/campaign-report";
 import { CheckCircle2, MapPin, User, FileText, ArrowLeft, Heart, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { DonationStatusBanner } from '@/components/donation-status-banner';
 
 interface Campaign {
   id: string;
@@ -346,7 +347,12 @@ export default function CampaignPage() {
         </div>
       </div>
 
-      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
+      <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-6 sm:py-8 space-y-6">
+        {/* Banner que aparece cuando el donante vuelve del checkout
+            (success / pending / cancelled / failed). Lee el ?donation= query
+            param. Si no hay param, no renderiza nada. */}
+        <DonationStatusBanner />
+
         <div className="grid lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">

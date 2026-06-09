@@ -830,6 +830,21 @@ export function DonationCheckout({
                 </CardContent>
             </Card>
 
+            {/* Aviso para métodos manuales — clarifica que va a quedar
+                "en revisión" hasta que el admin lo apruebe. Evita la
+                sensación de "doné y no veo nada en la campaña". */}
+            {MANUAL_METHODS.includes(paymentMethod) && (
+                <Alert className="bg-amber-50 border-amber-300 dark:bg-amber-950/40 dark:border-amber-800">
+                    <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <AlertDescription className="text-sm text-amber-900 dark:text-amber-100">
+                        <strong>Pago manual:</strong> tu donación quedará en
+                        revisión. Nuestro equipo la verifica y aprueba en menos
+                        de 24 horas hábiles — recién ahí aparecerá en la
+                        campaña. Te avisamos por correo cuando esté lista.
+                    </AlertDescription>
+                </Alert>
+            )}
+
             {/* Donate Button */}
             <Button
                 size="lg"
@@ -840,7 +855,9 @@ export function DonationCheckout({
                 {isLoading ? (
                     <>
                         <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                        Procesando...
+                        {MANUAL_METHODS.includes(paymentMethod)
+                            ? 'Enviando tu reporte…'
+                            : 'Procesando…'}
                     </>
                 ) : (
                     <>
