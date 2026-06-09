@@ -85,20 +85,27 @@ export default function AdminPaymentsPage() {
 
     try {
       setProcessing(true)
-      const { error: updateError } = await supabase
-        .from('donations')
-        .update({
-          payment_status: 'completed',
-        })
-        .eq('id', id)
+      // Importante: el UPDATE va por el endpoint admin que usa service-role.
+      // Si lo hicieramos directo desde el browser, RLS bloquearía la escritura
+      // SIN devolver error (sólo 0 filas afectadas) — por eso antes "el mensaje
+      // decía éxito pero el pago seguía en pendiente".
+      const response = await fetch(`/api/admin/payments/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve' }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data?.error || data?.details || 'No se pudo aprobar')
+      }
 
-      if (updateError) throw updateError
-
-      alert('✅ Pago aprobado y acreditado exitosamente')
+      alert(data?.already
+        ? 'ℹ️ Este pago ya estaba aprobado'
+        : '✅ Pago aprobado y acreditado exitosamente')
       fetchPayments()
     } catch (err: any) {
       console.error('Error approving payment:', err)
-      alert('Error al aprobar: ' + err.message)
+      alert('Error al aprobar: ' + (err?.message || 'Unknown error'))
     } finally {
       setProcessing(false)
     }
@@ -114,23 +121,23 @@ export default function AdminPaymentsPage() {
 
     try {
       setProcessing(true)
-      const { error: updateError } = await supabase
-        .from('donations')
-        .update({
-          payment_status: 'rejected',
-          admin_notes: notes
-        })
-        .eq('id', id)
+      const response = await fetch(`/api/admin/payments/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reject', reason: notes.trim() }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data?.error || data?.details || 'No se pudo rechazar')
+      }
 
-      if (updateError) throw updateError
-
-      alert('❌ Pago rechazado')
+      alert(data?.already ? 'ℹ️ Este pago ya estaba rechazado' : '❌ Pago rechazado')
       setNotes('')
       setSelectedId(null)
       fetchPayments()
     } catch (err: any) {
       console.error('Error rejecting payment:', err)
-      alert('Error al rechazar: ' + err.message)
+      alert('Error al rechazar: ' + (err?.message || 'Unknown error'))
     } finally {
       setProcessing(false)
     }
