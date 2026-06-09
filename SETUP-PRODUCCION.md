@@ -595,27 +595,51 @@ monto reales** ($1 cada una):
 
 ### 14.1 Actualizar la tasa BCV automáticamente
 
-La API `POST /api/exchange-rate/update` consulta Binance P2P y actualiza la
-tasa. Recomendado correrla cada hora.
+La tabla `exchange_rates` tiene tasas con `expires_at` (~3h). Si la tasa
+activa expiró, el flujo de donación en Bs falla con "No active exchange
+rate available". Hay 3 capas de defensa:
 
-Opciones:
+1. **Auto-heal**: si `/api/exchange-rate` no encuentra tasa válida,
+   automáticamente llama a Binance P2P y crea una nueva antes de devolverla
+   al cliente. **Esto funciona sin configurar nada.**
+2. **Cron externo (recomendado)**: refresca la tasa cada hora aunque no
+   haya tráfico.
+3. **Manual**: el admin puede hacer click en "Refrescar desde Binance P2P"
+   en `/admin/settings`.
 
-- **Vercel Cron** (más simple, incluido en Pro plan):
+#### Setup del cron en Coolify (recomendado)
 
-  Crear `vercel.json` en la raíz:
-  ```json
-  {
-    "crons": [{
-      "path": "/api/exchange-rate/update",
-      "schedule": "0 * * * *"
-    }]
-  }
+- [ ] Generar un secret aleatorio:
+  ```bash
+  openssl rand -hex 32
   ```
+- [ ] Agregarlo como env var `CRON_SECRET` en Coolify → tu app →
+      Environment Variables → Redeploy.
+- [ ] En Coolify → tu app → **Scheduled Tasks** → New Scheduled Task:
+  - **Name**: `refresh-exchange-rate`
+  - **Frequency**: `0 * * * *` (cada hora en punto)
+  - **Container**: el de tu app
+  - **Command**:
+    ```bash
+    curl -sS -X POST \
+      -H "Authorization: Bearer $CRON_SECRET" \
+      http://localhost:3000/api/cron/exchange-rate
+    ```
 
-  - [ ] Agregar el archivo y deployar.
+  Coolify inyecta las env vars en el contenedor, por lo que `$CRON_SECRET`
+  se resuelve solo. Usar `localhost:3000` evita la salida por internet.
 
-- **Supabase pg_cron**: programar la llamada como HTTP request desde el
-  edge function. Más complejo, sólo si necesitas evitar Vercel Cron.
+#### Alternativas si no querés usar Coolify Cron
+
+- **uptime-kuma / cron-job.org**: cron externo que hace una request HTTP
+  cada hora al endpoint público:
+  ```
+  POST https://tu-dominio.com/api/cron/exchange-rate?secret=$CRON_SECRET
+  ```
+- **GitHub Actions**: workflow scheduled con `curl` al endpoint.
+- **Supabase pg_cron**: llamar a `create_new_exchange_rate()` desde una
+  función SQL programada (no consulta Binance, sólo guarda una tasa fija;
+  útil sólo si NO te interesa Binance).
 
 ### 14.2 Backup de la base de datos
 

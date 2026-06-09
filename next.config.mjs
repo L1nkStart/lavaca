@@ -8,10 +8,8 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Next.js emite una versión "standalone" que sólo incluye lo necesario
-  // para correr `node server.js`. Coolify/Nixpacks lo aprovechan para
-  // generar imágenes mucho más chicas.
-  output: 'standalone',
+  // Nota: NO usamos `output: 'standalone'` porque Coolify/Nixpacks invocan
+  // `next start` por defecto, que no es compatible con standalone.
   images: {
     unoptimized: true,
   },

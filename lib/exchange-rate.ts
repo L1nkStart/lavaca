@@ -1,6 +1,98 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const STATIC_FALLBACK_RATE = 43.02;
+const DEFAULT_MARGIN_PERCENTAGE = 4.3;
+
+/**
+ * Llama a Binance P2P (USDT/VES) y devuelve la tasa cruda promedio de las
+ * primeras 10 ofertas de compra. Devuelve null si Binance falla.
+ */
+export async function fetchBinanceP2PRate(): Promise<number | null> {
+    try {
+        const response = await fetch(
+            "https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search",
+            {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    fiat: "VES",
+                    page: 1,
+                    rows: 10,
+                    tradeType: "BUY",
+                    asset: "USDT",
+                    countries: [],
+                    proMerchantAds: false,
+                    shieldMerchantAds: false,
+                    filterType: "all",
+                    periods: [],
+                    additionalKycVerifyFilter: 0,
+                    publisherType: null,
+                    payTypes: [],
+                    classifies: ["mass", "profession", "fiat_trade"],
+                }),
+                // Sin caché: queremos siempre el dato fresco.
+                cache: "no-store",
+            },
+        );
+
+        if (!response.ok) {
+            throw new Error(`Binance API HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        const offers = data?.data;
+        if (!Array.isArray(offers) || offers.length === 0) return null;
+
+        const rates = offers
+            .map((offer: any) => parseFloat(offer?.adv?.price))
+            .filter((price: number) => Number.isFinite(price) && price > 0);
+
+        if (rates.length === 0) return null;
+
+        const average = rates.reduce((a: number, b: number) => a + b, 0) / rates.length;
+        return Number(average.toFixed(4));
+    } catch (error) {
+        console.error("[exchange-rate] Binance P2P fetch failed:", error);
+        return null;
+    }
+}
+
+/**
+ * Refresca la tasa: pide a Binance, aplica margen y guarda con
+ * `create_new_exchange_rate`. Devuelve la tasa final guardada o null si falla.
+ */
+export async function refreshExchangeRate(
+    margin: number = DEFAULT_MARGIN_PERCENTAGE,
+): Promise<{ rawRate: number; finalRate: number; rateId: string } | null> {
+    const rawRate = await fetchBinanceP2PRate();
+    if (!rawRate) return null;
+
+    const finalRate = Number((rawRate * (1 + margin / 100)).toFixed(4));
+
+    try {
+        const supabase = createAdminClient();
+        const { data, error } = await supabase.rpc("create_new_exchange_rate", {
+            p_raw_rate: rawRate,
+            p_margin: margin,
+            p_source: "binance_p2p",
+            p_metadata: {
+                timestamp: new Date().toISOString(),
+                api_source: "binance",
+                margin_applied: margin,
+            },
+        });
+
+        if (error) {
+            console.error("[exchange-rate] create_new_exchange_rate RPC failed:", error);
+            return null;
+        }
+
+        return { rawRate, finalRate, rateId: data as string };
+    } catch (error) {
+        console.error("[exchange-rate] refresh failed:", error);
+        return null;
+    }
+}
 
 /**
  * Returns the current Bs/USD rate to use for backend conversions
