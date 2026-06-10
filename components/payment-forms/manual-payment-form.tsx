@@ -26,7 +26,7 @@ export function ManualPaymentForm({
         return {
           title: 'Instrucciones Zelle',
           details: [
-            'Email de Zelle: support@lavaca.app',
+            'Email de Zelle: support@lavaca.com.ve',
             'Concepto: LaVaca Donation - Tu nombre',
             'Monto: El especificado arriba',
           ],

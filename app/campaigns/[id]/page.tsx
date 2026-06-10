@@ -20,6 +20,7 @@ import { CampaignReport } from "@/components/campaign-report";
 import { CheckCircle2, MapPin, User, FileText, ArrowLeft, Heart, Loader2, Clock, ShieldCheck, Download } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { DonationStatusBanner } from '@/components/donation-status-banner';
+import { getClientBaseUrl } from '@/lib/url';
 
 interface Campaign {
   id: string;
@@ -81,6 +82,7 @@ export default function CampaignPage() {
   const [activeTab, setActiveTab] = useState("story");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [donations, setDonations] = useState<Donation[]>([]);
+  const [donationsCount, setDonationsCount] = useState(0);
   const [updates, setUpdates] = useState<Update[]>([]);
   const [updatesCount, setUpdatesCount] = useState(0);
   const [updatesPage, setUpdatesPage] = useState(1);
@@ -212,6 +214,15 @@ export default function CampaignPage() {
 
       setDonations(donationsData || []);
 
+      // Conteo exacto de donaciones completadas (la lista de arriba está
+      // limitada a 20; el número de donantes debe reflejar el total real).
+      const { count: completedDonations } = await supabase
+        .from('donations')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId)
+        .eq('payment_status', 'completed');
+      setDonationsCount(completedDonations || 0);
+
       await fetchUpdates(campaignId, 1);
 
     } catch (err) {
@@ -341,7 +352,7 @@ export default function CampaignPage() {
 
   const totalUpdatePages = Math.max(1, Math.ceil(updatesCount / UPDATES_PAGE_SIZE));
   const canDonate = campaign.status === 'active';
-  const donorCount = donations.length;
+  const donorCount = donationsCount || donations.length;
   const remaining = Math.max(0, campaign.goal_amount_usd - campaign.current_amount_usd);
   const usd = (n: number) =>
     new Intl.NumberFormat('en-US', {
@@ -373,7 +384,7 @@ export default function CampaignPage() {
 
         <div className="mt-6 grid gap-8 lg:grid-cols-3">
           {/* Main Content */}
-          <div className="space-y-8 lg:col-span-2">
+          <div className="min-w-0 space-y-8 lg:col-span-2">
             {/* Gallery */}
             <CampaignGallery
               mainImage={campaign.main_image_url || '/placeholder.jpg'}
@@ -441,19 +452,19 @@ export default function CampaignPage() {
 
             {/* Tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="story">Historia</TabsTrigger>
-                <TabsTrigger value="updates">
+              <TabsList className="flex w-full justify-start overflow-x-auto sm:grid sm:grid-cols-4">
+                <TabsTrigger value="story" className="shrink-0">Historia</TabsTrigger>
+                <TabsTrigger value="updates" className="shrink-0">
                   Actualizaciones {updatesCount > 0 && `(${updatesCount})`}
                 </TabsTrigger>
-                <TabsTrigger value="documents">Documentos</TabsTrigger>
-                <TabsTrigger value="comments">Comentarios</TabsTrigger>
+                <TabsTrigger value="documents" className="shrink-0">Documentos</TabsTrigger>
+                <TabsTrigger value="comments" className="shrink-0">Comentarios</TabsTrigger>
               </TabsList>
 
               <TabsContent value="story" className="mt-6">
                 <Card>
                   <CardContent className="pt-6 prose prose-sm dark:prose-invert max-w-none">
-                    <p className="whitespace-pre-wrap text-base leading-relaxed">
+                    <p className="max-w-[70ch] whitespace-pre-wrap text-base leading-relaxed">
                       {campaign.story}
                     </p>
                   </CardContent>
@@ -503,9 +514,13 @@ export default function CampaignPage() {
                 <Card>
                   <CardContent className="pt-6">
                     {supportDocuments.length === 0 ? (
-                      <p className="text-center text-muted-foreground">
-                        No hay documentos disponibles
-                      </p>
+                      <div className="py-6 text-center">
+                        <p className="font-medium">Sin documentos de respaldo</p>
+                        <p className="mx-auto mt-1 max-w-sm text-sm text-foreground/70">
+                          Esta campaña todavía no adjuntó documentos. La verificación
+                          de identidad del creador sigue vigente.
+                        </p>
+                      </div>
                     ) : (
                       <div className="space-y-3">
                         {supportDocuments.map((doc) => (
@@ -620,7 +635,7 @@ export default function CampaignPage() {
                   <CampaignShare
                     campaignId={campaign.id}
                     campaignTitle={campaign.title}
-                    campaignUrl={`https://lavaca.app/campaigns/${campaign.id}`}
+                    campaignUrl={`${getClientBaseUrl()}/campaigns/${campaign.id}`}
                   />
                 </div>
               </CardContent>
@@ -655,7 +670,7 @@ export default function CampaignPage() {
             )}
 
             {/* Donors List */}
-            <CampaignDonorsList donations={donationsList} />
+            <CampaignDonorsList donations={donationsList} totalCount={donorCount} />
 
             {/* Commission disclosure */}
             <Card className="border-primary/20 bg-primary/5">

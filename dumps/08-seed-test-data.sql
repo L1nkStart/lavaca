@@ -43,7 +43,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Usuario Admin
 INSERT INTO users (id, email, full_name, role, kyc_status, bio, location, avatar_url, created_at) VALUES
-('a0000000-0000-0000-0000-000000000001', 'admin@lavaca.app', 'Admin LaVaca', 'admin', 'verified', 
+('a0000000-0000-0000-0000-000000000001', 'admin@lavaca.com.ve', 'Admin LaVaca', 'admin', 'verified', 
 'Administrador de la plataforma LaVaca', 'Caracas, Venezuela', 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin', NOW() - INTERVAL '6 months')
 ON CONFLICT (id) DO NOTHING;
 

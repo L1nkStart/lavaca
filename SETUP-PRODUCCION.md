@@ -35,11 +35,11 @@ paso con `[x]` a medida que lo completes.
 - [ ] **Cuenta de GitHub** con el repo `lavaca` privado.
 - [ ] **Node 20+** instalado localmente (`node -v`).
 - [ ] **npm** o **pnpm** (el repo trae ambos lockfiles).
-- [ ] **Dominio** registrado (ej: `lavaca.app`) con DNS gestionable.
+- [ ] **Dominio** registrado (ej: `lavaca.com.ve`) con DNS gestionable.
 - [ ] **Cuenta bancaria/persona jurídica venezolana** para recibir los pagos
       locales (Bs, PagoMóvil, transferencias).
 - [ ] **Email corporativo** del proyecto para recibir notificaciones
-      operativas (ej: `admin@lavaca.app`).
+      operativas (ej: `admin@lavaca.com.ve`).
 
 ---
 
@@ -117,15 +117,15 @@ Desde **Authentication → URL Configuration** ⚠️ **CRÍTICO**:
 > Site URL como fallback cuando el `redirectTo` solicitado no está en la
 > whitelist.
 
-- [ ] **Site URL**: `https://lavaca.app` (o tu dominio Coolify final).
+- [ ] **Site URL**: `https://lavaca.com.ve` (o tu dominio Coolify final).
       No debe ser `localhost` jamás en producción.
 - [ ] **Redirect URLs** (whitelist): agregar **todas** estas rutas con
       tu dominio final:
-  - `https://lavaca.app/auth/callback`
-  - `https://lavaca.app/auth/verify`
-  - `https://lavaca.app/auth/login`
-  - `https://lavaca.app/`
-  - (Wildcard alternativo: `https://lavaca.app/**`)
+  - `https://lavaca.com.ve/auth/callback`
+  - `https://lavaca.com.ve/auth/verify`
+  - `https://lavaca.com.ve/auth/login`
+  - `https://lavaca.com.ve/`
+  - (Wildcard alternativo: `https://lavaca.com.ve/**`)
 
   Y para desarrollo local también:
   - `http://localhost:3000/auth/callback`
@@ -170,7 +170,7 @@ Environment Variables** (producción).
 
 | Variable | Dónde se obtiene |
 |----------|------------------|
-| `NEXT_PUBLIC_URL` | Tu dominio final: `https://lavaca.app` |
+| `NEXT_PUBLIC_URL` | Tu dominio final: `https://lavaca.com.ve` |
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → `anon` `public` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Project Settings → API → `service_role` `secret` |
@@ -215,7 +215,7 @@ Environment Variables** (producción).
 ### 4.3 Webhook
 
 - [ ] Dashboard → Developers → Webhooks → **Add endpoint**.
-- [ ] Endpoint URL: `https://lavaca.app/api/payments/stripe/webhook`
+- [ ] Endpoint URL: `https://lavaca.com.ve/api/payments/stripe/webhook`
 - [ ] Eventos a suscribir:
   - `checkout.session.completed`
   - `checkout.session.async_payment_failed`
@@ -248,7 +248,7 @@ Environment Variables** (producción).
 ### 5.3 Webhook
 
 - [ ] Merchant Portal → Developer → Webhook.
-- [ ] URL: `https://lavaca.app/api/payments/binance/webhook`
+- [ ] URL: `https://lavaca.com.ve/api/payments/binance/webhook`
 - [ ] El webhook se autentica con HMAC SHA-512 usando `BINANCE_API_SECRET`
       (ya manejado en `/lib/payments/providers/binance-provider.ts`).
 
@@ -302,7 +302,7 @@ Una vez tengas la documentación oficial, revisar:
 ### 6.4 Webhook
 
 - [ ] Registrar en el portal de ChinChin la URL:
-      `https://lavaca.app/api/payments/chinchin/webhook`
+      `https://lavaca.com.ve/api/payments/chinchin/webhook`
 
 ### 6.5 Migración de DB
 
@@ -338,7 +338,7 @@ select code, name, is_active from public.payment_method_configs where code = 'ch
 ### 7.3 Webhook
 
 - [ ] Dashboard → Webhooks → Add Webhook
-- [ ] URL: `https://lavaca.app/api/payments/paypal/webhook`
+- [ ] URL: `https://lavaca.com.ve/api/payments/paypal/webhook`
 - [ ] Eventos:
   - `CHECKOUT.ORDER.APPROVED`
   - `CHECKOUT.ORDER.COMPLETED`
@@ -374,7 +374,7 @@ Estos NO requieren API externa. Funcionan así: el donante reporta su pago
 
 - [ ] `.env`:
   ```
-  ZELLE_EMAIL=donations@lavaca.app
+  ZELLE_EMAIL=donations@lavaca.com.ve
   ZELLE_PHONE=+58XXXXXXXXX
   ```
 - [ ] `/admin/payment-methods` → editar fila `zelle` con email/teléfono
@@ -413,7 +413,7 @@ Opción recomendada: **Resend** (https://resend.com).
 ### 9.1 Crear cuenta Resend
 
 - [ ] Sign up en https://resend.com (free tier: 3,000 emails/mes).
-- [ ] Verificar tu dominio (`lavaca.app`) agregando los registros DNS
+- [ ] Verificar tu dominio (`lavaca.com.ve`) agregando los registros DNS
       (SPF, DKIM, DMARC) que Resend pide.
 - [ ] Crear un **API key**.
 - [ ] Agregar `RESEND_API_KEY` a `.env`.
@@ -443,7 +443,7 @@ export async function sendEmail({
     return;
   }
   await resend.emails.send({
-    from: "LaVaca <no-reply@lavaca.app>",
+    from: "LaVaca <no-reply@lavaca.com.ve>",
     to,
     subject,
     html,
@@ -508,26 +508,26 @@ operacionalmente más manual.
 
 ### 11.3 Dominio
 
-- [ ] Settings → Domains → agregar `lavaca.app` y `www.lavaca.app`.
+- [ ] Settings → Domains → agregar `lavaca.com.ve` y `www.lavaca.com.ve`.
 - [ ] Configurar DNS en tu registrador:
   - `A` o `ALIAS` apuntando a la IP/CNAME que Vercel indique.
 - [ ] Esperar emisión de cert SSL (automática, ~2 min).
-- [ ] Actualizar `NEXT_PUBLIC_URL` a `https://lavaca.app` y redeploy.
+- [ ] Actualizar `NEXT_PUBLIC_URL` a `https://lavaca.com.ve` y redeploy.
 
 ### 11.4 Configurar URL en Supabase
 
 Repetir lo de la sección 2.4 con la URL real:
 
-- [ ] Supabase → Auth → URL Configuration → Site URL = `https://lavaca.app`.
+- [ ] Supabase → Auth → URL Configuration → Site URL = `https://lavaca.com.ve`.
 
 ### 11.5 Actualizar webhooks de cada pasarela
 
 Cambiar la URL de los webhooks de localhost al dominio final:
 
-- [ ] Stripe: `https://lavaca.app/api/payments/stripe/webhook`
-- [ ] Binance: `https://lavaca.app/api/payments/binance/webhook`
-- [ ] PayPal: `https://lavaca.app/api/payments/paypal/webhook`
-- [ ] ChinChin: `https://lavaca.app/api/payments/chinchin/webhook`
+- [ ] Stripe: `https://lavaca.com.ve/api/payments/stripe/webhook`
+- [ ] Binance: `https://lavaca.com.ve/api/payments/binance/webhook`
+- [ ] PayPal: `https://lavaca.com.ve/api/payments/paypal/webhook`
+- [ ] ChinChin: `https://lavaca.com.ve/api/payments/chinchin/webhook`
 
 ---
 
@@ -557,7 +557,7 @@ monto reales** ($1 cada una):
 
 ### 13.1 Como visitante
 
-- [ ] Abrir `https://lavaca.app` → ver campañas destacadas y stats reales.
+- [ ] Abrir `https://lavaca.com.ve` → ver campañas destacadas y stats reales.
 - [ ] Ir a una campaña → ver detalle, gallería, descripción.
 - [ ] Click "Donar Ahora" → checkout.
 
@@ -699,7 +699,7 @@ Revisar diariamente:
 
 ### 15.3 Soporte
 
-- [ ] Definir email de soporte (`soporte@lavaca.app`) y publicarlo en footer.
+- [ ] Definir email de soporte (`soporte@lavaca.com.ve`) y publicarlo en footer.
 - [ ] Establecer SLA interno para responder pagos manuales (≤ 24h
       recomendado, idealmente ≤ 4h en horario laboral).
 

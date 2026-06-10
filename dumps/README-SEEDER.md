@@ -7,7 +7,7 @@ Este documento explica cómo usar el seeder de datos de prueba para LaVaca.
 El archivo `08-seed-test-data.sql` incluye:
 
 ### Usuarios (10 total)
-- **1 Admin**: `admin@lavaca.app`
+- **1 Admin**: `admin@lavaca.com.ve`
 - **4 Creadores**:
   - `maria.gonzalez@example.com` (verificada) - Campaña de salud
   - `carlos.rodriguez@example.com` (verificado) - Campaña educativa

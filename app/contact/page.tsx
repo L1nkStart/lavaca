@@ -13,22 +13,22 @@ const CHANNELS = [
     {
         icon: Mail,
         title: "Soporte general",
-        value: "soporte@lavaca.app",
-        href: "mailto:soporte@lavaca.app",
+        value: "soporte@lavaca.com.ve",
+        href: "mailto:soporte@lavaca.com.ve",
         description: "Para dudas sobre tu cuenta, donaciones o KYC.",
     },
     {
         icon: ShieldQuestion,
         title: "Reportar campaña",
-        value: "reportes@lavaca.app",
-        href: "mailto:reportes@lavaca.app",
+        value: "reportes@lavaca.com.ve",
+        href: "mailto:reportes@lavaca.com.ve",
         description: "Si detectaste una campaña sospechosa.",
     },
     {
         icon: MessageCircle,
         title: "Prensa y alianzas",
-        value: "hola@lavaca.app",
-        href: "mailto:hola@lavaca.app",
+        value: "hola@lavaca.com.ve",
+        href: "mailto:hola@lavaca.com.ve",
         description: "ONGs, medios, partners y propuestas de integración.",
     },
 ];

@@ -76,7 +76,7 @@ BINANCE_API_KEY=xxxxx
 BINANCE_API_SECRET=xxxxx
 
 # Zelle (Manual)
-ZELLE_EMAIL=donations@lavaca.app
+ZELLE_EMAIL=donations@lavaca.com.ve
 ZELLE_PHONE=+1234567890
 
 # PagoMóvil (Manual)

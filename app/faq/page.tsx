@@ -122,7 +122,7 @@ const SECTIONS: Section[] = [
             },
             {
                 q: "Detecté una campaña sospechosa, ¿qué hago?",
-                a: "Usá el botón 'Reportar' en la campaña o escribinos a reportes@lavaca.app. Revisamos cada reporte y suspendemos las campañas fraudulentas inmediatamente.",
+                a: "Usá el botón 'Reportar' en la campaña o escribinos a reportes@lavaca.com.ve. Revisamos cada reporte y suspendemos las campañas fraudulentas inmediatamente.",
             },
             {
                 q: "¿Mis datos están seguros?",

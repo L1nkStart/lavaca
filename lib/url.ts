@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
  * a `http://localhost:3000` ni al hostname interno del contenedor.
  *
  *   1. `process.env.NEXT_PUBLIC_URL` — el valor que configurás en Coolify
- *      (ej: `https://lavaca.app`). Siempre fuente de verdad si está seteado.
+ *      (ej: `https://lavaca.com.ve`). Siempre fuente de verdad si está seteado.
  *   2. `x-forwarded-host` + `x-forwarded-proto` — los headers que un
  *      reverse proxy bien configurado (Traefik/Coolify) inyecta para que
  *      la app sepa cuál fue la URL pública original.

@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  *
  *   curl -sS -X POST \
  *     -H "Authorization: Bearer $CRON_SECRET" \
- *     https://lavaca.app/api/cron/exchange-rate
+ *     https://lavaca.com.ve/api/cron/exchange-rate
  *
  * Acepta tanto POST como GET para facilitar el setup en cualquier scheduler.
  */

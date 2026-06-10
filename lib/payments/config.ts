@@ -222,7 +222,7 @@ export function initializePayments() {
         enabled: true,
         environment: isTestMode() ? 'sandbox' : 'production',
         customConfig: {
-            email: process.env.ZELLE_EMAIL || 'donations@lavaca.app',
+            email: process.env.ZELLE_EMAIL || 'donations@lavaca.com.ve',
             phone: process.env.ZELLE_PHONE || '+58424123456',
         },
     });
