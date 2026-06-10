@@ -41,6 +41,20 @@ const VENEZUELA_STATES = [
     'Zulia',
 ]
 
+/**
+ * Estado visual del KYC, derivado de combinar:
+ *   - `users.kyc_status` (lo que realmente determina si podés crear campañas)
+ *   - `verification_requests` más reciente (log de la solicitud, incluye motivo de rechazo)
+ *
+ * Estados:
+ *   - 'loading'   → consultando.
+ *   - 'verified'  → ya aprobado, sin form (success card).
+ *   - 'in_review' → solicitud en revisión, sin form.
+ *   - 'rejected'  → mostrar motivo de rechazo + form para reenviar.
+ *   - 'new'       → primer envío, form completo sin alertas.
+ */
+type KycViewState = 'loading' | 'verified' | 'in_review' | 'rejected' | 'new'
+
 export function KYCFormImproved() {
     const router = useRouter()
     const supabase = createClient()
@@ -49,9 +63,10 @@ export function KYCFormImproved() {
     const [verificationType, setVerificationType] = useState<'individual' | 'company'>('individual')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [checkingExistingRequest, setCheckingExistingRequest] = useState(true)
-    const [existingRequestStatus, setExistingRequestStatus] = useState<string | null>(null)
+    const [viewState, setViewState] = useState<KycViewState>('loading')
     const [rejectionReason, setRejectionReason] = useState<string | null>(null)
+    const [requestSubmittedAt, setRequestSubmittedAt] = useState<string | null>(null)
+    const [verifiedAt, setVerifiedAt] = useState<string | null>(null)
     const [accountEmail, setAccountEmail] = useState('')
     const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
 
@@ -86,39 +101,72 @@ export function KYCFormImproved() {
 
                 if (!user) {
                     setError('No autenticado')
+                    setViewState('new')
                     return
                 }
 
                 setAccountEmail(user.email || '')
                 setEmail(user.email || '')
 
-                const { data: latestRequest } = await supabase
-                    .from('verification_requests')
-                    .select('status, rejection_reason, created_at')
-                    .eq('user_id', user.id)
-                    .order('created_at', { ascending: false })
-                    .limit(1)
-                    .maybeSingle()
+                // Consultamos las dos fuentes de verdad en paralelo:
+                //   - public.users.kyc_status: lo que decide si podés crear campañas.
+                //   - verification_requests más reciente: para mostrar motivo de rechazo
+                //     o "en revisión" según el estado.
+                const [profileResult, requestResult] = await Promise.all([
+                    supabase
+                        .from('users')
+                        .select('kyc_status, verified_at, kyc_rejected_reason')
+                        .eq('id', user.id)
+                        .maybeSingle(),
+                    supabase
+                        .from('verification_requests')
+                        .select('status, rejection_reason, rejection_details, created_at, reviewed_at')
+                        .eq('user_id', user.id)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle(),
+                ])
+
+                const kycStatus = profileResult.data?.kyc_status
+                const latestRequest = requestResult.data
+
+                if (kycStatus === 'verified') {
+                    setVerifiedAt(profileResult.data?.verified_at || latestRequest?.reviewed_at || null)
+                    setViewState('verified')
+                    return
+                }
 
                 if (latestRequest && ['pending', 'under_review'].includes(latestRequest.status)) {
-                    setExistingRequestStatus(latestRequest.status)
+                    setRequestSubmittedAt(latestRequest.created_at)
+                    setViewState('in_review')
+                    return
                 }
 
-                if (latestRequest?.status === 'rejected') {
-                    setRejectionReason(latestRequest.rejection_reason || 'Tu solicitud fue rechazada. Revisa y corrige la información antes de reenviar.')
-                    setExistingRequestStatus(null)
+                const rejectionMessage =
+                    latestRequest?.status === 'rejected'
+                        ? [latestRequest.rejection_reason, latestRequest.rejection_details].filter(Boolean).join(' — ')
+                        : profileResult.data?.kyc_rejected_reason
+
+                if (kycStatus === 'rejected' || latestRequest?.status === 'rejected') {
+                    setRejectionReason(
+                        rejectionMessage ||
+                            'Tu solicitud fue rechazada. Revisa y corrige la información antes de reenviar.',
+                    )
+                    setViewState('rejected')
+                    return
                 }
+
+                setViewState('new')
             } catch (err: any) {
                 setError(err.message || 'No se pudo cargar la información de verificación')
-            } finally {
-                setCheckingExistingRequest(false)
+                setViewState('new')
             }
         }
 
         loadInitialKycContext()
     }, [supabase])
 
-    const isSubmissionBlocked = checkingExistingRequest || !!existingRequestStatus
+    const isSubmissionBlocked = viewState === 'loading' || viewState === 'in_review' || viewState === 'verified'
 
     const handleFileChange = (setter: (file: File | null) => void) => (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
@@ -193,8 +241,11 @@ export function KYCFormImproved() {
         setError(null)
 
         try {
-            if (existingRequestStatus) {
+            if (viewState === 'in_review') {
                 throw new Error('Ya tienes una solicitud de verificación en revisión. Debes esperar a que sea aprobada o rechazada.')
+            }
+            if (viewState === 'verified') {
+                throw new Error('Tu cuenta ya está verificada.')
             }
 
             // Validate
@@ -265,13 +316,22 @@ export function KYCFormImproved() {
 
             if (insertError) throw insertError
 
-            // Update profile to allow campaign creation
+            // Marcamos el perfil del usuario como kyc pendiente. (La tabla real
+            // se llama `users`, no `profiles` — bug que existía antes.)
             await supabase
-                .from('profiles')
-                .update({ kyc_status: 'pending' })
+                .from('users')
+                .update({
+                    kyc_status: 'pending',
+                    kyc_rejected_reason: null,
+                })
                 .eq('id', user.id)
 
-            router.push('/creator/campaigns/create')
+            // Cambiamos al estado "en revisión" sin redirigir, así el usuario
+            // ve de inmediato que su envío llegó. router.refresh() actualiza
+            // cualquier server component que dependa del kyc_status.
+            setRejectionReason(null)
+            setRequestSubmittedAt(new Date().toISOString())
+            setViewState('in_review')
             router.refresh()
 
         } catch (err: any) {
@@ -282,6 +342,117 @@ export function KYCFormImproved() {
         }
     }
 
+    // ============================================================
+    // RENDERS CONDICIONALES — antes del form
+    // ============================================================
+
+    if (viewState === 'loading') {
+        return (
+            <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                <span className="ml-3 text-sm text-muted-foreground">
+                    Cargando estado de verificación…
+                </span>
+            </div>
+        )
+    }
+
+    if (viewState === 'verified') {
+        return (
+            <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
+                <CardContent className="pt-6 space-y-4">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="text-lg font-semibold text-green-900 dark:text-green-100">
+                                Tu cuenta está verificada ✓
+                            </h3>
+                            <p className="text-sm text-green-800 dark:text-green-200 mt-1">
+                                Ya pasaste el proceso de verificación de identidad.
+                                Podés crear campañas y recibir donaciones sin restricciones.
+                            </p>
+                            {verifiedAt && (
+                                <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+                                    Verificado el{' '}
+                                    {new Date(verifiedAt).toLocaleDateString('es-VE', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric',
+                                    })}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="border-t border-green-200 dark:border-green-800 pt-4">
+                        <p className="text-xs text-muted-foreground">
+                            Si necesitás actualizar tu información personal, escribinos
+                            a{' '}
+                            <a href="mailto:soporte@lavaca.com.ve" className="underline">
+                                soporte@lavaca.com.ve
+                            </a>
+                            .
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    if (viewState === 'in_review') {
+        return (
+            <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800">
+                <CardContent className="pt-6 space-y-4">
+                    <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center shrink-0">
+                            <Loader2 className="h-6 w-6 text-amber-600 dark:text-amber-400 animate-spin" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-100">
+                                Tu solicitud está en revisión
+                            </h3>
+                            <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                                Recibimos tus documentos y nuestro equipo los está
+                                verificando. Cuando aprobemos o rechacemos tu solicitud,
+                                te avisamos por correo y este panel se actualizará.
+                            </p>
+                            {requestSubmittedAt && (
+                                <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                                    Enviada el{' '}
+                                    {new Date(requestSubmittedAt).toLocaleDateString('es-VE', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    <Alert className="border-amber-300/50 bg-amber-100/50 dark:bg-amber-900/30">
+                        <Shield className="h-4 w-4" />
+                        <AlertDescription className="text-sm">
+                            Tiempo estimado de revisión:{' '}
+                            <strong>menos de 48 horas hábiles</strong>. Si pasaron
+                            más de 72 horas y no recibiste respuesta, escribinos a{' '}
+                            <a href="mailto:soporte@lavaca.com.ve" className="underline font-medium">
+                                soporte@lavaca.com.ve
+                            </a>
+                            .
+                        </AlertDescription>
+                    </Alert>
+                </CardContent>
+            </Card>
+        )
+    }
+
+    // viewState === 'new' o 'rejected' → renderizamos el form completo.
+    // En 'rejected' además mostramos el motivo arriba.
+
     return (
         <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
@@ -291,40 +462,38 @@ export function KYCFormImproved() {
                 </Alert>
             )}
 
+            {viewState === 'rejected' && rejectionReason && (
+                <Card className="border-destructive/30 bg-destructive/5">
+                    <CardContent className="pt-6 space-y-3">
+                        <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center shrink-0">
+                                <AlertCircle className="h-5 w-5 text-destructive" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <h3 className="font-semibold text-destructive">
+                                    Tu solicitud anterior fue rechazada
+                                </h3>
+                                <p className="text-sm mt-2">
+                                    <strong>Motivo:</strong> {rejectionReason}
+                                </p>
+                                <p className="text-xs text-muted-foreground mt-3">
+                                    Revisá la información y volvé a enviar el formulario.
+                                    Asegurate de corregir lo que indicamos arriba.
+                                </p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
             {/* Info Alert */}
-            <Alert className="bg-blue-50 border-blue-200">
+            <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
                 <Shield className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-800">
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
                     <strong>Importante:</strong> No podrás crear campañas mientras revisamos tu solicitud.
                     La verificación toma 24-48 horas.
                 </AlertDescription>
             </Alert>
-
-            {checkingExistingRequest && (
-                <Alert>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <AlertDescription>Verificando estado de solicitudes previas...</AlertDescription>
-                </Alert>
-            )}
-
-            {existingRequestStatus && (
-                <Alert>
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                        Ya tienes una solicitud de verificación {existingRequestStatus === 'under_review' ? 'en revisión' : 'pendiente'}.
-                        Debes esperar a que sea aprobada o rechazada para enviar una nueva.
-                    </AlertDescription>
-                </Alert>
-            )}
-
-            {rejectionReason && (
-                <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>
-                        <strong>Tu verificación fue rechazada.</strong> Motivo: {rejectionReason}
-                    </AlertDescription>
-                </Alert>
-            )}
 
             {/* Verification Type */}
             <Card>
