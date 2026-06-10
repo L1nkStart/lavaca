@@ -12,10 +12,20 @@ interface Donation {
 
 interface CampaignDonorsListProps {
   donations: Donation[];
+  /** Total completed-donation count (may exceed the fetched list). */
+  totalCount?: number;
 }
 
-export function CampaignDonorsList({ donations }: CampaignDonorsListProps) {
+const usd = (n: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(n || 0);
+
+export function CampaignDonorsList({ donations, totalCount }: CampaignDonorsListProps) {
   const recentDonations = donations.slice(0, 10);
+  const count = totalCount ?? donations.length;
 
   return (
     <Card>
@@ -25,7 +35,9 @@ export function CampaignDonorsList({ donations }: CampaignDonorsListProps) {
             <Heart className="w-5 h-5 text-accent" />
             Donantes Recientes
           </CardTitle>
-          <Badge variant="secondary">{donations.length} donantes</Badge>
+          <Badge variant="secondary">
+            {count} {count === 1 ? "donante" : "donantes"}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
@@ -38,10 +50,10 @@ export function CampaignDonorsList({ donations }: CampaignDonorsListProps) {
             recentDonations.map((donation) => (
               <div
                 key={donation.id}
-                className="flex items-center justify-between py-3 border-b border-border last:border-0"
+                className="flex items-center justify-between gap-3 py-3 border-b border-border last:border-0"
               >
-                <div className="flex-1">
-                  <p className="font-medium text-sm">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-sm">
                     {donation.isAnonymous ? "Donante anónimo" : donation.donorName}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -51,8 +63,8 @@ export function CampaignDonorsList({ donations }: CampaignDonorsListProps) {
                     })}
                   </p>
                 </div>
-                <p className="font-bold text-primary text-sm">
-                  ${donation.amount.toFixed(2)}
+                <p className="shrink-0 font-mono text-sm font-bold text-primary">
+                  {usd(donation.amount)}
                 </p>
               </div>
             ))
