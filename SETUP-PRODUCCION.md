@@ -109,11 +109,28 @@ Desde **Authentication → Providers**:
   - Authorized redirect URI: `https://<tu-proyecto>.supabase.co/auth/v1/callback`
   - Pegar `Client ID` y `Client Secret` en Supabase.
 
-Desde **Authentication → URL Configuration**:
+Desde **Authentication → URL Configuration** ⚠️ **CRÍTICO**:
 
-- [ ] Site URL: `https://lavaca.app` (o tu dominio final).
-- [ ] Redirect URLs: agregar `https://lavaca.app/auth/callback` y, durante
-      desarrollo, `http://localhost:3000/auth/callback`.
+> Si esto no está bien, el flujo de Google/OAuth y los emails de
+> verificación van a mandar al usuario a `http://localhost:3000` aunque
+> tu app esté en producción. Supabase **silenciosamente** redirige al
+> Site URL como fallback cuando el `redirectTo` solicitado no está en la
+> whitelist.
+
+- [ ] **Site URL**: `https://lavaca.app` (o tu dominio Coolify final).
+      No debe ser `localhost` jamás en producción.
+- [ ] **Redirect URLs** (whitelist): agregar **todas** estas rutas con
+      tu dominio final:
+  - `https://lavaca.app/auth/callback`
+  - `https://lavaca.app/auth/verify`
+  - `https://lavaca.app/auth/login`
+  - `https://lavaca.app/`
+  - (Wildcard alternativo: `https://lavaca.app/**`)
+
+  Y para desarrollo local también:
+  - `http://localhost:3000/auth/callback`
+  - `http://localhost:3000/auth/verify`
+  - `http://localhost:3000/**`
 
 Desde **Authentication → Email Templates**:
 

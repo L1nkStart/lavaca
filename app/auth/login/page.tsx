@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { getClientBaseUrl } from '@/lib/url'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -113,7 +114,7 @@ function LoginForm() {
         type: 'signup',
         email,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/verify?redirect_to=${encodeURIComponent(redirectTo)}`,
+          emailRedirectTo: `${getClientBaseUrl()}/auth/verify?redirect_to=${encodeURIComponent(redirectTo)}`,
         },
       })
 
@@ -139,7 +140,7 @@ function LoginForm() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+          redirectTo: `${getClientBaseUrl()}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
         }
       })
 
@@ -164,7 +165,7 @@ function LoginForm() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset-password`
+        redirectTo: `${getClientBaseUrl()}/auth/reset-password`
       })
 
       if (error) {

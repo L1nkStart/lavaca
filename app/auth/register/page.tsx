@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Eye, EyeOff, Loader2, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Checkbox } from '@/components/ui/checkbox'
+import { getClientBaseUrl } from '@/lib/url'
 
 function RegisterForm() {
     const CURRENT_TERMS_VERSION = 'v1.0'
@@ -83,7 +84,7 @@ function RegisterForm() {
                 email: formData.email,
                 password: formData.password,
                 options: {
-                    emailRedirectTo: `${window.location.origin}/auth/verify?redirect_to=${encodeURIComponent(redirectTo)}`,
+                    emailRedirectTo: `${getClientBaseUrl()}/auth/verify?redirect_to=${encodeURIComponent(redirectTo)}`,
                     data: {
                         full_name: formData.fullName,
                     },
@@ -140,7 +141,7 @@ function RegisterForm() {
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+                    redirectTo: `${getClientBaseUrl()}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
                 }
             })
 

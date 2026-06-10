@@ -1,56 +1,53 @@
-import { createClient } from '@/lib/supabase/server'
-import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
+import { buildAbsoluteUrl } from "@/lib/url";
 
 export async function GET(request: NextRequest) {
-    const { searchParams, origin } = new URL(request.url)
-    const code = searchParams.get('code')
-    const next = searchParams.get('redirectTo') ?? '/'
+    const { searchParams } = new URL(request.url);
+    const code = searchParams.get("code");
+    const next = searchParams.get("redirectTo") ?? "/";
 
     if (code) {
-        const supabase = await createClient()
+        const supabase = await createClient();
 
-        const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+        const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
         if (!error && data.user) {
-            // Check if user profile exists
+            // Crear el perfil si no existe (típico flujo OAuth).
             const { data: existingProfile } = await supabase
-                .from('users')
-                .select('id')
-                .eq('id', data.user.id)
-                .maybeSingle()
+                .from("users")
+                .select("id")
+                .eq("id", data.user.id)
+                .maybeSingle();
 
-            // Create profile if it doesn't exist (OAuth users)
             if (!existingProfile) {
                 const { error: profileError } = await supabase
-                    .from('users')
-                    .upsert({
-                        id: data.user.id,
-                        email: data.user.email!,
-                        full_name: data.user.user_metadata?.full_name || data.user.user_metadata?.name || 'Usuario',
-                        avatar_url: data.user.user_metadata?.avatar_url,
-                        role: 'donor', // Default role
-                        kyc_status: 'pending',
-                    }, { onConflict: 'id' })
+                    .from("users")
+                    .upsert(
+                        {
+                            id: data.user.id,
+                            email: data.user.email!,
+                            full_name:
+                                data.user.user_metadata?.full_name ||
+                                data.user.user_metadata?.name ||
+                                "Usuario",
+                            avatar_url: data.user.user_metadata?.avatar_url,
+                            role: "donor",
+                            kyc_status: "pending",
+                        },
+                        { onConflict: "id" },
+                    );
 
                 if (profileError) {
-                    console.error('Error creating OAuth profile:', profileError)
+                    console.error("Error creating OAuth profile:", profileError);
                 }
             }
 
-            // Successful authentication, redirect to intended page
-            const forwardedHost = request.headers.get('x-forwarded-host') // original origin before load balancer
-            const isLocalEnv = process.env.NODE_ENV === 'development'
-
-            if (isLocalEnv) {
-                return NextResponse.redirect(`${origin}${next}`)
-            } else if (forwardedHost) {
-                return NextResponse.redirect(`https://${forwardedHost}${next}`)
-            } else {
-                return NextResponse.redirect(`${origin}${next}`)
-            }
+            return NextResponse.redirect(buildAbsoluteUrl(request, next));
         }
     }
 
-    // Return the user to an error page with instructions if authentication failed
-    return NextResponse.redirect(`${origin}/auth/login?error=authentication_failed`)
+    return NextResponse.redirect(
+        buildAbsoluteUrl(request, "/auth/login?error=authentication_failed"),
+    );
 }
