@@ -19,6 +19,8 @@ interface Payment {
   email: string
   is_anonymous: boolean
   amount_usd: number
+  amount_bs: number | null
+  currency: 'USD' | 'BS' | null
   payment_method: string
   reference_number: string | null
   payment_status: string
@@ -301,10 +303,23 @@ export default function AdminPaymentsPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold text-primary">
-                        ${payment.amount_usd.toFixed(2)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">USD</p>
+                      {payment.currency === 'BS' && payment.amount_bs != null ? (
+                        <>
+                          <p className="text-2xl font-bold text-primary">
+                            Bs {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(payment.amount_bs)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            ≈ ${payment.amount_usd.toFixed(2)} USD
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-2xl font-bold text-primary">
+                            ${payment.amount_usd.toFixed(2)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">USD</p>
+                        </>
+                      )}
                     </div>
                   </div>
 

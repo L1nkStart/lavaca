@@ -461,6 +461,9 @@ export function DonationCheckout({
                 body: JSON.stringify({
                     campaignId,
                     amountUSD: amountInUSD,
+                    // Monto Bs exacto: para métodos en bolívares el servidor lo
+                    // usa como canónico (evita re-conversiones con tasas distintas).
+                    amountBs: currency === 'BS' ? amount : null,
                     paymentMethod,
                     coverFees: effectiveCoverFees,
                     isAnonymous,

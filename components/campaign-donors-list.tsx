@@ -5,6 +5,9 @@ import { Heart } from 'lucide-react';
 interface Donation {
   id: string;
   amount: number;
+  /** Moneda original de la donación; BS se muestra sin indexar (transparencia) */
+  currency?: "USD" | "BS" | null;
+  amountBs?: number | null;
   donorName: string;
   isAnonymous: boolean;
   date: Date;
@@ -22,6 +25,11 @@ const usd = (n: number) =>
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(n || 0);
+
+const bs = (n: number) =>
+  `Bs ${new Intl.NumberFormat("es-VE", {
+    maximumFractionDigits: 0,
+  }).format(n || 0)}`;
 
 export function CampaignDonorsList({ donations, totalCount }: CampaignDonorsListProps) {
   const recentDonations = donations.slice(0, 10);
@@ -63,8 +71,10 @@ export function CampaignDonorsList({ donations, totalCount }: CampaignDonorsList
                     })}
                   </p>
                 </div>
-                <p className="shrink-0 font-mono text-sm font-bold text-primary">
-                  {usd(donation.amount)}
+                <p className="shrink-0 font-mono text-sm font-bold text-primary text-right">
+                  {donation.currency === "BS" && donation.amountBs != null
+                    ? bs(donation.amountBs)
+                    : usd(donation.amount)}
                 </p>
               </div>
             ))

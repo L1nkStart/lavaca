@@ -39,12 +39,6 @@ type ViewAggregateRow = {
   campaign_id: string
 }
 
-type WithdrawalAggregateRow = {
-  campaign_id: string | null
-  amount_usd: number
-  status: string
-}
-
 export default async function CreatorDashboard() {
   const supabase = await createClient()
 
@@ -112,26 +106,6 @@ export default async function CreatorDashboard() {
 
   const viewCountByCampaign = new Map<string, number>()
 
-  const { data: withdrawalRows } = campaignIds.length > 0
-    ? await supabase
-      .from('withdrawal_requests')
-      .select('campaign_id, amount_usd, status')
-      .eq('creator_id', user.id)
-      .in('campaign_id', campaignIds)
-    : { data: [] as WithdrawalAggregateRow[] }
-
-  const withdrawnAmountByCampaign = new Map<string, number>()
-
-  for (const withdrawal of (withdrawalRows || []) as WithdrawalAggregateRow[]) {
-    if (!withdrawal.campaign_id) continue
-    if (withdrawal.status !== 'processed') continue
-
-    withdrawnAmountByCampaign.set(
-      withdrawal.campaign_id,
-      (withdrawnAmountByCampaign.get(withdrawal.campaign_id) || 0) + Number(withdrawal.amount_usd || 0)
-    )
-  }
-
   if (!viewRowsError) {
     for (const row of (viewRows || []) as ViewAggregateRow[]) {
       viewCountByCampaign.set(row.campaign_id, (viewCountByCampaign.get(row.campaign_id) || 0) + 1)
@@ -180,6 +154,8 @@ export default async function CreatorDashboard() {
       .select(`
           id,
           amount_usd,
+          amount_bs,
+          currency,
           donor_name,
           is_anonymous,
           payment_method,
@@ -485,13 +461,20 @@ export default async function CreatorDashboard() {
                 <Card key={campaign.id}>
                   <CardContent className="pt-6">
                     {(() => {
-                      const withdrawnAmount = withdrawnAmountByCampaign.get(campaign.id) || 0
-                      const availableAmount = Math.max(Number(campaign.current_amount_usd || 0) - withdrawnAmount, 0)
+                      // Saldos por moneda del RPC: nunca se suman Bs con USD.
+                      const campaignBalances = balancesByCampaign.get(campaign.id)
+                      const withdrawnBs = Number(campaignBalances?.withdrawn_bs || 0)
+                      const withdrawnUsd = Number(campaignBalances?.withdrawn_usd || 0)
+                      const saldoBs = Number(campaignBalances?.saldo_bs || 0)
+                      const saldoUsd = Number(campaignBalances?.saldo_usd || 0)
+                      const currentRate = Number(campaignBalances?.current_rate || 0)
+                      // Solo para la barra visual: equivalente USD aproximado del retiro total
+                      const withdrawnUsdEquivalent = withdrawnUsd + (currentRate > 0 ? withdrawnBs / currentRate : 0)
                       const totalProgress = campaign.goal_amount_usd > 0
                         ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100
                         : 0
                       const withdrawnProgress = campaign.goal_amount_usd > 0
-                        ? (withdrawnAmount / campaign.goal_amount_usd) * 100
+                        ? (withdrawnUsdEquivalent / campaign.goal_amount_usd) * 100
                         : 0
 
                       return (
@@ -548,10 +531,22 @@ export default async function CreatorDashboard() {
                                   <span className="text-muted-foreground">Total:</span> ${Number(campaign.current_amount_usd || 0).toFixed(2)}
                                 </div>
                                 <div className="rounded-md border bg-purple-50 dark:bg-purple-950/20 px-2 py-1">
-                                  <span className="text-muted-foreground">Retirado:</span> ${withdrawnAmount.toFixed(2)}
+                                  <span className="text-muted-foreground">Retirado:</span>{' '}
+                                  {withdrawnBs <= 0 && withdrawnUsd <= 0
+                                    ? '$0.00'
+                                    : [
+                                      withdrawnUsd > 0 ? formatUsdAmount(withdrawnUsd) : null,
+                                      withdrawnBs > 0 ? formatBsAmount(withdrawnBs) : null,
+                                    ].filter(Boolean).join(' + ')}
                                 </div>
                                 <div className="rounded-md border bg-green-50 dark:bg-green-950/20 px-2 py-1">
-                                  <span className="text-muted-foreground">Disponible:</span> ${availableAmount.toFixed(2)}
+                                  <span className="text-muted-foreground">Disponible:</span>{' '}
+                                  {saldoBs <= 0 && saldoUsd <= 0
+                                    ? '$0.00'
+                                    : [
+                                      saldoUsd > 0 ? formatUsdAmount(saldoUsd) : null,
+                                      saldoBs > 0 ? formatBsAmount(saldoBs) : null,
+                                    ].filter(Boolean).join(' + ')}
                                 </div>
                               </div>
                             </div>
@@ -766,9 +761,21 @@ export default async function CreatorDashboard() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-semibold text-primary">
-                          ${Number(donation.amount_usd || 0).toFixed(2)}
-                        </p>
+                        {/* La donación se muestra en su moneda original (sin indexar) */}
+                        {donation.currency === 'BS' && donation.amount_bs != null ? (
+                          <>
+                            <p className="font-semibold text-primary">
+                              {formatBsAmount(Number(donation.amount_bs))}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              ≈ ${Number(donation.amount_usd || 0).toFixed(2)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="font-semibold text-primary">
+                            ${Number(donation.amount_usd || 0).toFixed(2)}
+                          </p>
+                        )}
                         <p className="text-xs text-muted-foreground">
                           {new Date(donation.created_at).toLocaleDateString("es-VE", {
                             month: "short",

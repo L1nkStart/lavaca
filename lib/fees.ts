@@ -89,6 +89,12 @@ export interface DonationAmounts {
  *   - Donante cubre el fee  -> paga amount + fee, la campaña acredita amount.
  *   - Donante no lo cubre   -> paga amount, la campaña acredita amount - fee.
  * La barra pública siempre suma amount_usd bruto; el saldo retirable usa el neto.
+ *
+ * Para donaciones en Bs, `exactAmountBs` es el monto canónico: los bolívares
+ * exactos que el donante transfirió. El neto Bs se calcula restando el fee
+ * sobre ESE monto, nunca re-convirtiendo USD->Bs (eso producía montos como
+ * "Bs 1.001,48" en una donación de Bs 1.000 por diferencias de tasa entre
+ * cliente y servidor).
  */
 export function computeDonationAmounts(params: {
     amountUsd: number;
@@ -96,21 +102,34 @@ export function computeDonationAmounts(params: {
     feeConfig: DonationFeeConfig;
     feeCoveredByDonor: boolean;
     exchangeRate: number;
+    exactAmountBs?: number | null;
 }): DonationAmounts {
-    const { amountUsd, methodCode, feeConfig, feeCoveredByDonor, exchangeRate } = params;
+    const { amountUsd, methodCode, feeConfig, feeCoveredByDonor, exchangeRate, exactAmountBs } = params;
     const currency = donationCurrencyForMethod(methodCode);
+    const round2 = (value: number) => Math.round(value * 100) / 100;
     const gatewayFeeUsd = computeDonationFeeUsd(amountUsd, feeConfig);
 
     const netAmountUsd = feeCoveredByDonor
         ? amountUsd
-        : Math.max(Math.round((amountUsd - gatewayFeeUsd) * 100) / 100, 0);
+        : Math.max(round2(amountUsd - gatewayFeeUsd), 0);
 
-    const netAmountBs = currency === 'BS'
-        ? Math.round(netAmountUsd * exchangeRate * 100) / 100
-        : null;
+    let netAmountBs: number | null = null;
+    if (currency === 'BS') {
+        if (exactAmountBs != null && exactAmountBs > 0) {
+            // Fee calculado nativamente en Bs sobre el monto exacto: evita
+            // que el redondeo del fee en USD (ej: $0.036 -> $0.04) infle o
+            // distorsione el descuento al convertirlo de vuelta.
+            const feeBs = feeCoveredByDonor
+                ? 0
+                : round2((exactAmountBs * feeConfig.percent) / 100 + feeConfig.fixedUsd * exchangeRate);
+            netAmountBs = Math.max(round2(exactAmountBs - feeBs), 0);
+        } else {
+            netAmountBs = round2(netAmountUsd * exchangeRate);
+        }
+    }
 
     const totalChargedUsd = feeCoveredByDonor
-        ? Math.round((amountUsd + gatewayFeeUsd) * 100) / 100
+        ? round2(amountUsd + gatewayFeeUsd)
         : amountUsd;
 
     return { currency, gatewayFeeUsd, netAmountUsd, netAmountBs, totalChargedUsd };

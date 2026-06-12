@@ -60,8 +60,8 @@ export default function AdminDashboard() {
         // Campaigns
         supabase.from('campaigns').select('id, status, current_amount_usd', { count: 'exact' }),
 
-        // Donations
-        supabase.from('donations').select('id, amount_usd, status', { count: 'exact' }),
+        // Donations (la columna correcta es payment_status, no status)
+        supabase.from('donations').select('id, amount_usd, payment_status', { count: 'exact' }),
 
         // Pending verifications
         supabase.from('verification_requests')
@@ -79,15 +79,15 @@ export default function AdminDashboard() {
               slug
             )
           `)
-          .eq('status', 'pending')
+          .eq('payment_status', 'pending')
           .order('created_at', { ascending: false })
           .limit(3),
 
         // Chart data - last 15 days
         supabase.from('donations')
-          .select('created_at, amount_usd, status')
+          .select('created_at, amount_usd, payment_status')
           .gte('created_at', new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString())
-          .eq('status', 'completed')
+          .eq('payment_status', 'completed')
       ])
 
       // Calculate stats
@@ -356,7 +356,9 @@ export default function AdminDashboard() {
                           <p className="text-xs text-muted-foreground">{getTimeAgo(item.created_at)}</p>
                         </div>
                         <p className="font-bold text-primary text-sm">
-                          ${item.amount_usd.toFixed(2)}
+                          {item.currency === 'BS' && item.amount_bs != null
+                            ? `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(item.amount_bs))}`
+                            : `$${item.amount_usd.toFixed(2)}`}
                         </p>
                       </div>
                     ))}

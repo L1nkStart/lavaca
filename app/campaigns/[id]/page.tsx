@@ -318,6 +318,9 @@ export default function CampaignPage() {
   const donationsList = donations.map(donation => ({
     id: donation.id,
     amount: donation.amount_usd,
+    // Moneda original: las donaciones Bs se muestran en Bs (sin indexar)
+    currency: (donation as any).currency ?? null,
+    amountBs: (donation as any).amount_bs ?? null,
     donorName: donation.is_anonymous ? 'Donante anónimo' : (donation.donor_name || 'Donante'),
     isAnonymous: donation.is_anonymous,
     date: new Date(donation.created_at)

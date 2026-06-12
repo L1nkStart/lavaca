@@ -4,7 +4,7 @@ import { PaymentManager } from "@/lib/payments/payment-manager";
 import { PaymentProvider, PaymentType } from "@/lib/payments/types";
 import { initializePayments, isProviderConfigured } from "@/lib/payments/config";
 import { getActiveExchangeRate } from "@/lib/exchange-rate";
-import { computeDonationAmounts, getDonationFeeConfig } from "@/lib/fees";
+import { computeDonationAmounts, donationCurrencyForMethod, getDonationFeeConfig } from "@/lib/fees";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +14,7 @@ export async function POST(request: NextRequest) {
     const {
       campaignId,
       amountUSD,
+      amountBs: rawAmountBs,
       paymentMethod,
       isAnonymous,
       donorEmail,
@@ -106,7 +107,31 @@ export async function POST(request: NextRequest) {
     // Resolve live Bs/USD rate so the donation snapshot reflects what the
     // donor actually saw (rather than a hard-coded placeholder).
     const liveExchangeRate = await getActiveExchangeRate();
-    const amountBs = Number((amountUSD * liveExchangeRate).toFixed(2));
+
+    // Para métodos en bolívares, el dato canónico es el monto Bs EXACTO que
+    // el donante transfirió (lo manda el checkout). El equivalente USD se
+    // deriva con la tasa del servidor. Antes el cliente convertía Bs->USD con
+    // su tasa y el servidor re-convertía USD->Bs con otra, produciendo montos
+    // como Bs 1.001,48 en una donación de Bs 1.000.
+    const donationCurrency = donationCurrencyForMethod(paymentMethod);
+    const parsedAmountBs = Number(rawAmountBs);
+    const exactAmountBs =
+      donationCurrency === "BS" && Number.isFinite(parsedAmountBs) && parsedAmountBs > 0
+        ? Math.round(parsedAmountBs * 100) / 100
+        : null;
+
+    const finalAmountUsd = exactAmountBs != null
+      ? Number((exactAmountBs / liveExchangeRate).toFixed(2))
+      : Number(amountUSD);
+
+    if (!Number.isFinite(finalAmountUsd) || finalAmountUsd <= 0) {
+      return NextResponse.json(
+        { error: "El monto de la donación no es válido" },
+        { status: 400 }
+      );
+    }
+
+    const amountBs = exactAmountBs ?? Number((finalAmountUsd * liveExchangeRate).toFixed(2));
 
     // Multi-moneda: el fee de pasarela se calcula SIEMPRE con la config de
     // la BD (nunca se confía en el valor del cliente). El donante puede
@@ -115,11 +140,12 @@ export async function POST(request: NextRequest) {
     const feeCoveredByDonor = coverFees === true;
     const donationFeeConfig = await getDonationFeeConfig(supabase, paymentMethod);
     const donationAmounts = computeDonationAmounts({
-      amountUsd: amountUSD,
+      amountUsd: finalAmountUsd,
       methodCode: paymentMethod,
       feeConfig: donationFeeConfig,
       feeCoveredByDonor,
       exchangeRate: liveExchangeRate,
+      exactAmountBs,
     });
 
     // Create donation record
@@ -129,7 +155,7 @@ export async function POST(request: NextRequest) {
         campaign_id: campaignId,
         donor_id: user?.id || null,
         email: finalDonorEmail,
-        amount_usd: amountUSD,
+        amount_usd: finalAmountUsd,
         amount_bs: amountBs,
         currency: donationAmounts.currency,
         gateway_fee_usd: donationAmounts.gatewayFeeUsd,

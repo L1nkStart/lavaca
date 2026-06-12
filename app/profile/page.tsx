@@ -105,7 +105,10 @@ export default async function ProfilePage({
         .order('created_at', { ascending: false })
 
     // Calculate stats
-    const totalDonated = donations?.reduce((sum, d) => sum + d.amount_usd, 0) || 0
+    // Solo donaciones completadas (las pendientes/rechazadas no cuentan)
+    const totalDonated = donations
+        ?.filter((d) => d.payment_status === 'completed')
+        .reduce((sum, d) => sum + (d.amount_usd || 0), 0) || 0
     const totalCampaigns = campaigns?.length || 0
     const totalRaised = campaigns?.reduce((sum, c) => sum + (c.current_amount_usd || 0), 0) || 0
     const donationsCount = donations?.length || 0
@@ -329,7 +332,11 @@ export default async function ProfilePage({
                                                         </p>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="font-bold text-primary">${donation.amount_usd}</p>
+                                                        <p className="font-bold text-primary">
+                                                            {donation.currency === 'BS' && donation.amount_bs != null
+                                                                ? `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(donation.amount_bs))}`
+                                                                : `$${Number(donation.amount_usd || 0).toFixed(2)}`}
+                                                        </p>
                                                         <Badge variant="outline" className="text-xs">
                                                             {donation.payment_method}
                                                         </Badge>
@@ -493,15 +500,32 @@ export default async function ProfilePage({
                                                     <div className="flex items-center gap-2 mt-2">
                                                         <Badge variant="outline">{donation.payment_method}</Badge>
                                                         <Badge
-                                                            variant={donation.status === 'completed' ? 'default' : 'secondary'}
+                                                            variant={donation.payment_status === 'completed' ? 'default' : 'secondary'}
                                                         >
-                                                            {donation.status}
+                                                            {donation.payment_status === 'completed'
+                                                                ? 'Completada'
+                                                                : donation.payment_status === 'pending'
+                                                                    ? 'En revisión'
+                                                                    : donation.payment_status === 'failed'
+                                                                        ? 'Rechazada'
+                                                                        : donation.payment_status}
                                                         </Badge>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-2xl font-bold text-primary">${donation.amount_usd}</p>
-                                                    <p className="text-sm text-muted-foreground">USD</p>
+                                                    {donation.currency === 'BS' && donation.amount_bs != null ? (
+                                                        <>
+                                                            <p className="text-2xl font-bold text-primary">
+                                                                Bs {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(donation.amount_bs))}
+                                                            </p>
+                                                            <p className="text-sm text-muted-foreground">≈ ${Number(donation.amount_usd || 0).toFixed(2)} USD</p>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <p className="text-2xl font-bold text-primary">${Number(donation.amount_usd || 0).toFixed(2)}</p>
+                                                            <p className="text-sm text-muted-foreground">USD</p>
+                                                        </>
+                                                    )}
                                                 </div>
                                             </div>
                                         ))}

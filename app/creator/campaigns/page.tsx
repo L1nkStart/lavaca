@@ -92,32 +92,6 @@ export default async function CreatorCampaignsPage() {
 
   const campaignIds = (campaigns || []).map((campaign: Campaign) => campaign.id)
 
-  const { data: campaignWithdrawalRequests } = campaignIds.length > 0
-    ? await supabase
-      .from('withdrawal_requests')
-      .select('campaign_id, amount_usd, status')
-      .in('campaign_id', campaignIds)
-      .eq('creator_id', user.id)
-    : { data: [] as { campaign_id: string | null; amount_usd: number; status: string }[] }
-
-  const processedWithdrawalsByCampaign = new Map<string, number>()
-  const pendingWithdrawalByCampaign = new Map<string, boolean>()
-
-  for (const request of campaignWithdrawalRequests || []) {
-    if (!request.campaign_id) continue
-
-    if (request.status === 'processed') {
-      processedWithdrawalsByCampaign.set(
-        request.campaign_id,
-        (processedWithdrawalsByCampaign.get(request.campaign_id) || 0) + Number(request.amount_usd || 0)
-      )
-    }
-
-    if (request.status === 'pending') {
-      pendingWithdrawalByCampaign.set(request.campaign_id, true)
-    }
-  }
-
   const { data: withdrawalAccounts } = await supabase
     .from('withdrawal_accounts')
     .select('id, account_type, account_holder_name, is_primary, verified')
@@ -282,11 +256,16 @@ export default async function CreatorCampaignsPage() {
                 const progressPercentage = campaign.goal_amount_usd > 0
                   ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100
                   : 0
-                const withdrawnAmount = processedWithdrawalsByCampaign.get(campaign.id) || 0
-                const withdrawnProgressPercentage = campaign.goal_amount_usd > 0
-                  ? (withdrawnAmount / campaign.goal_amount_usd) * 100
-                  : 0
                 const campaignBalances = balancesByCampaign.get(campaign.id) || { ...EMPTY_BALANCES, campaign_id: campaign.id }
+                // Barra visual de retiros: equivalente USD aproximado (Bs convertidos
+                // a la tasa de hoy + USD reales). Nunca se suman Bs con USD directo.
+                const withdrawnUsdEquivalent = Number(campaignBalances.withdrawn_usd || 0) +
+                  (Number(campaignBalances.current_rate) > 0
+                    ? Number(campaignBalances.withdrawn_bs || 0) / Number(campaignBalances.current_rate)
+                    : 0)
+                const withdrawnProgressPercentage = campaign.goal_amount_usd > 0
+                  ? (withdrawnUsdEquivalent / campaign.goal_amount_usd) * 100
+                  : 0
 
                 return (
                   <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow bg-card">
