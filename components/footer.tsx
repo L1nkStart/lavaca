@@ -64,6 +64,14 @@ export function Footer() {
                                 Preguntas frecuentes
                             </Link>
                         </li>
+                        <li>
+                            <Link
+                                href="/fees"
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                Comisiones y tarifas
+                            </Link>
+                        </li>
                     </ul>
                 </div>
 

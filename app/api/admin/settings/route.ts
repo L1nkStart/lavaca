@@ -62,7 +62,7 @@ export async function GET() {
         const { data: config, error } = await adminSupabase
             .from("admin_config")
             .select(
-                "id, platform_commission_percentage, bcv_exchange_rate, bcv_last_updated, auto_update_exchange_rate, updated_at"
+                "id, platform_commission_percentage, bcv_exchange_rate, bcv_last_updated, auto_update_exchange_rate, min_withdrawal_usd, min_withdrawal_bs, updated_at"
             )
             .limit(1)
             .single();
@@ -114,6 +114,22 @@ export async function PATCH(request: NextRequest) {
 
         if (body.auto_update_exchange_rate !== undefined) {
             updates.auto_update_exchange_rate = Boolean(body.auto_update_exchange_rate);
+        }
+
+        if (body.min_withdrawal_usd !== undefined) {
+            const minUsd = Number(body.min_withdrawal_usd);
+            if (!Number.isFinite(minUsd) || minUsd < 0) {
+                return NextResponse.json({ error: "Mínimo de retiro USD inválido" }, { status: 400 });
+            }
+            updates.min_withdrawal_usd = minUsd;
+        }
+
+        if (body.min_withdrawal_bs !== undefined) {
+            const minBs = Number(body.min_withdrawal_bs);
+            if (!Number.isFinite(minBs) || minBs < 0) {
+                return NextResponse.json({ error: "Mínimo de retiro Bs inválido" }, { status: 400 });
+            }
+            updates.min_withdrawal_bs = minBs;
         }
 
         if (Object.keys(updates).length === 0) {

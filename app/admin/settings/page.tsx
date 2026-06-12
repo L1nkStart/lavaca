@@ -17,6 +17,8 @@ interface AdminConfig {
   bcv_exchange_rate: number;
   bcv_last_updated: string;
   auto_update_exchange_rate: boolean;
+  min_withdrawal_usd: number;
+  min_withdrawal_bs: number;
   updated_at: string;
 }
 
@@ -32,6 +34,8 @@ export default function AdminSettingsPage() {
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [exchangeRate, setExchangeRate] = useState("");
   const [commission, setCommission] = useState("");
+  const [minWithdrawalUsd, setMinWithdrawalUsd] = useState("");
+  const [minWithdrawalBs, setMinWithdrawalBs] = useState("");
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingRate, setSavingRate] = useState(false);
@@ -54,6 +58,8 @@ export default function AdminSettingsPage() {
       setConfig(data.config);
       setExchangeRate(String(data.config.bcv_exchange_rate ?? ""));
       setCommission(String(data.config.platform_commission_percentage ?? ""));
+      setMinWithdrawalUsd(String(data.config.min_withdrawal_usd ?? "10"));
+      setMinWithdrawalBs(String(data.config.min_withdrawal_bs ?? "500"));
       setAutoUpdate(Boolean(data.config.auto_update_exchange_rate));
     } catch (error: any) {
       toast.error(error?.message || "No se pudo cargar la configuración");
@@ -116,12 +122,27 @@ export default function AdminSettingsPage() {
       return;
     }
 
+    const minUsdNumber = parseFloat(minWithdrawalUsd);
+    const minBsNumber = parseFloat(minWithdrawalBs);
+    if (!Number.isFinite(minUsdNumber) || minUsdNumber < 0) {
+      toast.error("El mínimo de retiro en USD debe ser un número válido");
+      return;
+    }
+    if (!Number.isFinite(minBsNumber) || minBsNumber < 0) {
+      toast.error("El mínimo de retiro en Bs debe ser un número válido");
+      return;
+    }
+
     setSavingCommission(true);
     try {
       const response = await fetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform_commission_percentage: commissionNumber }),
+        body: JSON.stringify({
+          platform_commission_percentage: commissionNumber,
+          min_withdrawal_usd: minUsdNumber,
+          min_withdrawal_bs: minBsNumber,
+        }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "No se pudo guardar la comisión");
@@ -324,6 +345,37 @@ export default function AdminSettingsPage() {
                           Ejemplo: Si alguien dona $100, LaVaca recibe ${" "}
                           {((100 * (parseFloat(commission) || 0)) / 100).toFixed(2)}
                         </p>
+                      </div>
+
+                      <div className="space-y-2 pt-4 border-t border-border">
+                        <h4 className="font-semibold">Mínimos de retiro por moneda</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Monto mínimo que un creador puede solicitar en cada solicitud de retiro.
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="min-usd">Mínimo en USD ($)</Label>
+                            <Input
+                              id="min-usd"
+                              type="number"
+                              step="1"
+                              min={0}
+                              value={minWithdrawalUsd}
+                              onChange={(e) => setMinWithdrawalUsd(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="min-bs">Mínimo en Bolívares (Bs)</Label>
+                            <Input
+                              id="min-bs"
+                              type="number"
+                              step="1"
+                              min={0}
+                              value={minWithdrawalBs}
+                              onChange={(e) => setMinWithdrawalBs(e.target.value)}
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       <div className="space-y-2 pt-4 border-t border-border">

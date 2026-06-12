@@ -148,7 +148,7 @@ export default function AboutPage() {
                         venezolanos.
                     </p>
                     <p className="text-muted-foreground">
-                        ¿Querés saber más, sumarte como aliado o ser garante?
+                        ¿Quieres saber más, sumarte como aliado o ser garante?
                     </p>
                     <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
                         <Button asChild>

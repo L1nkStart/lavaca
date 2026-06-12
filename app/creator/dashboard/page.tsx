@@ -5,7 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart, Wallet } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart, Wallet, Banknote, TrendingDown } from 'lucide-react';
+import { getBalancesForCampaigns } from '@/lib/balances';
+import { ExchangeRateChart } from '@/components/exchange-rate-chart';
+
+const formatBsAmount = (value: number) =>
+  `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
+
+const formatUsdAmount = (value: number) =>
+  `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
 
 type CampaignRow = {
   id: string
@@ -130,6 +138,34 @@ export default async function CreatorDashboard() {
     }
   }
 
+  // Saldos multi-moneda consolidados (informativo; el retiro es por campaña)
+  const balancesByCampaign = await getBalancesForCampaigns(supabase, campaignIds)
+  let consolidatedBs = 0
+  let consolidatedUsd = 0
+  let consolidatedFxLoss = 0
+  for (const balances of balancesByCampaign.values()) {
+    consolidatedBs += Number(balances.saldo_bs || 0)
+    consolidatedUsd += Number(balances.saldo_usd || 0)
+    consolidatedFxLoss += Number(balances.fx_loss_total || 0)
+  }
+
+  // Historial de la tasa Bs/USD (últimos 30 días) para la gráfica
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const { data: rateHistory } = await supabase
+    .from('exchange_rates')
+    .select('rate, created_at')
+    .gte('created_at', thirtyDaysAgo)
+    .order('created_at', { ascending: true })
+    .limit(500)
+
+  // Una muestra por día (la última de cada día) para que la gráfica sea legible
+  const ratePointsByDay = new Map<string, number>()
+  for (const row of rateHistory || []) {
+    const day = new Date(row.created_at).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })
+    ratePointsByDay.set(day, Number(row.rate))
+  }
+  const ratePoints = Array.from(ratePointsByDay.entries()).map(([date, rate]) => ({ date, rate }))
+
   const totalRaised = allCampaigns.reduce((sum, campaign) => sum + (campaign.current_amount_usd || 0), 0)
   const totalCampaigns = allCampaigns.length
   const activeCampaigns = allCampaigns.filter(campaign => campaign.status === 'active').length
@@ -231,6 +267,12 @@ export default async function CreatorDashboard() {
     .select(`
       id,
       amount_usd,
+      amount_bs,
+      currency,
+      platform_fee,
+      gateway_fee,
+      net_amount,
+      fx_loss_usd,
       status,
       exchange_rate_used,
       reference_number,
@@ -360,6 +402,65 @@ export default async function CreatorDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Saldos consolidados por moneda */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Saldos disponibles</h2>
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/creator/campaigns">Gestionar retiros</Link>
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card>
+                <CardContent>
+                  <div className="pt-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Saldo en Bolívares</p>
+                      <p className="text-2xl font-bold">{formatBsAmount(consolidatedBs)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Suma de todas tus campañas</p>
+                    </div>
+                    <Banknote className="h-8 w-8 text-primary" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent>
+                  <div className="pt-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Saldo en Dólares</p>
+                      <p className="text-2xl font-bold">{formatUsdAmount(consolidatedUsd)}</p>
+                      <p className="text-xs text-muted-foreground mt-1">Zelle, tarjeta, PayPal y cripto</p>
+                    </div>
+                    <DollarSign className="h-8 w-8 text-green-500" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent>
+                  <div className="pt-6 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Pérdida cambiaria</p>
+                      <p className={`text-2xl font-bold ${consolidatedFxLoss > 0.005 ? 'text-destructive' : ''}`}>
+                        {consolidatedFxLoss > 0.005 ? `−${formatUsdAmount(consolidatedFxLoss)}` : formatUsdAmount(0)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Valor perdido por variación de la tasa en tus bolívares
+                      </p>
+                    </div>
+                    <TrendingDown className="h-8 w-8 text-destructive/70" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Evolución de la tasa (P5) */}
+          {ratePoints.length >= 2 && (
+            <ExchangeRateChart points={ratePoints} fxLossTotal={consolidatedFxLoss} />
+          )}
 
           {/* Campaigns Section */}
           <div>
@@ -506,59 +607,134 @@ export default async function CreatorDashboard() {
                     <p className="text-sm text-muted-foreground text-center py-6">
                       Aún no has enviado solicitudes de retiro.
                     </p>
-                  ) : (withdrawalRequests || []).map((request: any) => (
-                    <div
-                      key={request.id}
-                      className="py-3 border-b border-border last:border-0 space-y-2"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex-1">
-                          <p className="font-medium text-sm flex items-center gap-2">
-                            <Wallet className="w-4 h-4 text-primary" />
-                            ${Number(request.amount_usd || 0).toFixed(2)} USD
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Campaña: {request.campaigns?.title || 'Campaña'}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Destino: {formatWithdrawalAccountType(request.withdrawal_accounts?.account_type || 'cuenta')} • {request.withdrawal_accounts?.account_holder_name || 'Sin titular'}
-                          </p>
+                  ) : (withdrawalRequests || []).map((request: any) => {
+                    const isBs = request.currency === 'BS'
+                    const grossLabel = isBs
+                      ? formatBsAmount(Number(request.amount_bs || 0))
+                      : formatUsdAmount(Number(request.amount_usd || 0))
+                    const netLabel = request.net_amount != null
+                      ? (isBs ? formatBsAmount(Number(request.net_amount)) : formatUsdAmount(Number(request.net_amount)))
+                      : null
+
+                    // Timeline simple: Solicitado -> En revisión -> Procesado / Rechazado
+                    const timelineSteps = request.status === 'failed'
+                      ? ['Solicitado', 'En revisión', 'Rechazado']
+                      : ['Solicitado', 'En revisión', 'Procesado']
+                    const currentStepIndex = request.status === 'pending' ? 1 : 2
+                    const isFailed = request.status === 'failed'
+
+                    return (
+                      <div
+                        key={request.id}
+                        className="py-3 border-b border-border last:border-0 space-y-2"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <p className="font-medium text-sm flex items-center gap-2">
+                              <Wallet className="w-4 h-4 text-primary" />
+                              {grossLabel}
+                              <Badge variant="outline" className="text-[10px]">{isBs ? 'Bs' : 'USD'}</Badge>
+                            </p>
+                            {netLabel && Number(request.net_amount) !== Number(isBs ? request.amount_bs : request.amount_usd) && (
+                              <p className="text-xs text-muted-foreground">
+                                Neto a recibir: <strong>{netLabel}</strong>
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Campaña: {request.campaigns?.title || 'Campaña'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Destino: {formatWithdrawalAccountType(request.withdrawal_accounts?.account_type || 'cuenta')} • {request.withdrawal_accounts?.account_holder_name || 'Sin titular'}
+                            </p>
+                          </div>
+                          <div className="text-right space-y-1">
+                            {getWithdrawalStatusBadge(request.status)}
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(request.created_at).toLocaleDateString('es-VE')}
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right space-y-1">
-                          {getWithdrawalStatusBadge(request.status)}
-                          <p className="text-xs text-muted-foreground">
-                            {new Date(request.created_at).toLocaleDateString('es-VE')}
-                          </p>
+
+                        {/* Timeline de estado */}
+                        <div className="flex items-center gap-1">
+                          {timelineSteps.map((stepLabel, index) => (
+                            <div key={stepLabel} className="flex items-center gap-1 flex-1 last:flex-none">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={`h-2.5 w-2.5 rounded-full shrink-0 ${index <= currentStepIndex
+                                    ? isFailed && index === 2
+                                      ? 'bg-destructive'
+                                      : 'bg-primary'
+                                    : 'bg-muted-foreground/30'
+                                    }`}
+                                />
+                                <span
+                                  className={`text-[11px] ${index <= currentStepIndex
+                                    ? isFailed && index === 2
+                                      ? 'text-destructive font-medium'
+                                      : 'text-foreground font-medium'
+                                    : 'text-muted-foreground'
+                                    }`}
+                                >
+                                  {stepLabel}
+                                </span>
+                              </div>
+                              {index < timelineSteps.length - 1 && (
+                                <span className={`h-px flex-1 ${index < currentStepIndex ? 'bg-primary/50' : 'bg-border'}`} />
+                              )}
+                            </div>
+                          ))}
                         </div>
+
+                        {(request.status === 'processed' || request.status === 'failed') && (
+                          <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1">
+                            {(Number(request.platform_fee) > 0 || Number(request.gateway_fee) > 0) && (
+                              <p className="text-xs text-muted-foreground">
+                                Comisión LaVaca: {isBs ? formatBsAmount(Number(request.platform_fee || 0)) : formatUsdAmount(Number(request.platform_fee || 0))}
+                                {Number(request.gateway_fee) > 0 && (
+                                  <> • Fee de pasarela: {isBs ? formatBsAmount(Number(request.gateway_fee || 0)) : formatUsdAmount(Number(request.gateway_fee || 0))}</>
+                                )}
+                              </p>
+                            )}
+                            {isBs && request.exchange_rate_used && (
+                              <p className="text-xs text-muted-foreground">
+                                Tasa usada: {Number(request.exchange_rate_used).toFixed(2)} Bs/USD
+                              </p>
+                            )}
+                            {isBs && Number(request.fx_loss_usd) > 0 && (
+                              <p className="text-xs text-destructive">
+                                Pérdida cambiaria congelada: −{formatUsdAmount(Number(request.fx_loss_usd))}
+                              </p>
+                            )}
+                            {request.reference_number && (
+                              <p className="text-xs text-muted-foreground">
+                                Referencia: {request.reference_number}
+                              </p>
+                            )}
+                            {request.processed_at && (
+                              <p className="text-xs text-muted-foreground">
+                                Procesado: {new Date(request.processed_at).toLocaleString('es-VE')}
+                              </p>
+                            )}
+                            {request.status === 'processed' && (
+                              <Link
+                                href={`/creator/withdrawals/${request.id}/receipt`}
+                                className="text-xs text-primary underline underline-offset-2 inline-block"
+                              >
+                                Ver constancia de retiro
+                              </Link>
+                            )}
+
+                            {request.status === 'failed' && request.rejection_reason && (
+                              <p className="text-xs text-destructive">
+                                Motivo del rechazo: {request.rejection_reason}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-
-                      {(request.status === 'processed' || request.status === 'failed') && (
-                        <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1">
-                          {request.exchange_rate_used && (
-                            <p className="text-xs text-muted-foreground">
-                              Exchange rate usado: {Number(request.exchange_rate_used).toFixed(2)}
-                            </p>
-                          )}
-                          {request.reference_number && (
-                            <p className="text-xs text-muted-foreground">
-                              Referencia: {request.reference_number}
-                            </p>
-                          )}
-                          {request.processed_at && (
-                            <p className="text-xs text-muted-foreground">
-                              Procesado: {new Date(request.processed_at).toLocaleString('es-VE')}
-                            </p>
-                          )}
-
-                          {request.status === 'failed' && request.rejection_reason && (
-                            <p className="text-xs text-destructive">
-                              Motivo del fallo: {request.rejection_reason}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>

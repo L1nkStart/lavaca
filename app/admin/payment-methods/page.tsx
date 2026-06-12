@@ -11,7 +11,7 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, AlertCircle, CheckCircle2, Trash2, Plus } from "lucide-react"
 
-type MethodCode = "card" | "crypto" | "zelle" | "pagomovil" | "transfer"
+type MethodCode = "card" | "crypto" | "zelle" | "pagomovil" | "transfer" | "paypal" | "chinchin"
 
 type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 
@@ -40,7 +40,23 @@ interface TransferAccount {
     updated_at?: string
 }
 
-const ORDERED_METHODS: MethodCode[] = ["card", "crypto", "zelle", "pagomovil", "transfer"]
+const ORDERED_METHODS: MethodCode[] = ["card", "paypal", "crypto", "chinchin", "zelle", "pagomovil", "transfer"]
+
+interface WithdrawalFeeConfig {
+    account_type: string
+    currency: "USD" | "BS"
+    fee_percent: number
+    fee_fixed: number
+    is_active: boolean
+}
+
+const WITHDRAWAL_ACCOUNT_LABELS: Record<string, string> = {
+    bank_bs: "Cuenta Bancaria (Bs.)",
+    pagomovil: "PagoMóvil",
+    zelle: "Zelle",
+    paypal: "PayPal",
+    crypto: "Criptomoneda",
+}
 
 const FALLBACK_METHODS: Record<MethodCode, PaymentMethodConfig> = {
     card: {
@@ -83,6 +99,22 @@ const FALLBACK_METHODS: Record<MethodCode, PaymentMethodConfig> = {
         display_order: 50,
         settings: { notes: "" },
     },
+    paypal: {
+        code: "paypal",
+        name: "PayPal",
+        description: "Pago internacional vía PayPal",
+        is_active: false,
+        display_order: 15,
+        settings: { provider: "paypal" },
+    },
+    chinchin: {
+        code: "chinchin",
+        name: "ChinChin",
+        description: "Pasarela venezolana ChinChin (C2P)",
+        is_active: false,
+        display_order: 25,
+        settings: { provider: "chinchin" },
+    },
 }
 
 function getErrorMessage(error: unknown) {
@@ -101,6 +133,9 @@ export default function AdminPaymentMethodsPage() {
     const [transferAccounts, setTransferAccounts] = useState<TransferAccount[]>([])
     const [savingAccountId, setSavingAccountId] = useState<string | null>(null)
     const [creatingAccount, setCreatingAccount] = useState(false)
+
+    const [withdrawalFees, setWithdrawalFees] = useState<WithdrawalFeeConfig[]>([])
+    const [savingFeeType, setSavingFeeType] = useState<string | null>(null)
 
     const [newAccount, setNewAccount] = useState({
         bank_name: "",
@@ -153,6 +188,13 @@ export default function AdminPaymentMethodsPage() {
 
             setMethods(map)
             setTransferAccounts(result.transferAccounts || [])
+
+            // Fees de retiro (tabla withdrawal_fee_configs)
+            const feesResponse = await fetch("/api/admin/withdrawal-fees", { cache: "no-store" })
+            if (feesResponse.ok) {
+                const feesResult = await feesResponse.json()
+                setWithdrawalFees(feesResult.fees || [])
+            }
         } catch (err) {
             console.error("Error loading payment methods:", err)
             setError(getErrorMessage(err))
@@ -217,6 +259,45 @@ export default function AdminPaymentMethodsPage() {
             setError(getErrorMessage(err))
         } finally {
             setSavingMethodCode(null)
+        }
+    }
+
+    const updateWithdrawalFee = (accountType: string, field: keyof WithdrawalFeeConfig, value: unknown) => {
+        setWithdrawalFees((prev) =>
+            prev.map((fee) => (fee.account_type === accountType ? { ...fee, [field]: value } : fee)),
+        )
+    }
+
+    const saveWithdrawalFee = async (fee: WithdrawalFeeConfig) => {
+        try {
+            setSavingFeeType(fee.account_type)
+            setNotice(null)
+
+            const response = await fetch("/api/admin/withdrawal-fees", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    account_type: fee.account_type,
+                    fee_percent: Number(fee.fee_percent) || 0,
+                    fee_fixed: Number(fee.fee_fixed) || 0,
+                    is_active: fee.is_active,
+                }),
+            })
+
+            const result = await response.json()
+            if (!response.ok) {
+                throw new Error(result?.error || result?.details || "No se pudo guardar el fee de retiro")
+            }
+
+            setNotice(`Fee de retiro de ${WITHDRAWAL_ACCOUNT_LABELS[fee.account_type] || fee.account_type} guardado.`)
+            setError(null)
+        } catch (err) {
+            console.error("Error saving withdrawal fee:", err)
+            setError(getErrorMessage(err))
+        } finally {
+            setSavingFeeType(null)
         }
     }
 
@@ -480,6 +561,38 @@ export default function AdminPaymentMethodsPage() {
                                     </div>
                                 )}
 
+                                {/* Fee de pasarela en donaciones (multi-moneda) */}
+                                <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                                    <p className="text-sm font-semibold">Comisión de pasarela (donaciones)</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        Se descuenta de lo que acredita la campaña, salvo que el donante elija
+                                        &quot;Cubrir comisiones&quot;. Deja 0 si el método no tiene costo.
+                                    </p>
+                                    <div className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <Label>Porcentaje (%)</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                max="100"
+                                                step="0.01"
+                                                value={String(method.settings.donation_fee_percent ?? 0)}
+                                                onChange={(e) => updateMethodSetting(method.code, "donation_fee_percent", Number(e.target.value) || 0)}
+                                            />
+                                        </div>
+                                        <div>
+                                            <Label>Monto fijo (USD)</Label>
+                                            <Input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={String(method.settings.donation_fee_fixed_usd ?? 0)}
+                                                onChange={(e) => updateMethodSetting(method.code, "donation_fee_fixed_usd", Number(e.target.value) || 0)}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div className="flex justify-end">
                                     <Button onClick={() => saveMethod(method.code)} disabled={savingMethodCode === method.code}>
                                         {savingMethodCode === method.code ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
@@ -489,6 +602,78 @@ export default function AdminPaymentMethodsPage() {
                             </CardContent>
                         </Card>
                     ))}
+
+                    {/* Fees de retiro por tipo de cuenta */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Fees de retiro por tipo de cuenta</CardTitle>
+                            <p className="text-sm text-muted-foreground">
+                                Costo bancario/de pasarela que se descuenta al creador en cada retiro,
+                                además de la comisión de plataforma (configurable en Ajustes).
+                                El monto fijo está en la moneda del retiro.
+                            </p>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {withdrawalFees.length === 0 ? (
+                                <p className="text-sm text-muted-foreground">No hay fees de retiro configurados.</p>
+                            ) : (
+                                withdrawalFees.map((fee) => (
+                                    <div key={fee.account_type} className="border rounded-lg p-4 space-y-3">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <p className="font-medium">
+                                                {WITHDRAWAL_ACCOUNT_LABELS[fee.account_type] || fee.account_type}
+                                                <span className="ml-2 text-xs text-muted-foreground">
+                                                    ({fee.currency === "BS" ? "Bolívares" : "Dólares"})
+                                                </span>
+                                            </p>
+                                            <div className="flex items-center gap-2">
+                                                <Label htmlFor={`fee-active-${fee.account_type}`}>Aplicar fee</Label>
+                                                <Switch
+                                                    id={`fee-active-${fee.account_type}`}
+                                                    checked={fee.is_active}
+                                                    onCheckedChange={(checked) => updateWithdrawalFee(fee.account_type, "is_active", checked)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <div className="grid md:grid-cols-3 gap-3 items-end">
+                                            <div>
+                                                <Label>Porcentaje (%)</Label>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    value={String(fee.fee_percent)}
+                                                    onChange={(e) => updateWithdrawalFee(fee.account_type, "fee_percent", Number(e.target.value) || 0)}
+                                                />
+                                            </div>
+                                            <div>
+                                                <Label>Monto fijo ({fee.currency === "BS" ? "Bs" : "USD"})</Label>
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    value={String(fee.fee_fixed)}
+                                                    onChange={(e) => updateWithdrawalFee(fee.account_type, "fee_fixed", Number(e.target.value) || 0)}
+                                                />
+                                            </div>
+                                            <div className="flex justify-end">
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() => saveWithdrawalFee(fee)}
+                                                    disabled={savingFeeType === fee.account_type}
+                                                >
+                                                    {savingFeeType === fee.account_type ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                                                    Guardar
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </CardContent>
+                    </Card>
 
                     <Card>
                         <CardHeader>

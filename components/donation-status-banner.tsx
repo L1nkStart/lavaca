@@ -63,8 +63,8 @@ export function DonationStatusBanner() {
             >
                 <p className="text-sm">
                     Tu aporte fue recibido y ya está acreditado a la campaña.
-                    Te enviamos el recibo al correo que registraste. Si querés
-                    ver el detalle, revisá tu{" "}
+                    Te enviamos el recibo al correo que registraste. Si quieres
+                    ver el detalle, revisa tu{" "}
                     <Link href="/profile" className="font-semibold underline">
                         historial de donaciones
                     </Link>
@@ -112,7 +112,7 @@ export function DonationStatusBanner() {
                         >
                             <Link href="/contact">
                                 <HelpCircle className="h-3.5 w-3.5 mr-2" />
-                                ¿Tenés una duda?
+                                ¿Tienes una duda?
                             </Link>
                         </Button>
                     </div>
@@ -130,8 +130,8 @@ export function DonationStatusBanner() {
                 onClose={dismiss}
             >
                 <p className="text-sm">
-                    No completaste el pago. Si querés intentar de nuevo, hacé click
-                    en "Donar Ahora". Si tuviste un problema, contanos en{" "}
+                    No completaste el pago. Si quieres intentar de nuevo, haz clic
+                    en "Donar Ahora". Si tuviste un problema, cuéntanos en{" "}
                     <Link href="/contact" className="font-semibold underline">
                         contacto
                     </Link>{" "}
@@ -151,8 +151,8 @@ export function DonationStatusBanner() {
         >
             <p className="text-sm">
                 El pago no se completó. Si el dinero salió de tu cuenta,{" "}
-                <strong>contactanos en menos de 24 horas</strong> y lo resolvemos.
-                Probá con otro método de pago o escribinos a{" "}
+                <strong>contáctanos en menos de 24 horas</strong> y lo resolvemos.
+                Prueba con otro método de pago o escríbenos a{" "}
                 <Link href="/contact" className="font-semibold underline">
                     /contact
                 </Link>

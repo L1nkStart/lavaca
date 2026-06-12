@@ -4,6 +4,7 @@ import { PaymentManager } from "@/lib/payments/payment-manager";
 import { PaymentProvider, PaymentType } from "@/lib/payments/types";
 import { initializePayments, isProviderConfigured } from "@/lib/payments/config";
 import { getActiveExchangeRate } from "@/lib/exchange-rate";
+import { computeDonationAmounts, getDonationFeeConfig } from "@/lib/fees";
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
       pagoMovilData,
       manualPaymentData,
       captureUrl,
+      coverFees,
     } = body;
 
     const safeCaptureUrl =
@@ -106,6 +108,20 @@ export async function POST(request: NextRequest) {
     const liveExchangeRate = await getActiveExchangeRate();
     const amountBs = Number((amountUSD * liveExchangeRate).toFixed(2));
 
+    // Multi-moneda: el fee de pasarela se calcula SIEMPRE con la config de
+    // la BD (nunca se confía en el valor del cliente). El donante puede
+    // cubrirlo aparte ("Cubrir comisiones") para que la campaña reciba el
+    // monto completo; si no, la campaña acredita amount - fee.
+    const feeCoveredByDonor = coverFees === true;
+    const donationFeeConfig = await getDonationFeeConfig(supabase, paymentMethod);
+    const donationAmounts = computeDonationAmounts({
+      amountUsd: amountUSD,
+      methodCode: paymentMethod,
+      feeConfig: donationFeeConfig,
+      feeCoveredByDonor,
+      exchangeRate: liveExchangeRate,
+    });
+
     // Create donation record
     const { data: donation, error } = await supabase
       .from("donations")
@@ -115,6 +131,11 @@ export async function POST(request: NextRequest) {
         email: finalDonorEmail,
         amount_usd: amountUSD,
         amount_bs: amountBs,
+        currency: donationAmounts.currency,
+        gateway_fee_usd: donationAmounts.gatewayFeeUsd,
+        fee_covered_by_donor: feeCoveredByDonor,
+        net_amount_usd: donationAmounts.netAmountUsd,
+        net_amount_bs: donationAmounts.netAmountBs,
         payment_method: paymentMethod,
         payment_status: "pending",
         is_anonymous: isAnonymous,
@@ -190,10 +211,12 @@ export async function POST(request: NextRequest) {
 
     // Process payment through PaymentManager
     try {
+      // Si el donante cubre el fee, la pasarela cobra amount + fee.
+      const chargedUsd = donationAmounts.totalChargedUsd;
       const paymentResult = await PaymentManager.processPayment({
         amount: {
-          usd: amountUSD,
-          bs: amountBs,
+          usd: chargedUsd,
+          bs: Number((chargedUsd * liveExchangeRate).toFixed(2)),
           exchangeRate: liveExchangeRate,
         },
         provider,

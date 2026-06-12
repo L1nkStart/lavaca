@@ -6,7 +6,7 @@ import { ContactForm } from "@/components/contact-form";
 export const metadata = {
     title: "Contacto | LaVaca",
     description:
-        "Escribinos. Atendemos consultas de donantes, creadores, garantes y prensa.",
+        "Escríbenos. Atendemos consultas de donantes, creadores, garantes y prensa.",
 };
 
 const CHANNELS = [
@@ -91,10 +91,10 @@ export default function ContactPage() {
                         <CardContent className="pt-8 pb-8">
                             <div className="space-y-2 mb-6">
                                 <h2 className="text-2xl sm:text-3xl font-bold">
-                                    Escribinos directamente
+                                    Escríbenos directamente
                                 </h2>
                                 <p className="text-sm text-muted-foreground">
-                                    Completá el formulario y te respondemos al correo
+                                    Completa el formulario y te respondemos al correo
                                     que nos dejes.
                                 </p>
                             </div>

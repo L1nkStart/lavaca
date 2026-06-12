@@ -41,7 +41,7 @@ const SECTIONS: Section[] = [
         items: [
             {
                 q: "¿Cómo dono a una campaña?",
-                a: "Entrá a la campaña que quieras apoyar, hacé click en 'Donar Ahora', elegí el monto y el método de pago. Aceptamos tarjeta, Zelle, PagoMóvil, transferencia bancaria y cripto (cuando los proveedores estén activos).",
+                a: "Entra a la campaña que quieras apoyar, haz clic en 'Donar Ahora', elige el monto y el método de pago. Aceptamos tarjeta, Zelle, PagoMóvil, transferencia bancaria y cripto (cuando los proveedores estén activos).",
             },
             {
                 q: "¿Puedo donar de forma anónima?",
@@ -68,7 +68,7 @@ const SECTIONS: Section[] = [
         items: [
             {
                 q: "¿Cómo creo una campaña?",
-                a: "Tenés que registrarte, completar tu perfil KYC (documento de identidad) y esperar verificación. Una vez verificado, vas a 'Crear campaña' y completás el título, historia, meta y documentos de soporte.",
+                a: "Debes registrarte, completar tu perfil KYC (documento de identidad) y esperar verificación. Una vez verificado, ve a 'Crear campaña' y completa el título, historia, meta y documentos de soporte.",
             },
             {
                 q: "¿Cuánto cuesta crear una campaña?",
@@ -84,7 +84,7 @@ const SECTIONS: Section[] = [
             },
             {
                 q: "¿Cómo invito a un garante?",
-                a: "Desde la página de edición de tu campaña hacés click en 'Invitar garante' y mandás la invitación a su email. El garante recibe la invitación en su panel y puede aceptar o rechazar.",
+                a: "Desde la página de edición de tu campaña haz clic en 'Invitar garante' y envía la invitación a su correo. El garante recibe la invitación en su panel y puede aceptar o rechazar.",
             },
         ],
     },
@@ -95,7 +95,7 @@ const SECTIONS: Section[] = [
         items: [
             {
                 q: "¿Cuándo puedo retirar los fondos?",
-                a: "Podés solicitar retiro en cualquier momento, sin esperar a que termine la campaña. Lo retirado se descuenta del saldo disponible.",
+                a: "Puedes solicitar retiro en cualquier momento, sin esperar a que termine la campaña. Tu recaudación se separa en dos saldos según cómo donaron: bolívares (PagoMóvil, transferencia) y dólares (Zelle, tarjeta, cripto). Cada saldo se retira por separado y lo retirado se descuenta del disponible.",
             },
             {
                 q: "¿A dónde llega el dinero?",
@@ -107,7 +107,7 @@ const SECTIONS: Section[] = [
             },
             {
                 q: "¿Hay un monto mínimo de retiro?",
-                a: "Sí, $10 USD para evitar que las comisiones de transferencia se coman el envío.",
+                a: "Sí: $10 USD para retiros en dólares y Bs 500 para retiros en bolívares (valores configurables que puedes ver siempre en la página de Comisiones). Esto evita que los costos de transferencia se coman el envío.",
             },
         ],
     },
@@ -122,11 +122,11 @@ const SECTIONS: Section[] = [
             },
             {
                 q: "Detecté una campaña sospechosa, ¿qué hago?",
-                a: "Usá el botón 'Reportar' en la campaña o escribinos a reportes@lavaca.com.ve. Revisamos cada reporte y suspendemos las campañas fraudulentas inmediatamente.",
+                a: "Usa el botón 'Reportar' en la campaña o escríbenos a reportes@lavaca.com.ve. Revisamos cada reporte y suspendemos las campañas fraudulentas inmediatamente.",
             },
             {
                 q: "¿Mis datos están seguros?",
-                a: "Sí. Usamos encriptación de nivel bancario (256-bit SSL), los documentos KYC quedan en almacenamiento privado accesible sólo por vos y nuestro equipo, y nunca vendemos datos a terceros.",
+                a: "Sí. Usamos encriptación de nivel bancario (256-bit SSL), los documentos KYC quedan en almacenamiento privado accesible solo por ti y nuestro equipo, y nunca vendemos datos a terceros.",
             },
             {
                 q: "¿LaVaca está regulada?",
@@ -152,7 +152,7 @@ export default function FAQPage() {
                         Resolvemos tus dudas
                     </h1>
                     <p className="text-base sm:text-lg text-muted-foreground">
-                        Si no encontrás lo que buscás, escribinos directamente.
+                        Si no encuentras lo que buscas, escríbenos directamente.
                     </p>
                 </div>
             </section>
@@ -206,7 +206,7 @@ export default function FAQPage() {
                         </div>
                         <h3 className="text-2xl font-bold">¿Tu pregunta no está aquí?</h3>
                         <p className="text-muted-foreground">
-                            Escribinos. Respondemos en menos de 24 horas hábiles.
+                            Escríbenos. Respondemos en menos de 24 horas hábiles.
                         </p>
                         <Button asChild>
                             <Link href="/contact">Ir al formulario de contacto</Link>

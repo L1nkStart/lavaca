@@ -17,6 +17,13 @@ type WithdrawalRequest = {
     campaign_id: string | null
     account_id: string
     amount_usd: number
+    amount_bs: number | null
+    currency: 'USD' | 'BS' | null
+    platform_fee: number | null
+    gateway_fee: number | null
+    net_amount: number | null
+    indexed_usd_value: number | null
+    fx_loss_usd: number | null
     status: 'pending' | 'processed' | 'failed'
     exchange_rate_used: number | null
     reference_number: string | null
@@ -47,6 +54,15 @@ const formatAccountType = (type: string) => {
     }
 }
 
+const formatBsAmount = (value: number) =>
+    `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
+
+const formatUsdAmount = (value: number) =>
+    `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
+
+const formatByCurrency = (value: number, currency: 'USD' | 'BS') =>
+    currency === 'BS' ? formatBsAmount(value) : formatUsdAmount(value)
+
 const getStatusBadge = (status: string) => {
     switch (status) {
         case 'pending':
@@ -67,13 +83,22 @@ export default function AdminWithdrawalsPage() {
     const [processingId, setProcessingId] = useState<string | null>(null)
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'processed' | 'failed'>('pending')
+    const [currencyFilter, setCurrencyFilter] = useState<'all' | 'BS' | 'USD'>('all')
 
     const [exchangeRateUsed, setExchangeRateUsed] = useState("")
     const [referenceNumber, setReferenceNumber] = useState("")
     const [rejectionReason, setRejectionReason] = useState("")
+    const [activeRate, setActiveRate] = useState<number | null>(null)
 
     useEffect(() => {
         fetchRequests()
+        // Tasa activa del día para auto-llenar el campo al procesar retiros Bs
+        fetch('/api/exchange-rate', { cache: 'no-store' })
+            .then((response) => response.json())
+            .then((data) => {
+                if (data?.rate) setActiveRate(Number(data.rate))
+            })
+            .catch(() => { })
     }, [])
 
     const fetchRequests = async () => {
@@ -109,14 +134,17 @@ export default function AdminWithdrawalsPage() {
 
     const handleMarkProcessed = async (request: WithdrawalRequest) => {
         const exchangeRate = Number(exchangeRateUsed)
+        const isBs = request.currency === 'BS'
 
         if (!referenceNumber.trim()) {
             alert('Debes ingresar el número de referencia del depósito')
             return
         }
 
-        if (!exchangeRateUsed || Number.isNaN(exchangeRate) || exchangeRate <= 0) {
-            alert('Debes ingresar una tasa de cambio válida en exchange_rate_used')
+        // La tasa solo es obligatoria para retiros en bolívares (con ella se
+        // congela la pérdida cambiaria de ese retiro).
+        if (isBs && (!exchangeRateUsed || Number.isNaN(exchangeRate) || exchangeRate <= 0)) {
+            alert('Debes ingresar una tasa de cambio válida para retiros en bolívares')
             return
         }
 
@@ -132,7 +160,7 @@ export default function AdminWithdrawalsPage() {
                 },
                 body: JSON.stringify({
                     status: 'processed',
-                    exchange_rate_used: exchangeRate,
+                    exchange_rate_used: Number.isFinite(exchangeRate) && exchangeRate > 0 ? exchangeRate : null,
                     reference_number: referenceNumber.trim(),
                 }),
             })
@@ -192,9 +220,25 @@ export default function AdminWithdrawalsPage() {
     }
 
     const visibleRequests = useMemo(() => {
-        if (statusFilter === 'all') return requests
-        return requests.filter((request) => request.status === statusFilter)
-    }, [requests, statusFilter])
+        return requests.filter((request) => {
+            if (statusFilter !== 'all' && request.status !== statusFilter) return false
+            if (currencyFilter !== 'all' && (request.currency || 'USD') !== currencyFilter) return false
+            return true
+        })
+    }, [requests, statusFilter, currencyFilter])
+
+    const pendingBsCount = requests.filter((request) => request.status === 'pending' && request.currency === 'BS').length
+    const pendingUsdCount = requests.filter((request) => request.status === 'pending' && (request.currency || 'USD') === 'USD').length
+
+    // Al abrir el formulario de un retiro Bs, auto-llenamos la tasa activa
+    const handleSelectRequest = (request: WithdrawalRequest) => {
+        setSelectedId(request.id)
+        if (request.currency === 'BS' && activeRate && activeRate > 0) {
+            setExchangeRateUsed(String(activeRate.toFixed(2)))
+        } else {
+            setExchangeRateUsed("")
+        }
+    }
 
     if (loading) {
         return (
@@ -231,19 +275,35 @@ export default function AdminWithdrawalsPage() {
 
                     <Card>
                         <CardContent className="pt-6">
-                            <div className="flex flex-wrap gap-2">
-                                <Button size="sm" variant={statusFilter === 'all' ? 'default' : 'outline'} onClick={() => setStatusFilter('all')}>
-                                    Todos ({requests.length})
-                                </Button>
-                                <Button size="sm" variant={statusFilter === 'pending' ? 'default' : 'outline'} onClick={() => setStatusFilter('pending')}>
-                                    Pendientes ({requests.filter((request) => request.status === 'pending').length})
-                                </Button>
-                                <Button size="sm" variant={statusFilter === 'processed' ? 'default' : 'outline'} onClick={() => setStatusFilter('processed')}>
-                                    Procesados ({requests.filter((request) => request.status === 'processed').length})
-                                </Button>
-                                <Button size="sm" variant={statusFilter === 'failed' ? 'default' : 'outline'} onClick={() => setStatusFilter('failed')}>
-                                    Fallidos ({requests.filter((request) => request.status === 'failed').length})
-                                </Button>
+                            <div className="space-y-3">
+                                {/* Filtro por moneda */}
+                                <div className="flex flex-wrap gap-2">
+                                    <Button size="sm" variant={currencyFilter === 'BS' ? 'default' : 'outline'} onClick={() => setCurrencyFilter('BS')}>
+                                        🇻🇪 Bolívares ({pendingBsCount} pend.)
+                                    </Button>
+                                    <Button size="sm" variant={currencyFilter === 'USD' ? 'default' : 'outline'} onClick={() => setCurrencyFilter('USD')}>
+                                        💵 Dólares ({pendingUsdCount} pend.)
+                                    </Button>
+                                    <Button size="sm" variant={currencyFilter === 'all' ? 'default' : 'outline'} onClick={() => setCurrencyFilter('all')}>
+                                        Todas las monedas
+                                    </Button>
+                                </div>
+
+                                {/* Filtro por estado */}
+                                <div className="flex flex-wrap gap-2">
+                                    <Button size="sm" variant={statusFilter === 'all' ? 'default' : 'outline'} onClick={() => setStatusFilter('all')}>
+                                        Todos ({requests.length})
+                                    </Button>
+                                    <Button size="sm" variant={statusFilter === 'pending' ? 'default' : 'outline'} onClick={() => setStatusFilter('pending')}>
+                                        Pendientes ({requests.filter((request) => request.status === 'pending').length})
+                                    </Button>
+                                    <Button size="sm" variant={statusFilter === 'processed' ? 'default' : 'outline'} onClick={() => setStatusFilter('processed')}>
+                                        Procesados ({requests.filter((request) => request.status === 'processed').length})
+                                    </Button>
+                                    <Button size="sm" variant={statusFilter === 'failed' ? 'default' : 'outline'} onClick={() => setStatusFilter('failed')}>
+                                        Fallidos ({requests.filter((request) => request.status === 'failed').length})
+                                    </Button>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -259,6 +319,11 @@ export default function AdminWithdrawalsPage() {
                         visibleRequests.map((request) => {
                             const isSelected = selectedId === request.id
                             const isPending = request.status === 'pending'
+                            const requestCurrency: 'USD' | 'BS' = request.currency === 'BS' ? 'BS' : 'USD'
+                            const grossAmount = requestCurrency === 'BS'
+                                ? Number(request.amount_bs || 0)
+                                : Number(request.amount_usd || 0)
+                            const hasBreakdown = request.net_amount != null
 
                             return (
                                 <Card key={request.id}>
@@ -267,7 +332,10 @@ export default function AdminWithdrawalsPage() {
                                             <div className="space-y-1">
                                                 <p className="font-semibold text-lg flex items-center gap-2">
                                                     <Wallet className="h-5 w-5 text-primary" />
-                                                    ${Number(request.amount_usd || 0).toFixed(2)} USD
+                                                    {formatByCurrency(grossAmount, requestCurrency)}
+                                                    <Badge variant={requestCurrency === 'BS' ? 'secondary' : 'outline'}>
+                                                        {requestCurrency === 'BS' ? 'Bolívares' : 'Dólares'}
+                                                    </Badge>
                                                 </p>
                                                 <p className="text-sm text-muted-foreground">
                                                     Campaña: {request.campaigns?.title || 'Campaña'}
@@ -286,10 +354,41 @@ export default function AdminWithdrawalsPage() {
                                             </div>
                                         </div>
 
+                                        {/* Desglose: cuánto transferir exactamente */}
+                                        {hasBreakdown && (
+                                            <div className="rounded-lg border p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Bruto solicitado</p>
+                                                    <p className="font-medium">{formatByCurrency(grossAmount, requestCurrency)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Comisión LaVaca</p>
+                                                    <p className="font-medium">−{formatByCurrency(Number(request.platform_fee || 0), requestCurrency)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Fee de pasarela</p>
+                                                    <p className="font-medium">−{formatByCurrency(Number(request.gateway_fee || 0), requestCurrency)}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">Neto a transferir</p>
+                                                    <p className="font-bold text-primary">{formatByCurrency(Number(request.net_amount || 0), requestCurrency)}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         {(request.status === 'processed' || request.status === 'failed') && (
                                             <div className="rounded-lg border bg-muted/30 p-3 space-y-1 text-sm">
                                                 {request.exchange_rate_used && (
                                                     <p><strong>Tasa usada:</strong> {Number(request.exchange_rate_used).toFixed(2)}</p>
+                                                )}
+                                                {requestCurrency === 'BS' && request.indexed_usd_value != null && (
+                                                    <p><strong>Valor indexado:</strong> {formatUsdAmount(Number(request.indexed_usd_value))}</p>
+                                                )}
+                                                {requestCurrency === 'BS' && request.fx_loss_usd != null && Number(request.fx_loss_usd) !== 0 && (
+                                                    <p className={Number(request.fx_loss_usd) > 0 ? 'text-destructive' : 'text-green-600'}>
+                                                        <strong>Diferencial cambiario congelado:</strong>{' '}
+                                                        {Number(request.fx_loss_usd) > 0 ? '−' : '+'}{formatUsdAmount(Math.abs(Number(request.fx_loss_usd)))}
+                                                    </p>
                                                 )}
                                                 {request.reference_number && (
                                                     <p><strong>Referencia:</strong> {request.reference_number}</p>
@@ -314,8 +413,8 @@ export default function AdminWithdrawalsPage() {
 
                                                 {!isSelected ? (
                                                     <>
-                                                        <Button size="sm" onClick={() => setSelectedId(request.id)}>
-                                                            Procesar / Fallar
+                                                        <Button size="sm" onClick={() => handleSelectRequest(request)}>
+                                                            Procesar / Rechazar
                                                         </Button>
                                                     </>
                                                 ) : (
@@ -329,32 +428,38 @@ export default function AdminWithdrawalsPage() {
                                         {isSelected && isPending && (
                                             <div className="rounded-lg border p-4 space-y-4 bg-muted/20">
                                                 <div className="grid md:grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-sm font-medium">Exchange rate used</label>
-                                                        <Input
-                                                            type="number"
-                                                            min="0"
-                                                            step="0.01"
-                                                            value={exchangeRateUsed}
-                                                            onChange={(event) => setExchangeRateUsed(event.target.value)}
-                                                            placeholder="Ej: 43.50"
-                                                            disabled={processingId === request.id}
-                                                        />
-                                                    </div>
+                                                    {requestCurrency === 'BS' && (
+                                                        <div className="space-y-2">
+                                                            <label className="text-sm font-medium">Tasa de cambio del retiro (Bs/USD)</label>
+                                                            <Input
+                                                                type="number"
+                                                                min="0"
+                                                                step="0.01"
+                                                                value={exchangeRateUsed}
+                                                                onChange={(event) => setExchangeRateUsed(event.target.value)}
+                                                                placeholder="Ej: 545.50"
+                                                                disabled={processingId === request.id}
+                                                            />
+                                                            <p className="text-xs text-muted-foreground">
+                                                                Auto-llenada con la tasa activa del día (editable). Con ella se
+                                                                congela la pérdida cambiaria de este retiro.
+                                                            </p>
+                                                        </div>
+                                                    )}
 
                                                     <div className="space-y-2">
-                                                        <label className="text-sm font-medium">Reference number</label>
+                                                        <label className="text-sm font-medium">Referencia del depósito</label>
                                                         <Input
                                                             value={referenceNumber}
                                                             onChange={(event) => setReferenceNumber(event.target.value)}
-                                                            placeholder="Referencia del depósito"
+                                                            placeholder="Referencia de la transferencia realizada"
                                                             disabled={processingId === request.id}
                                                         />
                                                     </div>
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                    <label className="text-sm font-medium">Rejection reason (si falla)</label>
+                                                    <label className="text-sm font-medium">Motivo de rechazo (solo si rechazas)</label>
                                                     <Textarea
                                                         value={rejectionReason}
                                                         onChange={(event) => setRejectionReason(event.target.value)}

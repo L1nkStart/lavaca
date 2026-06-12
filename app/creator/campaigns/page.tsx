@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { RequestWithdrawalDialog } from '@/components/request-withdrawal-dialog'
+import { CampaignBalancePanel } from '@/components/campaign-balance-panel'
+import { getBalancesForCampaigns, EMPTY_BALANCES } from '@/lib/balances'
+import { getWithdrawalMinimums } from '@/lib/fees'
 import {
   PlusCircle,
   Eye,
@@ -125,6 +127,12 @@ export default async function CreatorCampaignsPage() {
 
   const creatorWithdrawalAccounts = withdrawalAccounts || []
   const hasWithdrawalAccounts = creatorWithdrawalAccounts.length > 0
+
+  // Saldos multi-moneda por campaña (RPC) + mínimos de retiro configurados
+  const [balancesByCampaign, withdrawalMinimums] = await Promise.all([
+    getBalancesForCampaigns(supabase, campaignIds),
+    getWithdrawalMinimums(supabase),
+  ])
 
   // Get campaign statistics
   const stats = {
@@ -275,11 +283,10 @@ export default async function CreatorCampaignsPage() {
                   ? (campaign.current_amount_usd / campaign.goal_amount_usd) * 100
                   : 0
                 const withdrawnAmount = processedWithdrawalsByCampaign.get(campaign.id) || 0
-                const availableAmount = Math.max(Number(campaign.current_amount_usd || 0) - withdrawnAmount, 0)
                 const withdrawnProgressPercentage = campaign.goal_amount_usd > 0
                   ? (withdrawnAmount / campaign.goal_amount_usd) * 100
                   : 0
-                const hasPendingWithdrawal = pendingWithdrawalByCampaign.get(campaign.id) || false
+                const campaignBalances = balancesByCampaign.get(campaign.id) || { ...EMPTY_BALANCES, campaign_id: campaign.id }
 
                 return (
                   <Card key={campaign.id} className="overflow-hidden hover:shadow-lg transition-shadow bg-card">
@@ -348,13 +355,6 @@ export default async function CreatorCampaignsPage() {
                                   Editar
                                 </Link>
                               </Button>
-                              <RequestWithdrawalDialog
-                                campaignId={campaign.id}
-                                campaignTitle={campaign.title}
-                                availableAmountUsd={availableAmount}
-                                hasPendingRequest={hasPendingWithdrawal}
-                                accounts={creatorWithdrawalAccounts}
-                              />
                               {campaign.status === 'active' && (
                                 <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
                                   <Link href={`/campaigns/${campaign.id}`} target="_blank">
@@ -415,23 +415,16 @@ export default async function CreatorCampaignsPage() {
                               <div className="text-right text-xs text-muted-foreground mt-1">
                                 {progressPercentage.toFixed(1)}% completado
                               </div>
-                              <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
-                                <div className="rounded-md border bg-muted/20 px-2 py-1">
-                                  <span className="text-muted-foreground">Total:</span> ${Number(campaign.current_amount_usd || 0).toFixed(2)}
-                                </div>
-                                <div className="rounded-md border bg-purple-50 dark:bg-purple-950/20 px-2 py-1">
-                                  <span className="text-muted-foreground">Retirado:</span> ${withdrawnAmount.toFixed(2)}
-                                </div>
-                                <div className="rounded-md border bg-green-50 dark:bg-green-950/20 px-2 py-1">
-                                  <span className="text-muted-foreground">Disponible:</span> ${availableAmount.toFixed(2)}
-                                </div>
-                              </div>
-                              {hasPendingWithdrawal && (
-                                <p className="text-xs text-amber-600 mt-2">
-                                  Tienes una solicitud de retiro pendiente para esta campaña.
-                                </p>
-                              )}
                             </div>
+
+                            {/* Saldos por moneda + retiros */}
+                            <CampaignBalancePanel
+                              campaignId={campaign.id}
+                              campaignTitle={campaign.title}
+                              balances={campaignBalances}
+                              accounts={creatorWithdrawalAccounts}
+                              minimums={withdrawalMinimums}
+                            />
 
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm text-muted-foreground">
                               <span>

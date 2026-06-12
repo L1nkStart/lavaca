@@ -110,7 +110,7 @@ export default function BlogPage() {
                                 Avísame cuando publiquemos
                             </h2>
                             <p className="text-muted-foreground max-w-xl mx-auto">
-                                Mientras tanto, podés explorar las campañas activas y ver
+                                Mientras tanto, puedes explorar las campañas activas y ver
                                 cómo funcionamos. Vamos a notificarte por email cuando
                                 publiquemos el primer artículo.
                             </p>

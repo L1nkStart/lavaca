@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Clock, TrendingUp, Shield, CheckCircle, RefreshCcw } from 'lucide-react';
+import { Loader2, Clock, TrendingUp, Shield, CheckCircle, RefreshCcw, HandCoins } from 'lucide-react';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -83,6 +83,7 @@ export function DonationCheckout({
     const [currency, setCurrency] = useState<Currency>('USD');
     const [amount, setAmount] = useState(10);
     const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('card');
+    const [coverFees, setCoverFees] = useState(false);
     const [isAnonymous, setIsAnonymous] = useState(false);
     const [donorEmail, setDonorEmail] = useState("");
     const [donorName, setDonorName] = useState("");
@@ -357,6 +358,24 @@ export function DonationCheckout({
     const rateExpired = currency === 'BS' && timeRemaining === 'Expirado';
     const amountBelowMin = amount > 0 && amount < amountLimits.min;
 
+    // Preview del fee de pasarela del método seleccionado. Es solo
+    // informativo: el servidor recalcula el fee con la config de la BD.
+    const feePercent = Number(selectedMethodConfig?.settings?.donation_fee_percent) || 0;
+    const feeFixedUsd = Number(selectedMethodConfig?.settings?.donation_fee_fixed_usd) || 0;
+    const gatewayFeeUsd = amountInUSD > 0
+        ? Math.round(((amountInUSD * feePercent) / 100 + feeFixedUsd) * 100) / 100
+        : 0;
+    const methodHasFee = gatewayFeeUsd > 0;
+    const effectiveCoverFees = methodHasFee && coverFees;
+    const netReceivedUsd = effectiveCoverFees
+        ? amountInUSD
+        : Math.max(amountInUSD - gatewayFeeUsd, 0);
+    // Lo que paga el donante, expresado en la moneda elegida.
+    const feeInSelectedCurrency = currency === 'USD'
+        ? gatewayFeeUsd
+        : gatewayFeeUsd * (exchangeRate || 43.02);
+    const totalToPay = effectiveCoverFees ? amount + feeInSelectedCurrency : amount;
+
     const handleDonate = async () => {
         setIsLoading(true);
         setCheckoutError(null);
@@ -443,6 +462,7 @@ export function DonationCheckout({
                     campaignId,
                     amountUSD: amountInUSD,
                     paymentMethod,
+                    coverFees: effectiveCoverFees,
                     isAnonymous,
                     donorEmail: normalizedDonorEmail,
                     donorName: normalizedDonorName || null,
@@ -686,6 +706,61 @@ export function DonationCheckout({
                             ))}
                         </div>
                     </div>
+
+                    {/* Desglose: lo que recibe la campaña + opción de cubrir comisiones */}
+                    {amount >= amountLimits.min && selectedMethodConfig && (
+                        <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
+                            {methodHasFee ? (
+                                <>
+                                    <div className="space-y-1 text-sm">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-foreground/70">Tu donación</span>
+                                            <span className="font-medium">{moneyLabel(amount, currency)}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-foreground/70">
+                                                Comisión de {selectedMethodConfig.name}
+                                                {feePercent > 0 && ` (${feePercent}%${feeFixedUsd > 0 ? ` + $${formatMoney(feeFixedUsd)}` : ''})`}
+                                            </span>
+                                            <span className={cn('font-medium', effectiveCoverFees ? 'line-through text-foreground/40' : 'text-destructive')}>
+                                                −{moneyLabel(feeInSelectedCurrency, currency)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between border-t pt-1 text-base">
+                                            <span className="font-semibold">La campaña recibirá</span>
+                                            <span className="font-bold text-primary">
+                                                {currency === 'USD'
+                                                    ? moneyLabel(netReceivedUsd, 'USD')
+                                                    : moneyLabel(netReceivedUsd * (exchangeRate || 43.02), 'BS')}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 rounded-md border border-border bg-background p-3">
+                                        <Checkbox
+                                            id="cover-fees"
+                                            checked={coverFees}
+                                            onCheckedChange={(checked) => setCoverFees(checked as boolean)}
+                                        />
+                                        <div className="space-y-1">
+                                            <Label htmlFor="cover-fees" className="cursor-pointer text-sm font-medium flex items-center gap-1.5">
+                                                <HandCoins className="h-4 w-4 text-primary" />
+                                                Cubrir comisiones (+{moneyLabel(feeInSelectedCurrency, currency)})
+                                            </Label>
+                                            <p className="text-xs text-muted-foreground">
+                                                Pagas la comisión de la pasarela aparte para que la campaña reciba tu donación completa.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <p className="flex items-center gap-2 text-sm text-foreground/80">
+                                    <CheckCircle className="h-4 w-4 shrink-0 text-primary" />
+                                    Sin comisiones de procesamiento: la campaña recibe el monto completo de tu donación.
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     {/* Payment-specific forms */}
                     {paymentMethod === 'pagomovil' && (
@@ -957,7 +1032,7 @@ export function DonationCheckout({
                             : 'Procesando…'}
                     </>
                 ) : (
-                    <>Donar {moneyLabel(amount, currency)}</>
+                    <>Donar {moneyLabel(totalToPay, currency)}</>
                 )}
             </Button>
 

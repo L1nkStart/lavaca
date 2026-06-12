@@ -371,7 +371,7 @@ export function KYCFormImproved() {
                             </h3>
                             <p className="text-sm text-green-800 dark:text-green-200 mt-1">
                                 Ya pasaste el proceso de verificación de identidad.
-                                Podés crear campañas y recibir donaciones sin restricciones.
+                                Puedes crear campañas y recibir donaciones sin restricciones.
                             </p>
                             {verifiedAt && (
                                 <p className="text-xs text-green-700 dark:text-green-300 mt-2">
@@ -388,7 +388,7 @@ export function KYCFormImproved() {
 
                     <div className="border-t border-green-200 dark:border-green-800 pt-4">
                         <p className="text-xs text-muted-foreground">
-                            Si necesitás actualizar tu información personal, escribinos
+                            Si necesitas actualizar tu información personal, escríbenos
                             a{' '}
                             <a href="mailto:soporte@lavaca.com.ve" className="underline">
                                 soporte@lavaca.com.ve
@@ -438,7 +438,7 @@ export function KYCFormImproved() {
                         <AlertDescription className="text-sm">
                             Tiempo estimado de revisión:{' '}
                             <strong>menos de 48 horas hábiles</strong>. Si pasaron
-                            más de 72 horas y no recibiste respuesta, escribinos a{' '}
+                            más de 72 horas y no recibiste respuesta, escríbenos a{' '}
                             <a href="mailto:soporte@lavaca.com.ve" className="underline font-medium">
                                 soporte@lavaca.com.ve
                             </a>
@@ -477,8 +477,8 @@ export function KYCFormImproved() {
                                     <strong>Motivo:</strong> {rejectionReason}
                                 </p>
                                 <p className="text-xs text-muted-foreground mt-3">
-                                    Revisá la información y volvé a enviar el formulario.
-                                    Asegurate de corregir lo que indicamos arriba.
+                                    Revisa la información y vuelve a enviar el formulario.
+                                    Asegúrate de corregir lo que indicamos arriba.
                                 </p>
                             </div>
                         </div>

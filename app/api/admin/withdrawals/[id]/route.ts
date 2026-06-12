@@ -50,13 +50,37 @@ export async function PATCH(
             return NextResponse.json({ error: "Estado inválido" }, { status: 400 })
         }
 
+        const adminSupabase = createAdminClient()
+
+        // Cargamos la solicitud para conocer su moneda y proteger transiciones
+        const { data: withdrawal, error: withdrawalError } = await adminSupabase
+            .from("withdrawal_requests")
+            .select("id, status, currency, amount_bs, amount_usd, campaign_id")
+            .eq("id", id)
+            .maybeSingle()
+
+        if (withdrawalError || !withdrawal) {
+            return NextResponse.json({ error: "Solicitud de retiro no encontrada" }, { status: 404 })
+        }
+
+        if (withdrawal.status !== "pending") {
+            return NextResponse.json(
+                { error: `La solicitud ya fue resuelta (estado actual: ${withdrawal.status})` },
+                { status: 400 }
+            )
+        }
+
+        const isBsWithdrawal = withdrawal.currency === "BS"
+
         if (status === "processed") {
             const parsedRate = Number(exchangeRateUsed)
             if (!referenceNumber?.trim()) {
                 return NextResponse.json({ error: "reference_number es obligatorio para procesar" }, { status: 400 })
             }
-            if (!exchangeRateUsed || Number.isNaN(parsedRate) || parsedRate <= 0) {
-                return NextResponse.json({ error: "exchange_rate_used inválido" }, { status: 400 })
+            // La tasa solo es obligatoria para retiros en bolívares: con ella
+            // se congela la pérdida cambiaria de ese retiro.
+            if (isBsWithdrawal && (!exchangeRateUsed || Number.isNaN(parsedRate) || parsedRate <= 0)) {
+                return NextResponse.json({ error: "exchange_rate_used es obligatorio para retiros en bolívares" }, { status: 400 })
             }
         }
 
@@ -64,17 +88,49 @@ export async function PATCH(
             return NextResponse.json({ error: "rejection_reason es obligatorio para marcar como failed" }, { status: 400 })
         }
 
-        const adminSupabase = createAdminClient()
-
         const updatePayload: Record<string, any> = {
             status,
         }
 
         if (status === "processed") {
-            updatePayload.exchange_rate_used = Number(exchangeRateUsed)
+            const parsedRate = Number(exchangeRateUsed)
+            updatePayload.exchange_rate_used = Number.isFinite(parsedRate) && parsedRate > 0 ? parsedRate : null
             updatePayload.reference_number = referenceNumber?.trim() || null
             updatePayload.rejection_reason = null
             updatePayload.processed_at = new Date().toISOString()
+
+            // Retiro BS: congelar valor indexado y pérdida cambiaria AHORA.
+            //   indexed_usd_value = monto_bs / tasa_promedio_entrada
+            //   fx_loss_usd       = indexed_usd_value - (monto_bs / tasa_del_retiro)
+            // Se guardan en la fila y nunca se recalculan (decisión del plan).
+            if (isBsWithdrawal && withdrawal.campaign_id && Number(withdrawal.amount_bs) > 0) {
+                const { data: bsDonations } = await adminSupabase
+                    .from("donations")
+                    .select("amount_bs, amount_usd")
+                    .eq("campaign_id", withdrawal.campaign_id)
+                    .eq("payment_status", "completed")
+                    .eq("currency", "BS")
+                    .not("amount_bs", "is", null)
+
+                let sumBs = 0
+                let sumUsd = 0
+                for (const donation of bsDonations || []) {
+                    sumBs += Number(donation.amount_bs || 0)
+                    sumUsd += Number(donation.amount_usd || 0)
+                }
+
+                const avgEntryRate = sumUsd > 0 ? sumBs / sumUsd : 0
+                const amountBs = Number(withdrawal.amount_bs)
+
+                if (avgEntryRate > 0 && parsedRate > 0) {
+                    const indexedUsd = amountBs / avgEntryRate
+                    const fxLoss = indexedUsd - amountBs / parsedRate
+                    updatePayload.indexed_usd_value = Math.round(indexedUsd * 100) / 100
+                    updatePayload.fx_loss_usd = Math.round(fxLoss * 100) / 100
+                    // amount_usd indicativo se actualiza al valor real del retiro
+                    updatePayload.amount_usd = Math.round((amountBs / parsedRate) * 100) / 100
+                }
+            }
         } else {
             updatePayload.rejection_reason = rejectionReason?.trim() || null
             updatePayload.processed_at = null
@@ -84,7 +140,7 @@ export async function PATCH(
             .from("withdrawal_requests")
             .update(updatePayload)
             .eq("id", id)
-            .select("id, status")
+            .select("id, status, currency, fx_loss_usd, indexed_usd_value")
             .single()
 
         if (error) throw error

@@ -13,14 +13,14 @@ import {
 
 export const metadata = {
     title: "Página no encontrada | LaVaca",
-    description: "La página que buscás no existe o fue movida.",
+    description: "La página que buscas no existe o fue movida.",
 };
 
 const SUGGESTIONS = [
     {
         icon: Search,
         title: "Explorar campañas",
-        description: "Descubrí las causas que están recaudando ahora",
+        description: "Descubre las causas que están recaudando ahora",
         href: "/campaigns",
     },
     {
@@ -32,13 +32,13 @@ const SUGGESTIONS = [
     {
         icon: HelpCircle,
         title: "Preguntas frecuentes",
-        description: "Quizás encuentres lo que buscás aquí",
+        description: "Quizás encuentres lo que buscas aquí",
         href: "/faq",
     },
     {
         icon: MessageCircle,
         title: "Contáctanos",
-        description: "Si necesitás ayuda, escribinos",
+        description: "Si necesitas ayuda, escríbenos",
         href: "/contact",
     },
 ];
@@ -65,7 +65,7 @@ export default function NotFound() {
                         Esta página se nos perdió 🐄
                     </h1>
                     <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto">
-                        La dirección que buscás no existe, fue movida o quizás
+                        La dirección que buscas no existe, fue movida o quizás
                         escribiste algo distinto. No te preocupes, tenemos varios
                         caminos para reencontrarte.
                     </p>
