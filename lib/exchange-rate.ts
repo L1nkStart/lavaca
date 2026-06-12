@@ -1,7 +1,53 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const STATIC_FALLBACK_RATE = 43.02;
-const DEFAULT_MARGIN_PERCENTAGE = 4.3;
+// La tasa oficial BCV se usa tal cual, sin margen.
+const DEFAULT_MARGIN_PERCENTAGE = 0;
+
+/**
+ * Obtiene la tasa oficial BCV (Bs/USD). Intenta dos APIs públicas que
+ * publican el valor oficial del Banco Central de Venezuela:
+ *   1. ve.dolarapi.com  -> { promedio: 582.69, ... }
+ *   2. pydolarve.org    -> { monitors: { bcv: { price: 582.69 } } } (v2)
+ * Devuelve null si ambas fallan (el caller decide el fallback).
+ */
+export async function fetchBcvRate(): Promise<number | null> {
+    // Fuente 1: dolarapi (oficial BCV)
+    try {
+        const response = await fetch("https://ve.dolarapi.com/v1/dolares/oficial", {
+            cache: "no-store",
+            signal: AbortSignal.timeout(8000),
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const rate = Number(data?.promedio ?? data?.precio);
+            if (Number.isFinite(rate) && rate > 0) {
+                return Number(rate.toFixed(4));
+            }
+        }
+    } catch (error) {
+        console.error("[exchange-rate] dolarapi BCV fetch failed:", error);
+    }
+
+    // Fuente 2: pydolarve (oficial BCV)
+    try {
+        const response = await fetch("https://pydolarve.org/api/v2/dollar?monitor=bcv", {
+            cache: "no-store",
+            signal: AbortSignal.timeout(8000),
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const rate = Number(data?.price ?? data?.monitors?.bcv?.price);
+            if (Number.isFinite(rate) && rate > 0) {
+                return Number(rate.toFixed(4));
+            }
+        }
+    } catch (error) {
+        console.error("[exchange-rate] pydolarve BCV fetch failed:", error);
+    }
+
+    return null;
+}
 
 /**
  * Llama a Binance P2P (USDT/VES) y devuelve la tasa cruda promedio de las
@@ -58,13 +104,22 @@ export async function fetchBinanceP2PRate(): Promise<number | null> {
 }
 
 /**
- * Refresca la tasa: pide a Binance, aplica margen y guarda con
- * `create_new_exchange_rate`. Devuelve la tasa final guardada o null si falla.
+ * Refresca la tasa: usa la tasa OFICIAL BCV (sin margen). Solo si las dos
+ * fuentes BCV fallan, cae a Binance P2P como último recurso (marcado en
+ * `source` para poder auditarlo). Guarda con `create_new_exchange_rate`.
  */
 export async function refreshExchangeRate(
     margin: number = DEFAULT_MARGIN_PERCENTAGE,
 ): Promise<{ rawRate: number; finalRate: number; rateId: string } | null> {
-    const rawRate = await fetchBinanceP2PRate();
+    let rawRate = await fetchBcvRate();
+    let source = "bcv";
+
+    if (!rawRate) {
+        console.warn("[exchange-rate] BCV sources failed, falling back to Binance P2P");
+        rawRate = await fetchBinanceP2PRate();
+        source = "binance_p2p_fallback";
+    }
+
     if (!rawRate) return null;
 
     const finalRate = Number((rawRate * (1 + margin / 100)).toFixed(4));
@@ -74,10 +129,10 @@ export async function refreshExchangeRate(
         const { data, error } = await supabase.rpc("create_new_exchange_rate", {
             p_raw_rate: rawRate,
             p_margin: margin,
-            p_source: "binance_p2p",
+            p_source: source,
             p_metadata: {
                 timestamp: new Date().toISOString(),
-                api_source: "binance",
+                api_source: source,
                 margin_applied: margin,
             },
         });

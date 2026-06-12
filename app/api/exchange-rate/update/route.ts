@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { refreshExchangeRate } from '@/lib/exchange-rate';
 
 /**
- * Forzar actualización de la tasa de cambio desde Binance P2P.
+ * Forzar actualización de la tasa de cambio oficial BCV.
  * Usado tanto desde el panel de admin como desde el cron de Coolify.
  */
 export async function POST(_request: NextRequest) {
@@ -11,7 +11,7 @@ export async function POST(_request: NextRequest) {
         const result = await refreshExchangeRate();
         if (!result) {
             return NextResponse.json(
-                { success: false, error: 'No se pudo obtener tasa de Binance' },
+                { success: false, error: 'No se pudo obtener la tasa BCV' },
                 { status: 502 },
             );
         }

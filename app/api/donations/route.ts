@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
         amount_bs: amountBs,
         currency: donationAmounts.currency,
         gateway_fee_usd: donationAmounts.gatewayFeeUsd,
+        gateway_fee_bs: donationAmounts.gatewayFeeBs,
         fee_covered_by_donor: feeCoveredByDonor,
         net_amount_usd: donationAmounts.netAmountUsd,
         net_amount_bs: donationAmounts.netAmountBs,

@@ -76,6 +76,8 @@ export interface DonationAmounts {
     currency: BalanceCurrency;
     /** Fee de pasarela estimado en USD */
     gatewayFeeUsd: number;
+    /** Fee de pasarela en Bs, calculado nativo (solo donaciones BS) */
+    gatewayFeeBs: number;
     /** Lo que acredita al saldo de la campaña, en USD */
     netAmountUsd: number;
     /** Lo que acredita al saldo Bs (solo donaciones BS) */
@@ -114,16 +116,18 @@ export function computeDonationAmounts(params: {
         : Math.max(round2(amountUsd - gatewayFeeUsd), 0);
 
     let netAmountBs: number | null = null;
+    let gatewayFeeBs = 0;
     if (currency === 'BS') {
         if (exactAmountBs != null && exactAmountBs > 0) {
             // Fee calculado nativamente en Bs sobre el monto exacto: evita
             // que el redondeo del fee en USD (ej: $0.036 -> $0.04) infle o
             // distorsione el descuento al convertirlo de vuelta.
-            const feeBs = feeCoveredByDonor
-                ? 0
-                : round2((exactAmountBs * feeConfig.percent) / 100 + feeConfig.fixedUsd * exchangeRate);
-            netAmountBs = Math.max(round2(exactAmountBs - feeBs), 0);
+            gatewayFeeBs = round2((exactAmountBs * feeConfig.percent) / 100 + feeConfig.fixedUsd * exchangeRate);
+            netAmountBs = feeCoveredByDonor
+                ? exactAmountBs
+                : Math.max(round2(exactAmountBs - gatewayFeeBs), 0);
         } else {
+            gatewayFeeBs = round2(gatewayFeeUsd * exchangeRate);
             netAmountBs = round2(netAmountUsd * exchangeRate);
         }
     }
@@ -132,7 +136,7 @@ export function computeDonationAmounts(params: {
         ? round2(amountUsd + gatewayFeeUsd)
         : amountUsd;
 
-    return { currency, gatewayFeeUsd, netAmountUsd, netAmountBs, totalChargedUsd };
+    return { currency, gatewayFeeUsd, gatewayFeeBs, netAmountUsd, netAmountBs, totalChargedUsd };
 }
 
 // ============================================

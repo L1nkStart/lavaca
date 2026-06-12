@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getDonationFeeConfig } from "@/lib/fees";
+import { getActiveExchangeRate } from "@/lib/exchange-rate";
 
 /**
  * POST /api/admin/payments/[id]
- *   Body: { action: 'approve' | 'reject', reason?: string, adminNotes?: string }
+ *   Body: { action: 'approve' | 'reject', reason?: string, adminNotes?: string,
+ *           correctedAmount?: number }
+ *
+ * `correctedAmount` (solo pagos manuales pendientes): el monto TOTAL que el
+ * donante pagó realmente según el banco, en la moneda de la donación. Si el
+ * donante se equivocó al reportar, el admin corrige aquí y el sistema
+ * recalcula bruto, fee y neto antes de acreditar.
  *
  * Aprueba o rechaza un pago manual. Usa el service-role para esquivar RLS
  * (que estaba bloqueando silenciosamente el UPDATE cuando se intentaba desde
@@ -57,6 +65,11 @@ export async function POST(
         const action = body?.action as "approve" | "reject" | undefined;
         const reason = typeof body?.reason === "string" ? body.reason.trim() : null;
         const adminNotes = typeof body?.adminNotes === "string" ? body.adminNotes.trim() : null;
+        const rawCorrectedAmount = Number(body?.correctedAmount);
+        const correctedAmount =
+            Number.isFinite(rawCorrectedAmount) && rawCorrectedAmount > 0
+                ? Math.round(rawCorrectedAmount * 100) / 100
+                : null;
 
         if (action !== "approve" && action !== "reject") {
             return NextResponse.json({ error: "Acción inválida" }, { status: 400 });
@@ -67,7 +80,7 @@ export async function POST(
         // Buscar el donation antes de tocarlo (para idempotencia + auditoría).
         const { data: donation, error: fetchError } = await adminSupabase
             .from("donations")
-            .select("id, payment_status, campaign_id, amount_usd, donor_id, email")
+            .select("id, payment_status, campaign_id, amount_usd, amount_bs, currency, payment_method, fee_covered_by_donor, donor_id, email")
             .eq("id", id)
             .single();
 
@@ -104,19 +117,72 @@ export async function POST(
 
         if (action === "approve") {
             const now = new Date().toISOString();
+            const round2 = (value: number) => Math.round(value * 100) / 100;
+
+            const updatePayload: Record<string, any> = {
+                payment_status: "completed",
+                completed_at: now,
+                approved_at: now,
+                // El admin puede dejar notas opcionales al aprobar; limpiamos
+                // el "pendiente de verificación manual" anterior.
+                admin_notes: adminNotes || null,
+            };
+
+            // Corrección de monto: el donante reportó X pero el banco muestra
+            // otro total. `correctedAmount` es el TOTAL pagado; se recalculan
+            // bruto, fee y neto respetando si cubría comisiones o no. La tasa
+            // usada es la original de la donación (snapshot Bs/USD) para no
+            // re-indexar con la tasa de hoy.
+            let amountCorrection: Record<string, any> | null = null;
+            if (correctedAmount != null) {
+                const isBs = donation.currency === "BS" && donation.amount_bs != null;
+                const feeConfig = await getDonationFeeConfig(adminSupabase, donation.payment_method);
+                const originalRate =
+                    isBs && Number(donation.amount_usd) > 0
+                        ? Number(donation.amount_bs) / Number(donation.amount_usd)
+                        : await getActiveExchangeRate();
+                const covered = donation.fee_covered_by_donor === true;
+                const pct = feeConfig.percent;
+                const fixedInCurrency = isBs ? feeConfig.fixedUsd * originalRate : feeConfig.fixedUsd;
+
+                // Si cubría comisiones, el total pagado incluye el fee:
+                //   pagado = bruto + bruto*pct/100 + fijo  =>  bruto = (pagado - fijo) / (1 + pct/100)
+                const gross = covered
+                    ? round2(Math.max(correctedAmount - fixedInCurrency, 0) / (1 + pct / 100))
+                    : correctedAmount;
+                const fee = round2((gross * pct) / 100 + fixedInCurrency);
+                const net = covered ? gross : Math.max(round2(gross - fee), 0);
+
+                if (isBs) {
+                    amountCorrection = {
+                        amount_bs: gross,
+                        amount_usd: round2(gross / originalRate),
+                        gateway_fee_bs: fee,
+                        gateway_fee_usd: round2(fee / originalRate),
+                        net_amount_bs: net,
+                        net_amount_usd: round2(net / originalRate),
+                    };
+                } else {
+                    amountCorrection = {
+                        amount_usd: gross,
+                        gateway_fee_usd: fee,
+                        net_amount_usd: net,
+                    };
+                }
+
+                Object.assign(updatePayload, amountCorrection);
+                updatePayload.admin_notes = [
+                    adminNotes,
+                    `Monto corregido por admin: pagado ${correctedAmount} ${isBs ? "Bs" : "USD"} (reportado: ${isBs ? donation.amount_bs + " Bs" : donation.amount_usd + " USD"})`,
+                ].filter(Boolean).join(" | ");
+            }
+
             const { data: updated, error: updateError } = await adminSupabase
                 .from("donations")
-                .update({
-                    payment_status: "completed",
-                    completed_at: now,
-                    approved_at: now,
-                    // El admin puede dejar notas opcionales al aprobar; limpiamos
-                    // el "pendiente de verificación manual" anterior.
-                    admin_notes: adminNotes || null,
-                })
+                .update(updatePayload)
                 .eq("id", id)
                 .neq("payment_status", "completed")
-                .select("id, payment_status, amount_usd, campaign_id")
+                .select("id, payment_status, amount_usd, amount_bs, campaign_id")
                 .single();
 
             if (updateError) {
@@ -131,11 +197,22 @@ export async function POST(
             try {
                 await adminSupabase.from("audit_logs").insert({
                     admin_id: adminCheck.userId,
-                    action: "approve_manual_payment",
+                    action: correctedAmount != null ? "approve_manual_payment_corrected" : "approve_manual_payment",
                     target_table: "donations",
                     target_id: id,
-                    changes: { payment_status: "completed", approved_at: now },
-                    reason: adminNotes || "Aprobación manual de pago",
+                    changes: {
+                        payment_status: "completed",
+                        approved_at: now,
+                        ...(amountCorrection
+                            ? {
+                                corrected_total_paid: correctedAmount,
+                                previous_amount_usd: donation.amount_usd,
+                                previous_amount_bs: donation.amount_bs,
+                                ...amountCorrection,
+                            }
+                            : {}),
+                    },
+                    reason: adminNotes || (correctedAmount != null ? "Aprobación con monto corregido" : "Aprobación manual de pago"),
                 });
             } catch (logError) {
                 console.warn("[admin/payments approve] audit log failed:", logError);

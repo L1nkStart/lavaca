@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
+import { Input } from "@/components/ui/input"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { CheckCircle2, X, Loader2, AlertCircle, ExternalLink } from 'lucide-react'
 import { createClient } from "@/lib/supabase/client"
@@ -21,6 +22,11 @@ interface Payment {
   amount_usd: number
   amount_bs: number | null
   currency: 'USD' | 'BS' | null
+  gateway_fee_usd: number | null
+  gateway_fee_bs: number | null
+  fee_covered_by_donor: boolean | null
+  net_amount_usd: number | null
+  net_amount_bs: number | null
   payment_method: string
   reference_number: string | null
   payment_status: string
@@ -45,6 +51,9 @@ export default function AdminPaymentsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [notes, setNotes] = useState("")
   const [processing, setProcessing] = useState(false)
+  // Corrección de monto: cuando el donante pagó un monto distinto al reportado
+  const [correctingId, setCorrectingId] = useState<string | null>(null)
+  const [correctedAmount, setCorrectedAmount] = useState("")
 
   const supabase = createClient()
 
@@ -82,8 +91,11 @@ export default function AdminPaymentsPage() {
     }
   }
 
-  const handleApprove = async (id: string) => {
-    if (!confirm('¿Estás seguro de aprobar este pago?')) return
+  const handleApprove = async (id: string, amountOverride?: number) => {
+    const confirmMessage = amountOverride != null
+      ? `¿Aprobar este pago con el monto corregido de ${amountOverride}?`
+      : '¿Estás seguro de aprobar este pago?'
+    if (!confirm(confirmMessage)) return
 
     try {
       setProcessing(true)
@@ -94,7 +106,10 @@ export default function AdminPaymentsPage() {
       const response = await fetch(`/api/admin/payments/${id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'approve' }),
+        body: JSON.stringify({
+          action: 'approve',
+          ...(amountOverride != null ? { correctedAmount: amountOverride } : {}),
+        }),
       })
       const data = await response.json()
       if (!response.ok) {
@@ -103,7 +118,11 @@ export default function AdminPaymentsPage() {
 
       alert(data?.already
         ? 'ℹ️ Este pago ya estaba aprobado'
-        : '✅ Pago aprobado y acreditado exitosamente')
+        : amountOverride != null
+          ? '✅ Pago aprobado con el monto corregido'
+          : '✅ Pago aprobado y acreditado exitosamente')
+      setCorrectingId(null)
+      setCorrectedAmount('')
       fetchPayments()
     } catch (err: any) {
       console.error('Error approving payment:', err)
@@ -303,23 +322,44 @@ export default function AdminPaymentsPage() {
                       </div>
                     </div>
                     <div className="text-right">
-                      {payment.currency === 'BS' && payment.amount_bs != null ? (
-                        <>
-                          <p className="text-2xl font-bold text-primary">
-                            Bs {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(payment.amount_bs)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            ≈ ${payment.amount_usd.toFixed(2)} USD
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-2xl font-bold text-primary">
-                            ${payment.amount_usd.toFixed(2)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">USD</p>
-                        </>
-                      )}
+                      {(() => {
+                        // El monto grande es lo que el donante PAGO realmente
+                        // (donación + comisión si la cubrió): es lo que el
+                        // admin debe encontrar en el banco para verificar.
+                        const isBsPayment = payment.currency === 'BS' && payment.amount_bs != null
+                        const coveredFee = payment.fee_covered_by_donor
+                          ? (isBsPayment ? Number(payment.gateway_fee_bs || 0) : Number(payment.gateway_fee_usd || 0))
+                          : 0
+                        const totalPaid = (isBsPayment ? Number(payment.amount_bs) : Number(payment.amount_usd)) + coveredFee
+                        const netReceived = isBsPayment
+                          ? Number(payment.net_amount_bs ?? payment.amount_bs)
+                          : Number(payment.net_amount_usd ?? payment.amount_usd)
+                        const money = (value: number) => isBsPayment
+                          ? `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`
+                          : `$${value.toFixed(2)}`
+
+                        return (
+                          <>
+                            <p className="text-xs text-muted-foreground">Pagó el donante</p>
+                            <p className="text-2xl font-bold text-primary">{money(totalPaid)}</p>
+                            {coveredFee > 0 && (
+                              <p className="text-xs text-muted-foreground">
+                                Donación {money(isBsPayment ? Number(payment.amount_bs) : Number(payment.amount_usd))} + comisión {money(coveredFee)}
+                              </p>
+                            )}
+                            {Math.abs(netReceived - totalPaid) > 0.005 && (
+                              <p className="text-xs text-muted-foreground">
+                                La campaña recibe: <strong>{money(netReceived)}</strong>
+                              </p>
+                            )}
+                            {isBsPayment && (
+                              <p className="text-[11px] text-muted-foreground">
+                                ≈ ${payment.amount_usd.toFixed(2)} USD
+                              </p>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
 
@@ -440,8 +480,56 @@ export default function AdminPaymentsPage() {
                     </>
                   )}
 
+                  {/* Corrección de monto: el donante pagó distinto a lo reportado */}
+                  {correctingId === payment.id && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-4 space-y-3">
+                      <p className="text-sm font-medium">
+                        Monto total que pagó el donante ({payment.currency === 'BS' ? 'Bs' : 'USD'})
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Escribe el monto exacto del comprobante/banco. El sistema recalcula
+                        la comisión y el neto, y eso será lo acreditado a la campaña.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Input
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          className="max-w-[200px]"
+                          placeholder={payment.currency === 'BS' ? 'Ej: 950.00' : 'Ej: 9.50'}
+                          value={correctedAmount}
+                          onChange={(e) => setCorrectedAmount(e.target.value)}
+                          disabled={processing}
+                        />
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const parsed = Number(correctedAmount)
+                            if (!Number.isFinite(parsed) || parsed <= 0) {
+                              alert('Ingresa un monto válido mayor a 0')
+                              return
+                            }
+                            handleApprove(payment.id, parsed)
+                          }}
+                          disabled={processing}
+                        >
+                          {processing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                          Aprobar con monto corregido
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => { setCorrectingId(null); setCorrectedAmount('') }}
+                          disabled={processing}
+                        >
+                          Cancelar
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Actions */}
-                  <div className="flex gap-3 border-t border-border pt-4">
+                  <div className="flex flex-wrap gap-3 border-t border-border pt-4">
                     {selectedId !== payment.id ? (
                       <>
                         <Button
@@ -456,6 +544,18 @@ export default function AdminPaymentsPage() {
                             <CheckCircle2 className="w-4 h-4 mr-2" />
                           )}
                           Aprobar pago
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setCorrectingId(correctingId === payment.id ? null : payment.id)
+                            setCorrectedAmount('')
+                          }}
+                          disabled={processing}
+                        >
+                          Corregir monto
                         </Button>
                         <Button
                           size="sm"

@@ -62,6 +62,39 @@ const METHOD_META: Record<PaymentMethod, { icon: string; defaultName: string }> 
 const USD_ALLOWED_METHODS: PaymentMethod[] = ['card', 'paypal', 'zelle', 'crypto'];
 const BS_ALLOWED_METHODS: PaymentMethod[] = ['pagomovil', 'transfer', 'chinchin'];
 
+// Bancos venezolanos (código - nombre) para el select de PagoMóvil
+const VE_BANKS = [
+    { code: '0102', name: 'Banco de Venezuela' },
+    { code: '0104', name: 'Venezolano de Crédito' },
+    { code: '0105', name: 'Mercantil' },
+    { code: '0108', name: 'Provincial' },
+    { code: '0114', name: 'Bancaribe' },
+    { code: '0115', name: 'Banco Exterior' },
+    { code: '0128', name: 'Banco Caroní' },
+    { code: '0134', name: 'Banesco' },
+    { code: '0137', name: 'Sofitasa' },
+    { code: '0138', name: 'Banco Plaza' },
+    { code: '0151', name: 'BFC Banco Fondo Común' },
+    { code: '0156', name: '100% Banco' },
+    { code: '0157', name: 'DelSur' },
+    { code: '0163', name: 'Banco del Tesoro' },
+    { code: '0168', name: 'Bancrecer' },
+    { code: '0169', name: 'Mi Banco' },
+    { code: '0171', name: 'Banco Activo' },
+    { code: '0172', name: 'Bancamiga' },
+    { code: '0174', name: 'Banplus' },
+    { code: '0175', name: 'Banco Bicentenario' },
+    { code: '0177', name: 'Banfanb' },
+    { code: '0191', name: 'BNC Banco Nacional de Crédito' },
+];
+
+const CEDULA_PREFIXES = ['V', 'E', 'J', 'G', 'P'];
+
+// Teléfono móvil venezolano: 04XX + 7 dígitos (11 dígitos en total)
+const VE_PHONE_REGEX = /^04\d{9}$/;
+// Cédula/RIF: solo números, 6 a 9 dígitos
+const CEDULA_REGEX = /^\d{6,9}$/;
+
 const AMOUNT_LIMITS: Record<Currency, { min: number; max: number; presets: number[] }> = {
     USD: { min: 1, max: 1_000_000, presets: [10, 25, 50, 100] },
     BS: { min: 50, max: 50_000_000, presets: [500, 1000, 2000, 5000] },
@@ -105,7 +138,8 @@ export function DonationCheckout({
     const [pagoMovilData, setPagoMovilData] = useState({
         bank: "",
         phone: "",
-        cedula: "",
+        cedulaPrefix: "V",
+        cedulaNumber: "",
     });
 
     const [transferData, setTransferData] = useState({
@@ -360,21 +394,23 @@ export function DonationCheckout({
 
     // Preview del fee de pasarela del método seleccionado. Es solo
     // informativo: el servidor recalcula el fee con la config de la BD.
+    // El fee se calcula NATIVO en la moneda elegida (mismo criterio que el
+    // servidor) para que el preview coincida con lo que se cobra de verdad.
     const feePercent = Number(selectedMethodConfig?.settings?.donation_fee_percent) || 0;
     const feeFixedUsd = Number(selectedMethodConfig?.settings?.donation_fee_fixed_usd) || 0;
-    const gatewayFeeUsd = amountInUSD > 0
-        ? Math.round(((amountInUSD * feePercent) / 100 + feeFixedUsd) * 100) / 100
+    const round2 = (value: number) => Math.round(value * 100) / 100;
+    const feeInSelectedCurrency = amount > 0
+        ? (currency === 'USD'
+            ? round2((amount * feePercent) / 100 + feeFixedUsd)
+            : round2((amount * feePercent) / 100 + feeFixedUsd * (exchangeRate || 43.02)))
         : 0;
-    const methodHasFee = gatewayFeeUsd > 0;
+    const methodHasFee = feeInSelectedCurrency > 0;
     const effectiveCoverFees = methodHasFee && coverFees;
-    const netReceivedUsd = effectiveCoverFees
-        ? amountInUSD
-        : Math.max(amountInUSD - gatewayFeeUsd, 0);
-    // Lo que paga el donante, expresado en la moneda elegida.
-    const feeInSelectedCurrency = currency === 'USD'
-        ? gatewayFeeUsd
-        : gatewayFeeUsd * (exchangeRate || 43.02);
-    const totalToPay = effectiveCoverFees ? amount + feeInSelectedCurrency : amount;
+    // Lo que acredita la campaña, en la moneda elegida (sin re-conversiones).
+    const netReceivedInSelectedCurrency = effectiveCoverFees
+        ? amount
+        : Math.max(round2(amount - feeInSelectedCurrency), 0);
+    const totalToPay = effectiveCoverFees ? round2(amount + feeInSelectedCurrency) : amount;
 
     const handleDonate = async () => {
         setIsLoading(true);
@@ -428,9 +464,19 @@ export function DonationCheckout({
                 return;
             }
 
-            if (paymentMethod === "pagomovil" && (!pagoMovilData.bank || !pagoMovilData.phone || !pagoMovilData.cedula)) {
-                setCheckoutError("Por favor completa todos los datos de Pago Móvil");
-                return;
+            if (paymentMethod === "pagomovil") {
+                if (!pagoMovilData.bank) {
+                    setCheckoutError("Selecciona el banco desde el que hiciste el Pago Móvil.");
+                    return;
+                }
+                if (!VE_PHONE_REGEX.test(pagoMovilData.phone)) {
+                    setCheckoutError("El teléfono debe ser un número venezolano válido de 11 dígitos (ej: 04121234567).");
+                    return;
+                }
+                if (!CEDULA_REGEX.test(pagoMovilData.cedulaNumber)) {
+                    setCheckoutError("La cédula debe contener solo números (entre 6 y 9 dígitos).");
+                    return;
+                }
             }
 
             if (paymentMethod === "transfer" && (!transferData.accountId || !transferData.reference)) {
@@ -469,7 +515,13 @@ export function DonationCheckout({
                     isAnonymous,
                     donorEmail: normalizedDonorEmail,
                     donorName: normalizedDonorName || null,
-                    pagoMovilData: paymentMethod === "pagomovil" ? pagoMovilData : null,
+                    pagoMovilData: paymentMethod === "pagomovil"
+                        ? {
+                            bank: pagoMovilData.bank,
+                            phone: pagoMovilData.phone,
+                            cedula: `${pagoMovilData.cedulaPrefix}-${pagoMovilData.cedulaNumber}`,
+                        }
+                        : null,
                     manualPaymentData: paymentMethod === "transfer"
                         ? {
                             ...transferData,
@@ -732,9 +784,13 @@ export function DonationCheckout({
                                         <div className="flex items-center justify-between border-t pt-1 text-base">
                                             <span className="font-semibold">La campaña recibirá</span>
                                             <span className="font-bold text-primary">
-                                                {currency === 'USD'
-                                                    ? moneyLabel(netReceivedUsd, 'USD')
-                                                    : moneyLabel(netReceivedUsd * (exchangeRate || 43.02), 'BS')}
+                                                {moneyLabel(netReceivedInSelectedCurrency, currency)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between rounded-md bg-background border px-2 py-1.5 text-base">
+                                            <span className="font-semibold">Tú pagarás</span>
+                                            <span className="font-bold">
+                                                {moneyLabel(totalToPay, currency)}
                                             </span>
                                         </div>
                                     </div>
@@ -784,33 +840,84 @@ export function DonationCheckout({
                                 </div>
                             ) : null}
 
-                            <h4 className="font-semibold text-sm">Datos de Pago Móvil</h4>
+                            <h4 className="font-semibold text-sm">Datos de Pago Móvil (desde donde pagaste)</h4>
                             <div>
-                                <Label htmlFor="bank">Banco</Label>
-                                <Input
-                                    id="bank"
-                                    placeholder="Ej: 0102 - Banco de Venezuela"
+                                <Label htmlFor="bank">Banco emisor</Label>
+                                <Select
                                     value={pagoMovilData.bank}
-                                    onChange={(e) => setPagoMovilData({ ...pagoMovilData, bank: e.target.value })}
-                                />
+                                    onValueChange={(value) => setPagoMovilData({ ...pagoMovilData, bank: value })}
+                                >
+                                    <SelectTrigger id="bank">
+                                        <SelectValue placeholder="Selecciona tu banco" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {VE_BANKS.map((bank) => (
+                                            <SelectItem key={bank.code} value={`${bank.code} - ${bank.name}`}>
+                                                {bank.code} - {bank.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div>
                                 <Label htmlFor="phone">Teléfono</Label>
                                 <Input
                                     id="phone"
-                                    placeholder="04XX-XXXXXXX"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    placeholder="04121234567"
+                                    maxLength={11}
                                     value={pagoMovilData.phone}
-                                    onChange={(e) => setPagoMovilData({ ...pagoMovilData, phone: e.target.value })}
+                                    onChange={(e) => {
+                                        // Solo dígitos, máximo 11 (04XX + 7 dígitos)
+                                        const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+                                        setPagoMovilData({ ...pagoMovilData, phone: digits });
+                                    }}
+                                    aria-invalid={pagoMovilData.phone.length > 0 && !VE_PHONE_REGEX.test(pagoMovilData.phone)}
                                 />
+                                {pagoMovilData.phone.length > 0 && !VE_PHONE_REGEX.test(pagoMovilData.phone) && (
+                                    <p className="text-xs text-destructive mt-1">
+                                        Debe ser un número venezolano de 11 dígitos que empiece por 04.
+                                    </p>
+                                )}
                             </div>
                             <div>
-                                <Label htmlFor="cedula">Cédula</Label>
-                                <Input
-                                    id="cedula"
-                                    placeholder="V-XXXXXXXX"
-                                    value={pagoMovilData.cedula}
-                                    onChange={(e) => setPagoMovilData({ ...pagoMovilData, cedula: e.target.value })}
-                                />
+                                <Label htmlFor="cedula">Cédula / RIF</Label>
+                                <div className="flex gap-2">
+                                    <Select
+                                        value={pagoMovilData.cedulaPrefix}
+                                        onValueChange={(value) => setPagoMovilData({ ...pagoMovilData, cedulaPrefix: value })}
+                                    >
+                                        <SelectTrigger className="w-20" aria-label="Tipo de documento">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {CEDULA_PREFIXES.map((prefix) => (
+                                                <SelectItem key={prefix} value={prefix}>
+                                                    {prefix}-
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <Input
+                                        id="cedula"
+                                        inputMode="numeric"
+                                        placeholder="12345678"
+                                        maxLength={9}
+                                        className="flex-1"
+                                        value={pagoMovilData.cedulaNumber}
+                                        onChange={(e) => {
+                                            const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                                            setPagoMovilData({ ...pagoMovilData, cedulaNumber: digits });
+                                        }}
+                                        aria-invalid={pagoMovilData.cedulaNumber.length > 0 && !CEDULA_REGEX.test(pagoMovilData.cedulaNumber)}
+                                    />
+                                </div>
+                                {pagoMovilData.cedulaNumber.length > 0 && !CEDULA_REGEX.test(pagoMovilData.cedulaNumber) && (
+                                    <p className="text-xs text-destructive mt-1">
+                                        Solo números, entre 6 y 9 dígitos.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}

@@ -165,7 +165,7 @@ export default function AdminSettingsPage() {
       if (Number.isFinite(Number(data?.rate))) {
         setExchangeRate(String(Number(data.rate).toFixed(2)));
       }
-      toast.success("Tasa refrescada desde Binance P2P");
+      toast.success("Tasa oficial BCV refrescada");
     } catch (error: any) {
       toast.error(error?.message || "Error al refrescar la tasa");
     } finally {
@@ -278,7 +278,7 @@ export default function AdminSettingsPage() {
 
                       <div className="flex items-center justify-between rounded-lg border border-border p-3">
                         <div>
-                          <p className="font-medium text-sm">Auto-refresco desde Binance P2P</p>
+                          <p className="font-medium text-sm">Auto-refresco de la tasa oficial BCV</p>
                           <p className="text-xs text-muted-foreground">
                             Si está activo, un job programado puede actualizar la tasa
                             automáticamente vía <code>/api/exchange-rate/update</code>.
@@ -308,7 +308,7 @@ export default function AdminSettingsPage() {
                           ) : (
                             <RefreshCw className="h-4 w-4 mr-2" />
                           )}
-                          Refrescar desde Binance P2P
+                          Refrescar tasa oficial BCV
                         </Button>
                       </div>
                     </>
