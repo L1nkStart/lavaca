@@ -236,7 +236,7 @@ export function WithdrawalAccountsForm({ profile, accounts }: WithdrawalAccounts
 
     const getAccountTypeLabel = (type: string) => {
         switch (type) {
-            case 'bank_bs': return 'Cuenta Bancaria (Bs.)'
+            case 'bank_bs': return 'Cuenta bancaria (Bs.)'
             case 'pagomovil': return 'PagoMóvil'
             case 'zelle': return 'Zelle'
             case 'paypal': return 'PayPal'
@@ -287,8 +287,8 @@ export function WithdrawalAccountsForm({ profile, accounts }: WithdrawalAccounts
             )}
 
             {success && (
-                <Alert className="bg-green-50 text-green-800 border-green-200">
-                    <AlertDescription>{success}</AlertDescription>
+                <Alert className="border-primary/30 bg-primary/5">
+                    <AlertDescription className="text-foreground">{success}</AlertDescription>
                 </Alert>
             )}
 
@@ -307,7 +307,7 @@ export function WithdrawalAccountsForm({ profile, accounts }: WithdrawalAccounts
                                                 <Badge variant="outline" className="text-xs">Principal</Badge>
                                             )}
                                             {account.verified ? (
-                                                <Badge className="bg-green-500 text-xs">
+                                                <Badge className="bg-primary text-primary-foreground text-xs">
                                                     <Check className="h-3 w-3 mr-1" />
                                                     Verificado
                                                 </Badge>
@@ -378,7 +378,7 @@ export function WithdrawalAccountsForm({ profile, accounts }: WithdrawalAccounts
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="bank_bs">Cuenta Bancaria (Bolívares)</SelectItem>
+                                    <SelectItem value="bank_bs">Cuenta bancaria (bolívares)</SelectItem>
                                     <SelectItem value="pagomovil">PagoMóvil</SelectItem>
                                     <SelectItem value="zelle">Zelle</SelectItem>
                                     <SelectItem value="paypal">PayPal</SelectItem>
@@ -536,7 +536,7 @@ export function WithdrawalAccountsForm({ profile, accounts }: WithdrawalAccounts
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label htmlFor="crypto_wallet_address">Dirección de Wallet *</Label>
+                                    <Label htmlFor="crypto_wallet_address">Dirección de wallet *</Label>
                                     <Input
                                         id="crypto_wallet_address"
                                         value={formData.crypto_wallet_address}
@@ -574,9 +574,9 @@ export function WithdrawalAccountsForm({ profile, accounts }: WithdrawalAccounts
             </Dialog>
 
             {/* Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="font-medium text-blue-900 mb-2">Información importante:</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
+            <div className="bg-muted/40 border rounded-lg p-4">
+                <h4 className="font-medium text-foreground mb-2">Información importante:</h4>
+                <ul className="text-sm text-muted-foreground space-y-1">
                     <li>• Las cuentas deben verificarse antes de poder recibir fondos</li>
                     <li>• Solo puedes tener una cuenta principal por tipo</li>
                     <li>• Asegúrate de que los datos sean correctos</li>

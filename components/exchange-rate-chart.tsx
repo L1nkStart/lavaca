@@ -9,6 +9,7 @@ import {
     XAxis,
     YAxis,
 } from 'recharts'
+import { formatUsd } from '@/lib/format'
 
 type RatePoint = {
     date: string
@@ -20,9 +21,6 @@ type ExchangeRateChartProps = {
     /** Pérdida cambiaria acumulada del creador (para el subtítulo) */
     fxLossTotal?: number
 }
-
-const formatUsd = (value: number) =>
-    `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
 
 export function ExchangeRateChart({ points, fxLossTotal = 0 }: ExchangeRateChartProps) {
     if (points.length < 2) return null
@@ -70,7 +68,7 @@ export function ExchangeRateChart({ points, fxLossTotal = 0 }: ExchangeRateChart
                             <Line
                                 type="monotone"
                                 dataKey="rate"
-                                stroke="var(--primary, #16a34a)"
+                                stroke="var(--primary, #0c5b57)"
                                 strokeWidth={2}
                                 dot={false}
                                 activeDot={{ r: 4 }}

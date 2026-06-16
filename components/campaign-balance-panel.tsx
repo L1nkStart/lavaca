@@ -3,6 +3,7 @@
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { RequestWithdrawalDialog } from '@/components/request-withdrawal-dialog'
+import { formatBs, formatUsd } from '@/lib/format'
 import { Banknote, DollarSign, Download, Info, TrendingDown } from 'lucide-react'
 
 type BalancesSnapshot = {
@@ -41,12 +42,6 @@ type CampaignBalancePanelProps = {
     inflationAlertDays?: number
 }
 
-const formatBs = (value: number) =>
-    `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
-
-const formatUsd = (value: number) =>
-    `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
-
 function daysSinceLastBsMovement(balances: BalancesSnapshot): number | null {
     const reference = balances.last_bs_withdrawal_at || balances.last_bs_donation_at
     if (!reference) return null
@@ -77,9 +72,9 @@ export function CampaignBalancePanel({
     return (
         <div className="space-y-3">
             {showInflationAlert && (
-                <Alert className="border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800">
-                    <TrendingDown className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <AlertDescription className="text-amber-900 dark:text-amber-100 text-sm">
+                <Alert className="border-accent/40 bg-accent/10">
+                    <TrendingDown className="h-4 w-4 text-accent" />
+                    <AlertDescription className="text-foreground text-sm">
                         <strong>Protege tu recaudación:</strong> tienes {formatBs(balances.saldo_bs)} sin retirar
                         {idleDays !== null && idleDays >= inflationAlertDays ? ` desde hace ${idleDays} días` : ''}.
                         Te recomendamos retirarlos pronto para reducir la pérdida de valor por la variación de la tasa.
@@ -94,7 +89,7 @@ export function CampaignBalancePanel({
                         <Banknote className="h-4 w-4 text-primary" />
                         Saldo en Bolívares
                     </div>
-                    <p className="text-2xl font-bold">{formatBs(balances.saldo_bs)}</p>
+                    <p className="text-2xl font-bold font-mono">{formatBs(balances.saldo_bs)}</p>
 
                     <div className="space-y-1 text-xs text-muted-foreground">
                         {balances.pending_bs > 0 && (
@@ -144,7 +139,7 @@ export function CampaignBalancePanel({
                         <DollarSign className="h-4 w-4 text-primary" />
                         Saldo en Dólares
                     </div>
-                    <p className="text-2xl font-bold">{formatUsd(balances.saldo_usd)}</p>
+                    <p className="text-2xl font-bold font-mono">{formatUsd(balances.saldo_usd)}</p>
 
                     <div className="space-y-1 text-xs text-muted-foreground">
                         {balances.pending_usd > 0 && (
