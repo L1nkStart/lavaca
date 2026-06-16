@@ -32,6 +32,10 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
       story,
       location,
       goal_amount_usd,
+      current_amount_usd,
+      original_goal_amount_usd,
+      status,
+      main_image_url,
       urgency_level,
             category_id
     `)
@@ -49,9 +53,27 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
         .eq('campaign_id', id)
         .maybeSingle()
 
+    // Donaciones completadas: si las hay, los documentos de soporte se vuelven
+    // inmutables (solo se pueden agregar, no borrar) — evidencia anti-fraude.
+    const { count: completedDonations } = await supabase
+        .from('donations')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', id)
+        .eq('payment_status', 'completed')
+
+    // Cambios de imagen en revisión (cola de moderación).
+    const { data: pendingMediaChanges } = await supabase
+        .from('campaign_media_changes')
+        .select('id, change_type, proposed_url, previous_url, status, created_at')
+        .eq('campaign_id', id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+
     const campaignWithDetails = {
         ...campaign,
-        campaign_details: campaignDetails || null
+        campaign_details: campaignDetails || null,
+        has_completed_donations: (completedDonations || 0) > 0,
+        pending_media_changes: pendingMediaChanges || [],
     }
 
     const { data: categories } = await supabase

@@ -5,13 +5,14 @@ import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet"
-import { LayoutDashboard, Users, FileText, CreditCard, Settings, Wallet, Menu } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, CreditCard, Settings, Wallet, Menu, ImageIcon } from 'lucide-react'
 
 interface BadgeCounts {
   verifications: number
   campaigns: number
   payments: number
   withdrawals: number
+  mediaChanges: number
 }
 
 interface SidebarNavProps {
@@ -27,6 +28,7 @@ function SidebarNav({ badges, pathname, onNavigate }: SidebarNavProps) {
     { label: "Campañas pendientes", href: "/admin/campaigns", icon: FileText, badge: badges.campaigns },
     { label: "Pagos manuales", href: "/admin/payments", icon: CreditCard, badge: badges.payments },
     { label: "Retiros", href: "/admin/withdrawals", icon: Wallet, badge: badges.withdrawals },
+    { label: "Moderar imágenes", href: "/admin/media-changes", icon: ImageIcon, badge: badges.mediaChanges },
     { label: "Métodos de Pago", href: "/admin/payment-methods", icon: Wallet },
     { label: "Configuración", href: "/admin/settings", icon: Settings },
   ]
@@ -76,6 +78,7 @@ export function AdminSidebar() {
     campaigns: 0,
     payments: 0,
     withdrawals: 0,
+    mediaChanges: 0,
   })
 
   useEffect(() => {
@@ -102,6 +105,7 @@ export function AdminSidebar() {
         campaigns: result?.campaigns || 0,
         payments: result?.payments || 0,
         withdrawals: result?.withdrawals || 0,
+        mediaChanges: result?.mediaChanges || 0,
       })
     } catch (error) {
       console.error('Error fetching badge counts:', error)

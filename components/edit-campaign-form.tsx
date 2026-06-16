@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, Save, Upload, Trash2, FileText, PlusCircle } from 'lucide-react'
+import { Loader2, Save, Upload, Trash2, FileText, PlusCircle, Star, Clock, ImageIcon, ShieldCheck, Info } from 'lucide-react'
 
 interface Category {
     id: string
@@ -26,6 +27,15 @@ interface CampaignUpdate {
     image_url: string | null
 }
 
+interface PendingMediaChange {
+    id: string
+    change_type: 'main_image' | 'gallery_add' | 'gallery_remove'
+    proposed_url: string | null
+    previous_url: string | null
+    status: string
+    created_at: string
+}
+
 interface EditCampaignFormProps {
     campaign: {
         id: string
@@ -34,9 +44,14 @@ interface EditCampaignFormProps {
         story: string
         location: string | null
         goal_amount_usd: number
+        current_amount_usd?: number
+        original_goal_amount_usd?: number | null
+        status?: string
+        main_image_url?: string | null
         urgency_level: string
         category_id: string | null
-        main_image_url?: string | null
+        has_completed_donations?: boolean
+        pending_media_changes?: PendingMediaChange[]
         campaign_details?: {
             support_documents: string[] | null
             support_documents_urls?: string[] | null
@@ -51,22 +66,26 @@ interface EditCampaignFormProps {
     currentUserId: string
 }
 
+const usd = (n: number) => `$${Number(n || 0).toFixed(2)}`
+
 export function EditCampaignForm({ campaign, categories, currentUserId }: EditCampaignFormProps) {
     const PAGE_SIZE = 5
 
-    const [loading, setLoading] = useState(false)
+    const raised = Number(campaign.current_amount_usd || 0)
+    const isFrozen = campaign.status === 'closed' || campaign.status === 'completed'
+    const hasCompletedDonations = Boolean(campaign.has_completed_donations)
+
+    const [savingGoal, setSavingGoal] = useState(false)
     const [savingDocs, setSavingDocs] = useState(false)
-    const [savingGallery, setSavingGallery] = useState(false)
+    const [savingMedia, setSavingMedia] = useState(false)
     const [publishingUpdate, setPublishingUpdate] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
-    const [title, setTitle] = useState(campaign.title)
-    const [story, setStory] = useState(campaign.story)
-    const [location, setLocation] = useState(campaign.location || '')
     const [goalAmountUsd, setGoalAmountUsd] = useState(String(campaign.goal_amount_usd))
+    const [goalReason, setGoalReason] = useState('')
     const [urgencyLevel, setUrgencyLevel] = useState(campaign.urgency_level || 'medium')
-    const [categoryId, setCategoryId] = useState(campaign.category_id || '')
+    const [categoryId] = useState(campaign.category_id || '')
 
     const campaignDetails = Array.isArray(campaign.campaign_details)
         ? campaign.campaign_details[0]
@@ -78,8 +97,10 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
 
     const [existingDocuments, setExistingDocuments] = useState<string[]>(initialSupportDocuments)
     const [newDocumentFiles, setNewDocumentFiles] = useState<File[]>([])
-    const [existingGalleryImages, setExistingGalleryImages] = useState<string[]>(initialGalleryImages)
-    const [newGalleryFiles, setNewGalleryFiles] = useState<File[]>([])
+    const [galleryImages] = useState<string[]>(initialGalleryImages)
+    const [mainImageUrl, setMainImageUrl] = useState<string | null>(campaign.main_image_url || null)
+
+    const [pendingChanges, setPendingChanges] = useState<PendingMediaChange[]>(campaign.pending_media_changes || [])
 
     const [updates, setUpdates] = useState<CampaignUpdate[]>([])
     const [updatesCount, setUpdatesCount] = useState(0)
@@ -87,7 +108,6 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
 
     const [updateTitle, setUpdateTitle] = useState('')
     const [updateContent, setUpdateContent] = useState('')
-    const [updateImage, setUpdateImage] = useState<File | null>(null)
 
     const router = useRouter()
     const supabase = createClient()
@@ -99,20 +119,26 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
         [categories, categoryId]
     )
 
+    const goalNumber = parseFloat(goalAmountUsd)
+    const goalChanged = Number.isFinite(goalNumber) && goalNumber !== Number(campaign.goal_amount_usd)
+    const decreasingBelowRaised = Number.isFinite(goalNumber) && goalNumber < raised
+
+    const pendingMainImage = pendingChanges.find((c) => c.change_type === 'main_image')
+    const pendingGalleryAdds = pendingChanges.filter((c) => c.change_type === 'gallery_add')
+    const pendingRemovals = pendingChanges.filter((c) => c.change_type === 'gallery_remove')
+    const pendingRemovalUrls = new Set(pendingRemovals.map((c) => c.previous_url))
+
     const loadUpdates = async (page = 1) => {
         try {
             const from = (page - 1) * PAGE_SIZE
             const to = from + PAGE_SIZE - 1
-
             const { data, error: updatesError, count } = await supabase
                 .from('campaign_updates')
                 .select('*', { count: 'exact' })
                 .eq('campaign_id', campaign.id)
                 .order('created_at', { ascending: false })
                 .range(from, to)
-
             if (updatesError) throw updatesError
-
             setUpdates((data as CampaignUpdate[]) || [])
             setUpdatesCount(count || 0)
         } catch (err: any) {
@@ -120,128 +146,145 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
         }
     }
 
+    const refreshPending = async () => {
+        try {
+            const response = await fetch(`/api/campaigns/${campaign.id}/media`, { cache: 'no-store' })
+            const result = await response.json()
+            if (response.ok) setPendingChanges(result.pending || [])
+        } catch {
+            // silencioso
+        }
+    }
+
     useEffect(() => {
         loadUpdates(1)
     }, [])
 
-    const handleSaveCampaign = async (e: React.FormEvent) => {
+    // ===== META =====
+    const handleSaveGoal = async (e: React.FormEvent) => {
         e.preventDefault()
-        setLoading(true)
         setError(null)
         setSuccess(null)
 
-        try {
-            const goal = parseFloat(goalAmountUsd)
-
-            if (Number.isNaN(goal) || goal < 10) throw new Error('La meta debe ser de al menos $10 USD')
-
-            const { error: updateError } = await supabase
-                .from('campaigns')
-                .update({
-                    goal_amount_usd: goal,
-                    urgency_level: urgencyLevel,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', campaign.id)
-                .eq('creator_id', currentUserId)
-
-            if (updateError) throw updateError
-
-            setSuccess('Campaña actualizada correctamente')
-            router.refresh()
-        } catch (err: any) {
-            setError(err.message || 'No se pudo actualizar la campaña')
-        } finally {
-            setLoading(false)
+        const goal = parseFloat(goalAmountUsd)
+        if (Number.isNaN(goal) || goal < 10) {
+            setError('La meta debe ser de al menos $10 USD')
+            return
         }
-    }
-
-    const upsertCampaignDetailsGalleryImages = async (galleryImages: string[]) => {
-        const { data: existingDetails } = await supabase
-            .from('campaign_details')
-            .select('id')
-            .eq('campaign_id', campaign.id)
-            .maybeSingle()
-
-        if (existingDetails?.id) {
-            const { error } = await supabase
-                .from('campaign_details')
-                .update({
-                    gallery_images: galleryImages,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('campaign_id', campaign.id)
-
-            if (error) throw error
+        if (goal !== Number(campaign.goal_amount_usd) && goalReason.trim().length < 10) {
+            setError('Para cambiar la meta debes escribir el motivo (mínimo 10 caracteres). Tus donantes lo verán.')
             return
         }
 
-        const { error } = await supabase
-            .from('campaign_details')
-            .insert({
-                campaign_id: campaign.id,
-                full_story: story,
-                gallery_images: galleryImages,
-                support_documents: existingDocuments
-            })
+        try {
+            setSavingGoal(true)
 
-        if (error) {
-            const shouldFallbackToLegacyColumn =
-                error.message?.toLowerCase().includes('support_documents')
+            // Urgencia: cambio simple directo (no es sensible).
+            if (urgencyLevel !== campaign.urgency_level) {
+                await supabase
+                    .from('campaigns')
+                    .update({ urgency_level: urgencyLevel, updated_at: new Date().toISOString() })
+                    .eq('id', campaign.id)
+                    .eq('creator_id', currentUserId)
+            }
 
-            if (!shouldFallbackToLegacyColumn) throw error
-
-            const { error: legacyInsertError } = await supabase
-                .from('campaign_details')
-                .insert({
-                    campaign_id: campaign.id,
-                    full_story: story,
-                    gallery_images: galleryImages,
-                    support_documents_urls: existingDocuments
+            // Meta: va por el endpoint con transparencia (historial, update,
+            // comentario del sistema y notificaciones).
+            if (goal !== Number(campaign.goal_amount_usd)) {
+                const response = await fetch(`/api/campaigns/${campaign.id}/goal`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newGoal: goal, reason: goalReason.trim() }),
                 })
+                const result = await response.json()
+                if (!response.ok) throw new Error(result?.error || 'No se pudo cambiar la meta')
+                setSuccess(`Meta actualizada. Notificamos a ${result.notified} persona(s) que apoyan tu campaña.`)
+                setGoalReason('')
+            } else {
+                setSuccess('Cambios guardados.')
+            }
 
-            if (legacyInsertError) throw legacyInsertError
+            router.refresh()
+        } catch (err: any) {
+            setError(err.message || 'No se pudo guardar')
+        } finally {
+            setSavingGoal(false)
         }
     }
 
-    const handleUploadGalleryImages = async () => {
-        if (newGalleryFiles.length === 0) return
-
-        setSavingGallery(true)
+    // ===== IMÁGENES (portada + galería con moderación) =====
+    const uploadImageChange = async (file: File, changeType: 'main_image' | 'gallery_add') => {
         setError(null)
         setSuccess(null)
-
+        setSavingMedia(true)
         try {
-            const uploadedUrls = await Promise.all(
-                newGalleryFiles.map((file) => uploadFile(file, 'campaigns', 'gallery'))
-            )
-
-            const merged = [...existingGalleryImages, ...uploadedUrls]
-            await upsertCampaignDetailsGalleryImages(merged)
-
-            setExistingGalleryImages(merged)
-            setNewGalleryFiles([])
-            setSuccess('Imágenes de galería agregadas correctamente')
+            const formData = new FormData()
+            formData.append('file', file)
+            formData.append('changeType', changeType)
+            const response = await fetch(`/api/campaigns/${campaign.id}/media`, {
+                method: 'POST',
+                body: formData,
+            })
+            const result = await response.json()
+            if (!response.ok) throw new Error(result?.error || 'No se pudo subir la imagen')
+            setSuccess('Imagen enviada a revisión. Aparecerá en la campaña cuando un moderador la apruebe.')
+            await refreshPending()
         } catch (err: any) {
-            setError(err.message || 'No se pudieron subir las imágenes de galería')
+            setError(err.message || 'No se pudo subir la imagen')
         } finally {
-            setSavingGallery(false)
+            setSavingMedia(false)
         }
     }
 
+    const setAsCover = async (galleryUrl: string) => {
+        setError(null)
+        setSuccess(null)
+        setSavingMedia(true)
+        try {
+            const response = await fetch(`/api/campaigns/${campaign.id}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'set_cover', galleryUrl }),
+            })
+            const result = await response.json()
+            if (!response.ok) throw new Error(result?.error || 'No se pudo fijar la portada')
+            setMainImageUrl(galleryUrl)
+            setSuccess('Portada actualizada.')
+            router.refresh()
+        } catch (err: any) {
+            setError(err.message || 'No se pudo fijar la portada')
+        } finally {
+            setSavingMedia(false)
+        }
+    }
+
+    const requestGalleryRemoval = async (url: string) => {
+        setError(null)
+        setSuccess(null)
+        setSavingMedia(true)
+        try {
+            const response = await fetch(`/api/campaigns/${campaign.id}/media`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'gallery_remove', url }),
+            })
+            const result = await response.json()
+            if (!response.ok) throw new Error(result?.error || 'No se pudo solicitar la eliminación')
+            setSuccess('Solicitud de eliminación enviada a revisión.')
+            await refreshPending()
+        } catch (err: any) {
+            setError(err.message || 'No se pudo solicitar la eliminación')
+        } finally {
+            setSavingMedia(false)
+        }
+    }
+
+    // ===== DOCUMENTOS =====
     const uploadFile = async (file: File, bucket: string, folder: string) => {
         const extension = file.name.split('.').pop() || 'bin'
         const fileName = `${folder}/${currentUserId}_${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`
-
-        const { error: uploadError } = await supabase.storage
-            .from(bucket)
-            .upload(fileName, file, {
-                cacheControl: '3600',
-                upsert: false
-            })
-
+        const { error: uploadError } = await supabase.storage.from(bucket).upload(fileName, file, { cacheControl: '3600', upsert: false })
         if (uploadError) throw uploadError
-
         const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
         return data.publicUrl
     }
@@ -256,74 +299,42 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
         if (existingDetails?.id) {
             const { error } = await supabase
                 .from('campaign_details')
-                .update({
-                    support_documents: documents,
-                    updated_at: new Date().toISOString()
-                })
+                .update({ support_documents: documents, updated_at: new Date().toISOString() })
                 .eq('campaign_id', campaign.id)
-
             if (error) {
-                const shouldFallbackToLegacyColumn =
-                    error.message?.toLowerCase().includes('support_documents')
-
-                if (!shouldFallbackToLegacyColumn) throw error
-
-                const { error: legacyUpdateError } = await supabase
+                if (!error.message?.toLowerCase().includes('support_documents')) throw error
+                const { error: legacyError } = await supabase
                     .from('campaign_details')
-                    .update({
-                        support_documents_urls: documents,
-                        updated_at: new Date().toISOString()
-                    })
+                    .update({ support_documents_urls: documents, updated_at: new Date().toISOString() })
                     .eq('campaign_id', campaign.id)
-
-                if (legacyUpdateError) throw legacyUpdateError
+                if (legacyError) throw legacyError
             }
             return
         }
 
         const { error } = await supabase
             .from('campaign_details')
-            .insert({
-                campaign_id: campaign.id,
-                full_story: story,
-                gallery_images: [],
-                support_documents: documents
-            })
-
+            .insert({ campaign_id: campaign.id, full_story: campaign.story, gallery_images: [], support_documents: documents })
         if (error) {
-            const shouldFallbackToLegacyColumn =
-                error.message?.toLowerCase().includes('support_documents')
-
-            if (!shouldFallbackToLegacyColumn) throw error
-
-            const { error: legacyInsertError } = await supabase
+            if (!error.message?.toLowerCase().includes('support_documents')) throw error
+            const { error: legacyError } = await supabase
                 .from('campaign_details')
-                .insert({
-                    campaign_id: campaign.id,
-                    full_story: story,
-                    gallery_images: [],
-                    support_documents_urls: documents
-                })
-
-            if (legacyInsertError) throw legacyInsertError
+                .insert({ campaign_id: campaign.id, full_story: campaign.story, gallery_images: [], support_documents_urls: documents })
+            if (legacyError) throw legacyError
         }
     }
 
     const handleUploadDocuments = async () => {
         if (newDocumentFiles.length === 0) return
-
         setSavingDocs(true)
         setError(null)
         setSuccess(null)
-
         try {
             const uploadedUrls = await Promise.all(
                 newDocumentFiles.map((file) => uploadFile(file, 'campaigns', `documents/${campaign.id}`))
             )
-
             const merged = [...existingDocuments, ...uploadedUrls]
             await upsertCampaignDetailsDocuments(merged)
-
             setExistingDocuments(merged)
             setNewDocumentFiles([])
             setSuccess('Documentos agregados correctamente')
@@ -335,9 +346,13 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
     }
 
     const handleRemoveDocument = async (urlToRemove: string) => {
+        // Inmutabilidad: si ya hubo donaciones, no se permite borrar evidencia.
+        if (hasCompletedDonations) {
+            setError('No puedes eliminar documentos de una campaña que ya recibió donaciones. Solo puedes agregar nuevos.')
+            return
+        }
         setSavingDocs(true)
         setError(null)
-
         try {
             const updated = existingDocuments.filter((url) => url !== urlToRemove)
             await upsertCampaignDetailsDocuments(updated)
@@ -350,36 +365,21 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
         }
     }
 
+    // ===== UPDATES =====
     const handlePublishUpdate = async (e: React.FormEvent) => {
         e.preventDefault()
         setPublishingUpdate(true)
         setError(null)
         setSuccess(null)
-
         try {
             if (!updateTitle.trim()) throw new Error('El título de la actualización es obligatorio')
             if (!updateContent.trim()) throw new Error('El contenido de la actualización es obligatorio')
-
-            let imageUrl: string | null = null
-            if (updateImage) {
-                imageUrl = await uploadFile(updateImage, 'campaigns', 'gallery')
-            }
-
             const { error: insertError } = await supabase
                 .from('campaign_updates')
-                .insert({
-                    campaign_id: campaign.id,
-                    creator_id: currentUserId,
-                    title: updateTitle.trim(),
-                    content: updateContent.trim(),
-                    image_url: imageUrl
-                })
-
+                .insert({ campaign_id: campaign.id, creator_id: currentUserId, title: updateTitle.trim(), content: updateContent.trim(), image_url: null })
             if (insertError) throw insertError
-
             setUpdateTitle('')
             setUpdateContent('')
-            setUpdateImage(null)
             setUpdatesPage(1)
             await loadUpdates(1)
             setSuccess('Actualización publicada')
@@ -397,33 +397,23 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                     <AlertDescription>{error}</AlertDescription>
                 </Alert>
             )}
-
             {success && (
                 <Alert>
                     <AlertDescription>{success}</AlertDescription>
                 </Alert>
             )}
 
+            {/* META + URGENCIA */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Editar campaña</CardTitle>
-                    <CardDescription>Por seguridad solo puedes editar meta y urgencia.</CardDescription>
+                    <CardTitle>Meta y urgencia</CardTitle>
+                    <CardDescription>Por seguridad, el título, la historia y la categoría no se editan tras la creación.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <form onSubmit={handleSaveCampaign} className="space-y-4">
+                    <form onSubmit={handleSaveGoal} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="title">Título</Label>
-                            <Input id="title" value={title} disabled />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="story">Historia</Label>
-                            <Textarea
-                                id="story"
-                                rows={8}
-                                value={story}
-                                disabled
-                            />
+                            <Input id="title" value={campaign.title} disabled />
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">
@@ -436,49 +426,18 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                                     step="0.01"
                                     value={goalAmountUsd}
                                     onChange={(e) => setGoalAmountUsd(e.target.value)}
-                                    disabled={loading}
+                                    disabled={savingGoal || isFrozen}
+                                    aria-invalid={decreasingBelowRaised}
                                 />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="location">Ubicación</Label>
-                                <Input
-                                    id="location"
-                                    value={location}
-                                    disabled
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid md:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label>Categoría</Label>
-                                <Select value={categoryId} disabled>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona una categoría" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {categories.map((category) => (
-                                            <SelectItem key={category.id} value={category.id}>
-                                                <span className="inline-flex items-center gap-2">
-                                                    {category.icon_emoji ? <span>{category.icon_emoji}</span> : null}
-                                                    <span>{category.name}</span>
-                                                </span>
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                {selectedCategory ? (
-                                    <p className="text-xs text-muted-foreground">Categoría actual: {selectedCategory.name}</p>
-                                ) : null}
+                                <p className="text-xs text-muted-foreground">
+                                    Recaudado hasta ahora: <strong>{usd(raised)}</strong>. No puedes bajar la meta por debajo de ese monto.
+                                </p>
                             </div>
 
                             <div className="space-y-2">
                                 <Label>Urgencia</Label>
-                                <Select value={urgencyLevel} onValueChange={setUrgencyLevel} disabled={loading}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
+                                <Select value={urgencyLevel} onValueChange={setUrgencyLevel} disabled={savingGoal}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="low">Baja</SelectItem>
                                         <SelectItem value="medium">Media</SelectItem>
@@ -486,72 +445,194 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                                         <SelectItem value="critical">Crítica</SelectItem>
                                     </SelectContent>
                                 </Select>
+                                {selectedCategory ? (
+                                    <p className="text-xs text-muted-foreground">Categoría: {selectedCategory.name}</p>
+                                ) : null}
                             </div>
                         </div>
 
-                        <Button type="submit" disabled={loading}>
-                            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                        {isFrozen && (
+                            <Alert>
+                                <Info className="h-4 w-4" />
+                                <AlertDescription className="text-sm">
+                                    Esta campaña está cerrada o finalizada: la meta quedó congelada. Escribe a soporte para evaluar un cambio.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+
+                        {goalChanged && !isFrozen && (
+                            <div className="space-y-2">
+                                <Label htmlFor="goal-reason">Motivo del cambio de meta (obligatorio)</Label>
+                                <Textarea
+                                    id="goal-reason"
+                                    rows={3}
+                                    placeholder="Ej: El presupuesto del tratamiento subió por nuevas complicaciones médicas…"
+                                    value={goalReason}
+                                    onChange={(e) => setGoalReason(e.target.value)}
+                                    disabled={savingGoal}
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    {decreasingBelowRaised ? (
+                                        <span className="text-destructive">La nueva meta ({usd(goalNumber)}) es menor a lo recaudado ({usd(raised)}). No está permitido.</span>
+                                    ) : (
+                                        'Este cambio es público: publicaremos una actualización, un comentario en el muro y notificaremos a tus donantes y seguidores.'
+                                    )}
+                                </p>
+                            </div>
+                        )}
+
+                        <Button type="submit" disabled={savingGoal || isFrozen || decreasingBelowRaised}>
+                            {savingGoal ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
                             Guardar
                         </Button>
                     </form>
                 </CardContent>
             </Card>
 
+            {/* PORTADA */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Portada de la campaña</CardTitle>
+                    <CardDescription>
+                        Cambiar la portada requiere aprobación de un moderador. La portada actual se mantiene hasta que se apruebe la nueva.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        <div className="w-full sm:w-48 shrink-0">
+                            <p className="text-xs text-muted-foreground mb-1">Portada actual</p>
+                            {mainImageUrl ? (
+                                <img src={mainImageUrl} alt="Portada actual" className="w-full h-32 object-cover rounded border" />
+                            ) : (
+                                <div className="w-full h-32 rounded border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                                    <ImageIcon className="h-6 w-6 opacity-50" />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="flex-1 space-y-2">
+                            {pendingMainImage ? (
+                                <Alert>
+                                    <Clock className="h-4 w-4" />
+                                    <AlertDescription className="text-sm">
+                                        Tienes una nueva portada <strong>en revisión</strong>. Te avisaremos cuando un moderador la apruebe o la rechace.
+                                    </AlertDescription>
+                                </Alert>
+                            ) : (
+                                <>
+                                    <Label htmlFor="cover-upload">Subir nueva portada (JPG, PNG o WebP · máx 5 MB)</Label>
+                                    <Input
+                                        id="cover-upload"
+                                        type="file"
+                                        accept="image/jpeg,image/png,image/webp"
+                                        disabled={savingMedia}
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0]
+                                            if (file) uploadImageChange(file, 'main_image')
+                                            e.target.value = ''
+                                        }}
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Tip: si la imagen ya está en tu galería, puedes fijarla como portada abajo sin esperar aprobación.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
+            {/* GALERÍA */}
             <Card>
                 <CardHeader>
                     <CardTitle>Galería de imágenes</CardTitle>
-                    <CardDescription>Puedes añadir nuevas imágenes. Las existentes no se pueden eliminar desde aquí.</CardDescription>
+                    <CardDescription>Máximo 6 imágenes. Las nuevas pasan por revisión; fijar una existente como portada es inmediato.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Input
                             type="file"
-                            multiple
-                            accept="image/*"
-                            onChange={(e) => setNewGalleryFiles(Array.from(e.target.files || []))}
-                            disabled={savingGallery}
+                            accept="image/jpeg,image/png,image/webp"
+                            disabled={savingMedia}
+                            onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) uploadImageChange(file, 'gallery_add')
+                                e.target.value = ''
+                            }}
                         />
-                        <Button type="button" onClick={handleUploadGalleryImages} disabled={savingGallery || newGalleryFiles.length === 0}>
-                            {savingGallery ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                            Añadir imágenes a la galería
-                        </Button>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <ShieldCheck className="h-3 w-3" />
+                            Las fotos de avances (cirugía, entrega de insumos) van mejor como <strong>Actualización</strong> para crear una línea de tiempo del caso.
+                        </p>
                     </div>
 
-                    {existingGalleryImages.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No hay imágenes de galería asociadas.</p>
+                    {pendingGalleryAdds.length > 0 && (
+                        <div className="space-y-2">
+                            <p className="text-xs font-medium text-muted-foreground">En revisión</p>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                {pendingGalleryAdds.map((c) => (
+                                    <div key={c.id} className="relative rounded-md border p-2">
+                                        {c.proposed_url && <img src={c.proposed_url} alt="Pendiente" className="w-full h-28 object-cover rounded opacity-60" />}
+                                        <Badge variant="secondary" className="absolute top-3 left-3 text-[10px]">
+                                            <Clock className="h-3 w-3 mr-1" /> En revisión
+                                        </Badge>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {galleryImages.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No hay imágenes de galería aprobadas.</p>
                     ) : (
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                            {existingGalleryImages.map((imageUrl, index) => (
-                                <a
-                                    key={imageUrl}
-                                    href={imageUrl}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block rounded-md border border-border p-2 hover:bg-muted"
-                                >
-                                    <img
-                                        src={imageUrl}
-                                        alt={`Imagen de galería ${index + 1}`}
-                                        className="w-full h-28 object-cover rounded"
-                                    />
-                                </a>
-                            ))}
+                            {galleryImages.map((imageUrl, index) => {
+                                const isCover = imageUrl === mainImageUrl
+                                const isPendingRemoval = pendingRemovalUrls.has(imageUrl)
+                                return (
+                                    <div key={imageUrl} className="rounded-md border p-2 space-y-2">
+                                        <img src={imageUrl} alt={`Imagen ${index + 1}`} className="w-full h-28 object-cover rounded" />
+                                        {isCover && (
+                                            <Badge className="text-[10px]"><Star className="h-3 w-3 mr-1" /> Portada</Badge>
+                                        )}
+                                        {isPendingRemoval ? (
+                                            <Badge variant="secondary" className="text-[10px]"><Clock className="h-3 w-3 mr-1" /> Eliminación en revisión</Badge>
+                                        ) : (
+                                            <div className="flex flex-wrap gap-1">
+                                                {!isCover && (
+                                                    <Button type="button" variant="outline" size="sm" className="text-xs h-7" disabled={savingMedia} onClick={() => setAsCover(imageUrl)}>
+                                                        <Star className="h-3 w-3 mr-1" /> Portada
+                                                    </Button>
+                                                )}
+                                                <Button type="button" variant="outline" size="sm" className="text-xs h-7" disabled={savingMedia} onClick={() => requestGalleryRemoval(imageUrl)}>
+                                                    <Trash2 className="h-3 w-3 mr-1" /> Quitar
+                                                </Button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
                     )}
                 </CardContent>
             </Card>
 
+            {/* DOCUMENTOS */}
             <Card>
                 <CardHeader>
                     <CardTitle>Documentos de soporte</CardTitle>
-                    <CardDescription>Sube nuevos documentos o elimina los existentes de tu campaña.</CardDescription>
+                    <CardDescription>
+                        {hasCompletedDonations
+                            ? 'Tu campaña ya recibió donaciones: los documentos quedan como evidencia y solo puedes agregar nuevos.'
+                            : 'Sube nuevos documentos o elimina los existentes.'}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="space-y-2">
                         <Input
                             type="file"
                             multiple
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.webp"
                             onChange={(e) => setNewDocumentFiles(Array.from(e.target.files || []))}
                             disabled={savingDocs}
                         />
@@ -566,17 +647,18 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                     ) : (
                         <div className="space-y-2">
                             {existingDocuments.map((docUrl, index) => (
-                                <div key={docUrl} className="flex items-center justify-between rounded-md border border-border p-3">
+                                <div key={docUrl} className="flex items-center justify-between rounded-md border p-3">
                                     <div className="flex items-center gap-2 text-sm">
                                         <FileText className="h-4 w-4 text-primary" />
-                                        <a href={docUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                                            Documento {index + 1}
-                                        </a>
+                                        <a href={docUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">Documento {index + 1}</a>
                                     </div>
-                                    <Button type="button" variant="outline" size="sm" onClick={() => handleRemoveDocument(docUrl)} disabled={savingDocs}>
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Eliminar
-                                    </Button>
+                                    {hasCompletedDonations ? (
+                                        <Badge variant="secondary" className="text-[10px]"><ShieldCheck className="h-3 w-3 mr-1" /> Evidencia</Badge>
+                                    ) : (
+                                        <Button type="button" variant="outline" size="sm" onClick={() => handleRemoveDocument(docUrl)} disabled={savingDocs}>
+                                            <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                                        </Button>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -584,45 +666,22 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                 </CardContent>
             </Card>
 
+            {/* PUBLICAR ACTUALIZACIÓN */}
             <Card>
                 <CardHeader>
                     <CardTitle>Publicar actualización</CardTitle>
-                    <CardDescription>Crea posts para mantener informados a tus donantes.</CardDescription>
+                    <CardDescription>Crea posts para mantener informados a tus donantes (avances, fotos de progreso, agradecimientos).</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handlePublishUpdate} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="update-title">Título</Label>
-                            <Input
-                                id="update-title"
-                                value={updateTitle}
-                                onChange={(e) => setUpdateTitle(e.target.value)}
-                                disabled={publishingUpdate}
-                            />
+                            <Input id="update-title" value={updateTitle} onChange={(e) => setUpdateTitle(e.target.value)} disabled={publishingUpdate} />
                         </div>
-
                         <div className="space-y-2">
                             <Label htmlFor="update-content">Contenido</Label>
-                            <Textarea
-                                id="update-content"
-                                rows={4}
-                                value={updateContent}
-                                onChange={(e) => setUpdateContent(e.target.value)}
-                                disabled={publishingUpdate}
-                            />
+                            <Textarea id="update-content" rows={4} value={updateContent} onChange={(e) => setUpdateContent(e.target.value)} disabled={publishingUpdate} />
                         </div>
-
-                        {/* <div className="space-y-2">
-                            <Label htmlFor="update-image">Imagen (opcional)</Label>
-                            <Input
-                                id="update-image"
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => setUpdateImage(e.target.files?.[0] || null)}
-                                disabled={publishingUpdate}
-                            />
-                        </div> */}
-
                         <Button type="submit" disabled={publishingUpdate}>
                             {publishingUpdate ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PlusCircle className="h-4 w-4 mr-2" />}
                             Publicar actualización
@@ -631,6 +690,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                 </CardContent>
             </Card>
 
+            {/* HISTORIAL DE ACTUALIZACIONES */}
             <Card>
                 <CardHeader>
                     <CardTitle>Historial de actualizaciones ({updatesCount})</CardTitle>
@@ -641,55 +701,22 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                         <p className="text-sm text-muted-foreground">Aún no has publicado actualizaciones.</p>
                     ) : (
                         updates.map((update) => (
-                            <div key={update.id} className="rounded-md border border-border p-3 space-y-2">
+                            <div key={update.id} className="rounded-md border p-3 space-y-2">
                                 <div className="flex items-center justify-between gap-3">
                                     <p className="font-medium">{update.title}</p>
-                                    <span className="text-xs text-muted-foreground">
-                                        {new Date(update.created_at).toLocaleDateString('es-VE')}
-                                    </span>
+                                    <span className="text-xs text-muted-foreground">{new Date(update.created_at).toLocaleDateString('es-VE')}</span>
                                 </div>
                                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">{update.content}</p>
-                                {update.image_url ? (
-                                    <a href={update.image_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover:underline">
-                                        Ver imagen
-                                    </a>
-                                ) : null}
                             </div>
                         ))
                     )}
 
                     {updatesCount > PAGE_SIZE ? (
-                        <div className="flex items-center justify-between border-t border-border pt-3">
-                            <p className="text-sm text-muted-foreground">
-                                Página {updatesPage} de {totalUpdatePages}
-                            </p>
+                        <div className="flex items-center justify-between border-t pt-3">
+                            <p className="text-sm text-muted-foreground">Página {updatesPage} de {totalUpdatePages}</p>
                             <div className="flex gap-2">
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={updatesPage === 1}
-                                    onClick={async () => {
-                                        const next = Math.max(1, updatesPage - 1)
-                                        setUpdatesPage(next)
-                                        await loadUpdates(next)
-                                    }}
-                                >
-                                    Anterior
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={updatesPage === totalUpdatePages}
-                                    onClick={async () => {
-                                        const next = Math.min(totalUpdatePages, updatesPage + 1)
-                                        setUpdatesPage(next)
-                                        await loadUpdates(next)
-                                    }}
-                                >
-                                    Siguiente
-                                </Button>
+                                <Button type="button" variant="outline" size="sm" disabled={updatesPage === 1} onClick={async () => { const n = Math.max(1, updatesPage - 1); setUpdatesPage(n); await loadUpdates(n) }}>Anterior</Button>
+                                <Button type="button" variant="outline" size="sm" disabled={updatesPage === totalUpdatePages} onClick={async () => { const n = Math.min(totalUpdatePages, updatesPage + 1); setUpdatesPage(n); await loadUpdates(n) }}>Siguiente</Button>
                             </div>
                         </div>
                     ) : null}

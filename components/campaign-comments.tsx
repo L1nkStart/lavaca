@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { MessageSquare, Send, Loader2 } from 'lucide-react'
+import { MessageSquare, Send, Loader2, Megaphone } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -17,6 +17,7 @@ interface Comment {
     id: string
     content: string
     is_anonymous: boolean
+    is_system: boolean | null
     donor_name: string | null
     created_at: string
     users: {
@@ -59,6 +60,7 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
                     id,
                     content,
                     is_anonymous,
+                    is_system,
                     donor_name,
                     created_at,
                     user_id,
@@ -208,39 +210,61 @@ export function CampaignComments({ campaignId, campaignSlug }: CampaignCommentsP
                             <p className="text-sm">Sé el primero en dejar un mensaje de apoyo</p>
                         </div>
                     ) : (
-                        comments.map((comment) => (
-                            <div key={comment.id} className="flex gap-3 p-4 rounded-lg bg-muted/50">
-                                <Avatar className="h-10 w-10">
-                                    <AvatarImage
-                                        src={comment.is_anonymous ? undefined : comment.users?.avatar_url || ''}
-                                        alt={comment.is_anonymous ? 'Anónimo' : comment.users?.full_name || 'Usuario'}
-                                    />
-                                    <AvatarFallback>
-                                        {comment.is_anonymous
-                                            ? '?'
-                                            : comment.users?.full_name?.charAt(0).toUpperCase() || 'U'}
-                                    </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 space-y-1">
-                                    <div className="flex items-center justify-between">
-                                        <p className="font-semibold text-sm">
-                                            {comment.is_anonymous
-                                                ? 'Anónimo'
-                                                : comment.users?.full_name || 'Usuario'}
-                                        </p>
-                                        <span className="text-xs text-muted-foreground">
-                                            {formatDistanceToNow(new Date(comment.created_at), {
-                                                addSuffix: true,
-                                                locale: es,
-                                            })}
-                                        </span>
+                        comments.map((comment) => {
+                            // Comentario automático del sistema (ej: cambio de meta):
+                            // estilo distinto, no es un mensaje de usuario.
+                            if (comment.is_system) {
+                                return (
+                                    <div key={comment.id} className="flex gap-3 p-4 rounded-lg border border-primary/20 bg-primary/5">
+                                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                            <Megaphone className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div className="flex-1 space-y-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-semibold text-sm text-primary">Anuncio de la campaña</p>
+                                                <span className="text-xs text-muted-foreground">
+                                                    {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: es })}
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-foreground/80 whitespace-pre-wrap">{comment.content}</p>
+                                        </div>
                                     </div>
-                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                        {comment.content}
-                                    </p>
+                                )
+                            }
+                            return (
+                                <div key={comment.id} className="flex gap-3 p-4 rounded-lg bg-muted/50">
+                                    <Avatar className="h-10 w-10">
+                                        <AvatarImage
+                                            src={comment.is_anonymous ? undefined : comment.users?.avatar_url || ''}
+                                            alt={comment.is_anonymous ? 'Anónimo' : comment.users?.full_name || 'Usuario'}
+                                        />
+                                        <AvatarFallback>
+                                            {comment.is_anonymous
+                                                ? '?'
+                                                : comment.users?.full_name?.charAt(0).toUpperCase() || 'U'}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 space-y-1">
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-semibold text-sm">
+                                                {comment.is_anonymous
+                                                    ? 'Anónimo'
+                                                    : comment.users?.full_name || 'Usuario'}
+                                            </p>
+                                            <span className="text-xs text-muted-foreground">
+                                                {formatDistanceToNow(new Date(comment.created_at), {
+                                                    addSuffix: true,
+                                                    locale: es,
+                                                })}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                            {comment.content}
+                                        </p>
+                                    </div>
                                 </div>
-                            </div>
-                        ))
+                            )
+                        })
                     )}
                 </div>
 

@@ -30,6 +30,7 @@ interface Campaign {
   story: string;
   goal_amount_usd: number;
   current_amount_usd: number;
+  original_goal_amount_usd?: number | null;
   main_image_url: string | null;
   status: string;
   created_at: string;
@@ -579,6 +580,12 @@ export default function CampaignPage() {
                       {usd(campaign.goal_amount_usd)}
                     </span>
                   </p>
+                  {campaign.original_goal_amount_usd != null &&
+                    Number(campaign.original_goal_amount_usd) !== Number(campaign.goal_amount_usd) && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Meta original: {usd(campaign.original_goal_amount_usd)} · actualizada por el creador
+                      </p>
+                    )}
                 </div>
 
                 <Progress value={Math.min(progressPercent, 100)} className="h-2.5" />

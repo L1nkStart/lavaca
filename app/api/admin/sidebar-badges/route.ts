@@ -37,7 +37,7 @@ export async function GET() {
 
         const adminSupabase = createAdminClient()
 
-        const [verificationsResult, campaignsResult, paymentsResult, withdrawalsResult] = await Promise.all([
+        const [verificationsResult, campaignsResult, paymentsResult, withdrawalsResult, mediaChangesResult] = await Promise.all([
             adminSupabase
                 .from("verification_requests")
                 .select("id", { count: "exact", head: true })
@@ -54,6 +54,10 @@ export async function GET() {
                 .from("withdrawal_requests")
                 .select("id", { count: "exact", head: true })
                 .eq("status", "pending"),
+            adminSupabase
+                .from("campaign_media_changes")
+                .select("id", { count: "exact", head: true })
+                .eq("status", "pending"),
         ])
 
         return NextResponse.json({
@@ -61,6 +65,7 @@ export async function GET() {
             campaigns: campaignsResult.count || 0,
             payments: paymentsResult.count || 0,
             withdrawals: withdrawalsResult.count || 0,
+            mediaChanges: mediaChangesResult.count || 0,
         })
     } catch (error: any) {
         console.error("Error fetching admin sidebar badges:", error)
