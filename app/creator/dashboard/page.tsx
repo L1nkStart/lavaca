@@ -7,13 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart, Wallet, Banknote, TrendingDown } from 'lucide-react';
 import { getBalancesForCampaigns } from '@/lib/balances';
+import { formatBs, formatUsd } from '@/lib/format';
 import { ExchangeRateChart } from '@/components/exchange-rate-chart';
-
-const formatBsAmount = (value: number) =>
-  `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
-
-const formatUsdAmount = (value: number) =>
-  `$${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value || 0)}`
 
 type CampaignRow = {
   id: string
@@ -274,7 +269,7 @@ export default async function CreatorDashboard() {
           <div className="max-w-7xl mx-auto px-4 py-8">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold">Panel de Control</h1>
+                <h1 className="text-3xl font-bold">Panel de control</h1>
                 <p className="text-muted-foreground mt-1">
                   Revisa tus métricas, campañas y donaciones recientes.
                 </p>
@@ -303,14 +298,14 @@ export default async function CreatorDashboard() {
         <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
           {/* Status Cards */}
           {!profileVerified && (
-            <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
+            <Card className="border-accent/40 bg-accent/10">
               <CardContent className="pt-6 flex items-start gap-4">
-                <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
                 <div>
-                  <h3 className="font-semibold text-yellow-900 dark:text-yellow-100">
+                  <h3 className="font-semibold text-foreground">
                     Verifica tu identidad
                   </h3>
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200 mt-1">
+                  <p className="text-sm text-foreground mt-1">
                     Completa tu perfil y verifica tu identidad para crear campañas.
                   </p>
                   <Button size="sm" className="mt-3" asChild>
@@ -321,62 +316,47 @@ export default async function CreatorDashboard() {
             </Card>
           )}
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent>
-                <div className="pt-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total recaudado</p>
-                    <p className="text-2xl font-bold">${totalRaised.toFixed(2)}</p>
-                  </div>
-                  <DollarSign className="h-8 w-8 text-primary" />
-                </div>
-              </CardContent>
-            </Card>
+          {/* Resumen: una sola tira con divisores de 1px (plano en reposo),
+              en vez de cuatro tarjetas elevadas compitiendo por atención. */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-px bg-border rounded-xl overflow-hidden border">
+            <div className="bg-card p-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Total recaudado</p>
+                <p className="text-2xl font-bold font-mono text-primary">{formatUsd(totalRaised)}</p>
+              </div>
+              <DollarSign className="h-7 w-7 text-primary shrink-0" />
+            </div>
 
-            <Card>
-              <CardContent>
-                <div className="pt-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Mis campañas</p>
-                    <p className="text-2xl font-bold">{totalCampaigns}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {activeCampaigns} activa{activeCampaigns === 1 ? '' : 's'}
-                    </p>
-                  </div>
-                  <FileText className="h-8 w-8 text-blue-500" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="bg-card p-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Mis campañas</p>
+                <p className="text-2xl font-bold">{totalCampaigns}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {activeCampaigns} activa{activeCampaigns === 1 ? '' : 's'}
+                </p>
+              </div>
+              <FileText className="h-7 w-7 text-muted-foreground shrink-0" />
+            </div>
 
-            <Card>
-              <CardContent>
-                <div className="pt-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Donantes</p>
-                    <p className="text-2xl font-bold">{totalDonors}</p>
-                  </div>
-                  <Heart className="h-8 w-8 text-green-500" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="bg-card p-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Donantes</p>
+                <p className="text-2xl font-bold">{totalDonors}</p>
+              </div>
+              <Heart className="h-7 w-7 text-muted-foreground shrink-0" />
+            </div>
 
-            <Card>
-              <CardContent>
-                <div className="pt-6 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Verificación</p>
-                    <Badge className="bg-primary mt-1">
-                      {verificationStatus === "verified"
-                        ? "Verificado"
-                        : "Pendiente"}
-                    </Badge>
-                  </div>
-                  <TrendingUp className="h-8 w-8 text-purple-500" />
-                </div>
-              </CardContent>
-            </Card>
+            <div className="bg-card p-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm text-muted-foreground">Verificación</p>
+                {profileVerified ? (
+                  <Badge className="mt-1">Verificado</Badge>
+                ) : (
+                  <Badge variant="secondary" className="mt-1">Pendiente</Badge>
+                )}
+              </div>
+              <TrendingUp className="h-7 w-7 text-muted-foreground shrink-0" />
+            </div>
           </div>
 
           {/* Saldos consolidados por moneda */}
@@ -393,7 +373,7 @@ export default async function CreatorDashboard() {
                   <div className="pt-6 flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Saldo en Bolívares</p>
-                      <p className="text-2xl font-bold">{formatBsAmount(consolidatedBs)}</p>
+                      <p className="text-2xl font-bold font-mono">{formatBs(consolidatedBs)}</p>
                       <p className="text-xs text-muted-foreground mt-1">Suma de todas tus campañas</p>
                     </div>
                     <Banknote className="h-8 w-8 text-primary" />
@@ -406,10 +386,10 @@ export default async function CreatorDashboard() {
                   <div className="pt-6 flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Saldo en Dólares</p>
-                      <p className="text-2xl font-bold">{formatUsdAmount(consolidatedUsd)}</p>
+                      <p className="text-2xl font-bold font-mono">{formatUsd(consolidatedUsd)}</p>
                       <p className="text-xs text-muted-foreground mt-1">Zelle, tarjeta, PayPal y cripto</p>
                     </div>
-                    <DollarSign className="h-8 w-8 text-green-500" />
+                    <DollarSign className="h-8 w-8 text-primary" />
                   </div>
                 </CardContent>
               </Card>
@@ -419,8 +399,8 @@ export default async function CreatorDashboard() {
                   <div className="pt-6 flex items-center justify-between">
                     <div>
                       <p className="text-sm text-muted-foreground">Pérdida cambiaria</p>
-                      <p className={`text-2xl font-bold ${consolidatedFxLoss > 0.005 ? 'text-destructive' : ''}`}>
-                        {consolidatedFxLoss > 0.005 ? `−${formatUsdAmount(consolidatedFxLoss)}` : formatUsdAmount(0)}
+                      <p className={`text-2xl font-bold font-mono ${consolidatedFxLoss > 0.005 ? 'text-destructive' : ''}`}>
+                        {consolidatedFxLoss > 0.005 ? `−${formatUsd(consolidatedFxLoss)}` : formatUsd(0)}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
                         Valor perdido por variación de la tasa en tus bolívares
@@ -441,7 +421,7 @@ export default async function CreatorDashboard() {
           {/* Campaigns Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Mis Campañas</h2>
+              <h2 className="text-xl font-bold">Mis campañas</h2>
               <Button size="sm" variant="outline" asChild>
                 <Link href="/creator/campaigns/create">
                   <PlusCircle className="w-4 h-4 mr-2" />
@@ -505,48 +485,62 @@ export default async function CreatorDashboard() {
                             {/* Progress */}
                             <div>
                               <div className="flex justify-between text-sm mb-2">
-                                <span className="font-semibold text-primary">
-                                  ${campaign.current_amount_usd.toFixed(2)} acumulados
+                                <span className="font-semibold text-primary font-mono">
+                                  {formatUsd(campaign.current_amount_usd)} <span className="font-sans font-normal text-muted-foreground">acumulados</span>
                                 </span>
                                 <span className="text-muted-foreground">
-                                  de ${campaign.goal_amount_usd.toFixed(2)}
+                                  de <span className="font-mono">{formatUsd(campaign.goal_amount_usd)}</span>
                                 </span>
                               </div>
                               <div className="space-y-1">
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
-                                    className="h-full bg-green-500 transition-all"
+                                    className="h-full bg-primary transition-all"
                                     style={{ width: `${Math.min(totalProgress, 100)}%` }}
                                   />
                                 </div>
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
-                                    className="h-full bg-purple-500 transition-all"
+                                    className="h-full bg-accent transition-all"
                                     style={{ width: `${Math.min(withdrawnProgress, 100)}%` }}
                                   />
                                 </div>
                               </div>
+                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+                                  Recaudado
+                                </span>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
+                                  Retirado
+                                </span>
+                              </div>
                               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2 text-xs">
                                 <div className="rounded-md border bg-muted/20 px-2 py-1">
-                                  <span className="text-muted-foreground">Total:</span> ${Number(campaign.current_amount_usd || 0).toFixed(2)}
+                                  <span className="text-muted-foreground">Total:</span> <span className="font-mono">{formatUsd(campaign.current_amount_usd || 0)}</span>
                                 </div>
-                                <div className="rounded-md border bg-purple-50 dark:bg-purple-950/20 px-2 py-1">
+                                <div className="rounded-md border bg-accent/10 px-2 py-1">
                                   <span className="text-muted-foreground">Retirado:</span>{' '}
-                                  {withdrawnBs <= 0 && withdrawnUsd <= 0
-                                    ? '$0.00'
-                                    : [
-                                      withdrawnUsd > 0 ? formatUsdAmount(withdrawnUsd) : null,
-                                      withdrawnBs > 0 ? formatBsAmount(withdrawnBs) : null,
-                                    ].filter(Boolean).join(' + ')}
+                                  <span className="font-mono">
+                                    {withdrawnBs <= 0 && withdrawnUsd <= 0
+                                      ? formatUsd(0)
+                                      : [
+                                        withdrawnUsd > 0 ? formatUsd(withdrawnUsd) : null,
+                                        withdrawnBs > 0 ? formatBs(withdrawnBs) : null,
+                                      ].filter(Boolean).join(' + ')}
+                                  </span>
                                 </div>
-                                <div className="rounded-md border bg-green-50 dark:bg-green-950/20 px-2 py-1">
+                                <div className="rounded-md border bg-primary/5 px-2 py-1">
                                   <span className="text-muted-foreground">Disponible:</span>{' '}
-                                  {saldoBs <= 0 && saldoUsd <= 0
-                                    ? '$0.00'
-                                    : [
-                                      saldoUsd > 0 ? formatUsdAmount(saldoUsd) : null,
-                                      saldoBs > 0 ? formatBsAmount(saldoBs) : null,
-                                    ].filter(Boolean).join(' + ')}
+                                  <span className="font-mono">
+                                    {saldoBs <= 0 && saldoUsd <= 0
+                                      ? formatUsd(0)
+                                      : [
+                                        saldoUsd > 0 ? formatUsd(saldoUsd) : null,
+                                        saldoBs > 0 ? formatBs(saldoBs) : null,
+                                      ].filter(Boolean).join(' + ')}
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -605,10 +599,10 @@ export default async function CreatorDashboard() {
                   ) : (withdrawalRequests || []).map((request: any) => {
                     const isBs = request.currency === 'BS'
                     const grossLabel = isBs
-                      ? formatBsAmount(Number(request.amount_bs || 0))
-                      : formatUsdAmount(Number(request.amount_usd || 0))
+                      ? formatBs(Number(request.amount_bs || 0))
+                      : formatUsd(Number(request.amount_usd || 0))
                     const netLabel = request.net_amount != null
-                      ? (isBs ? formatBsAmount(Number(request.net_amount)) : formatUsdAmount(Number(request.net_amount)))
+                      ? (isBs ? formatBs(Number(request.net_amount)) : formatUsd(Number(request.net_amount)))
                       : null
 
                     // Timeline simple: Solicitado -> En revisión -> Procesado / Rechazado
@@ -685,9 +679,9 @@ export default async function CreatorDashboard() {
                           <div className="rounded-md border bg-muted/20 px-3 py-2 space-y-1">
                             {(Number(request.platform_fee) > 0 || Number(request.gateway_fee) > 0) && (
                               <p className="text-xs text-muted-foreground">
-                                Comisión LaVaca: {isBs ? formatBsAmount(Number(request.platform_fee || 0)) : formatUsdAmount(Number(request.platform_fee || 0))}
+                                Comisión LaVaca: {isBs ? formatBs(Number(request.platform_fee || 0)) : formatUsd(Number(request.platform_fee || 0))}
                                 {Number(request.gateway_fee) > 0 && (
-                                  <> • Fee de pasarela: {isBs ? formatBsAmount(Number(request.gateway_fee || 0)) : formatUsdAmount(Number(request.gateway_fee || 0))}</>
+                                  <> • Fee de pasarela: {isBs ? formatBs(Number(request.gateway_fee || 0)) : formatUsd(Number(request.gateway_fee || 0))}</>
                                 )}
                               </p>
                             )}
@@ -698,7 +692,7 @@ export default async function CreatorDashboard() {
                             )}
                             {isBs && Number(request.fx_loss_usd) > 0 && (
                               <p className="text-xs text-destructive">
-                                Pérdida cambiaria congelada: −{formatUsdAmount(Number(request.fx_loss_usd))}
+                                Pérdida cambiaria congelada: −{formatUsd(Number(request.fx_loss_usd))}
                               </p>
                             )}
                             {request.reference_number && (
@@ -737,7 +731,7 @@ export default async function CreatorDashboard() {
 
           {/* Recent Donations */}
           <div>
-            <h2 className="text-xl font-bold mb-4">Donaciones Recientes</h2>
+            <h2 className="text-xl font-bold mb-4">Donaciones recientes</h2>
 
             <Card>
               <CardHeader>
@@ -764,16 +758,16 @@ export default async function CreatorDashboard() {
                         {/* La donación se muestra en su moneda original (sin indexar) */}
                         {donation.currency === 'BS' && donation.amount_bs != null ? (
                           <>
-                            <p className="font-semibold text-primary">
-                              {formatBsAmount(Number(donation.amount_bs))}
+                            <p className="font-semibold text-primary font-mono">
+                              {formatBs(Number(donation.amount_bs))}
                             </p>
-                            <p className="text-[11px] text-muted-foreground">
-                              ≈ ${Number(donation.amount_usd || 0).toFixed(2)}
+                            <p className="text-[11px] text-muted-foreground font-mono">
+                              ≈ {formatUsd(Number(donation.amount_usd || 0))}
                             </p>
                           </>
                         ) : (
-                          <p className="font-semibold text-primary">
-                            ${Number(donation.amount_usd || 0).toFixed(2)}
+                          <p className="font-semibold text-primary font-mono">
+                            {formatUsd(Number(donation.amount_usd || 0))}
                           </p>
                         )}
                         <p className="text-xs text-muted-foreground">
