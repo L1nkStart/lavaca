@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { CampaignBalancePanel } from '@/components/campaign-balance-panel'
 import { getBalancesForCampaigns, EMPTY_BALANCES } from '@/lib/balances'
 import { getWithdrawalMinimums } from '@/lib/fees'
+import { formatUsd } from '@/lib/format'
 import {
   PlusCircle,
   Eye,
@@ -19,6 +20,7 @@ import {
   AlertCircle,
   CheckCircle,
   XCircle,
+  Trophy,
   Camera
 } from 'lucide-react'
 import Link from 'next/link'
@@ -131,7 +133,7 @@ export default async function CreatorCampaignsPage() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'active': return 'Activa'
-      case 'pending_review': return 'En Revisión'
+      case 'pending_review': return 'En revisión'
       case 'draft': return 'Borrador'
       case 'completed': return 'Finalizada'
       case 'closed': return 'Cerrada'
@@ -145,20 +147,23 @@ export default async function CreatorCampaignsPage() {
       case 'active': return <CheckCircle className="h-4 w-4" />
       case 'pending_review': return <Clock className="h-4 w-4" />
       case 'draft': return <Edit className="h-4 w-4" />
-      case 'completed': return <XCircle className="h-4 w-4" />
+      case 'completed': return <Trophy className="h-4 w-4" />
       case 'closed': return <XCircle className="h-4 w-4" />
       case 'rejected': return <AlertCircle className="h-4 w-4" />
       default: return null
     }
   }
 
+  // Escala de urgencia en tokens de marca: emergencia (rojo) → atención
+  // (terracota) → neutro → tenue. El texto de la etiqueta ya nombra el nivel,
+  // así que el color refuerza pero no es el único indicador.
   const getUrgencyColor = (level: string) => {
     switch (level) {
-      case 'critical': return 'text-red-600 bg-red-100'
-      case 'high': return 'text-orange-600 bg-orange-100'
-      case 'medium': return 'text-yellow-600 bg-yellow-100'
-      case 'low': return 'text-blue-600 bg-blue-100'
-      default: return 'text-gray-600 bg-gray-100'
+      case 'critical': return 'bg-destructive text-white'
+      case 'high': return 'bg-accent text-accent-foreground'
+      case 'medium': return 'bg-secondary text-secondary-foreground'
+      case 'low': return 'bg-muted text-muted-foreground'
+      default: return 'bg-muted text-muted-foreground'
     }
   }
 
@@ -170,7 +175,7 @@ export default async function CreatorCampaignsPage() {
           <div className="bg-gradient-to-br from-primary/10 to-accent/10 border rounded-xl p-6">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <h1 className="text-3xl font-bold">Mis Campañas</h1>
+                <h1 className="text-3xl font-bold">Mis campañas</h1>
                 <p className="text-muted-foreground">
                   Gestiona y monitorea tus campañas de recaudación
                 </p>
@@ -179,7 +184,7 @@ export default async function CreatorCampaignsPage() {
               <Button asChild size="lg">
                 <Link href="/creator/campaigns/create">
                   <PlusCircle className="mr-2 h-5 w-5" />
-                  Nueva Campaña
+                  Nueva campaña
                 </Link>
               </Button>
             </div>
@@ -194,7 +199,7 @@ export default async function CreatorCampaignsPage() {
                     <p className="text-sm text-muted-foreground">Total campañas</p>
                     <p className="text-2xl font-bold">{stats.total}</p>
                   </div>
-                  <Heart className="h-8 w-8 text-primary" />
+                  <Heart className="h-8 w-8 text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
@@ -204,9 +209,9 @@ export default async function CreatorCampaignsPage() {
                 <div className="pt-6 flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Activas</p>
-                    <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+                    <p className="text-2xl font-bold text-primary">{stats.active}</p>
                   </div>
-                  <CheckCircle className="h-8 w-8 text-green-500" />
+                  <CheckCircle className="h-8 w-8 text-primary" />
                 </div>
               </CardContent>
             </Card>
@@ -216,9 +221,9 @@ export default async function CreatorCampaignsPage() {
                 <div className="pt-6 flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">En revisión</p>
-                    <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
+                    <p className="text-2xl font-bold text-accent">{stats.pending}</p>
                   </div>
-                  <Clock className="h-8 w-8 text-yellow-500" />
+                  <Clock className="h-8 w-8 text-accent" />
                 </div>
               </CardContent>
             </Card>
@@ -228,9 +233,9 @@ export default async function CreatorCampaignsPage() {
                 <div className="pt-6 flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Total recaudado</p>
-                    <p className="text-2xl font-bold">${stats.totalRaised.toFixed(2)}</p>
+                    <p className="text-2xl font-bold font-mono text-primary">{formatUsd(stats.totalRaised)}</p>
                   </div>
-                  <DollarSign className="h-8 w-8 text-blue-500" />
+                  <DollarSign className="h-8 w-8 text-primary" />
                 </div>
               </CardContent>
             </Card>
@@ -238,9 +243,9 @@ export default async function CreatorCampaignsPage() {
 
           {/* Campaigns List */}
           {!hasWithdrawalAccounts && (
-            <Alert className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
-              <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
-              <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+            <Alert className="border-accent/40 bg-accent/10">
+              <AlertCircle className="h-4 w-4 text-accent" />
+              <AlertDescription className="text-foreground">
                 Aún no tienes cuentas de retiro configuradas. Agrega una en tu perfil para poder enviar solicitudes de retiro.
                 {' '}
                 <Link href="/profile" className="underline font-medium">Configurar cuentas</Link>
@@ -371,28 +376,38 @@ export default async function CreatorCampaignsPage() {
                             <div>
                               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm mb-2">
                                 <span className="font-medium">
-                                  ${campaign.current_amount_usd.toFixed(2)} acumulados
+                                  <span className="font-mono">{formatUsd(campaign.current_amount_usd)}</span> acumulados
                                 </span>
                                 <span className="text-muted-foreground">
-                                  Meta: ${campaign.goal_amount_usd.toFixed(2)}
+                                  Meta: <span className="font-mono">{formatUsd(campaign.goal_amount_usd)}</span>
                                 </span>
                               </div>
                               <div className="space-y-1">
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
-                                    className="h-full bg-green-500 transition-all"
+                                    className="h-full bg-primary transition-all"
                                     style={{ width: `${Math.min(progressPercentage, 100)}%` }}
                                   />
                                 </div>
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
-                                    className="h-full bg-purple-500 transition-all"
+                                    className="h-full bg-accent transition-all"
                                     style={{ width: `${Math.min(withdrawnProgressPercentage, 100)}%` }}
                                   />
                                 </div>
                               </div>
-                              <div className="text-right text-xs text-muted-foreground mt-1">
-                                {progressPercentage.toFixed(1)}% completado
+                              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1.5">
+                                <div className="flex items-center gap-3">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-primary" aria-hidden="true" />
+                                    Recaudado
+                                  </span>
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />
+                                    Retirado
+                                  </span>
+                                </div>
+                                <span>{progressPercentage.toFixed(1)}% completado</span>
                               </div>
                             </div>
 
@@ -432,7 +447,7 @@ export default async function CreatorCampaignsPage() {
                 <Button asChild size="lg">
                   <Link href="/creator/campaigns/create">
                     <PlusCircle className="mr-2 h-5 w-5" />
-                    Crear Primera Campaña
+                    Crear primera campaña
                   </Link>
                 </Button>
               </div>

@@ -48,7 +48,7 @@ export default async function CreateCampaignPage() {
                             <Plus className="h-5 w-5 text-primary-foreground" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold">Crear Nueva Campaña</h1>
+                            <h1 className="text-2xl font-bold">Crear nueva campaña</h1>
                             <p className="text-muted-foreground">
                                 Comparte tu causa y comienza a recaudar fondos
                             </p>
@@ -61,9 +61,9 @@ export default async function CreateCampaignPage() {
 
                 {/* Verification Status */}
                 {profile.kyc_status === 'verified' && (
-                    <Alert className="bg-green-50 border-green-200">
-                        <AlertCircle className="h-4 w-4 text-green-600" />
-                        <AlertDescription className="text-green-800">
+                    <Alert className="border-primary/30 bg-primary/5">
+                        <AlertCircle className="h-4 w-4 text-primary" />
+                        <AlertDescription className="text-foreground">
                             Tu identidad está verificada. Puedes crear campañas con todas las funcionalidades.
                         </AlertDescription>
                     </Alert>
@@ -72,7 +72,7 @@ export default async function CreateCampaignPage() {
                 {/* Create Campaign Form */}
                 <Card className="shadow-sm border-border/60">
                     <CardHeader>
-                        <CardTitle>Información de la Campaña</CardTitle>
+                        <CardTitle>Información de la campaña</CardTitle>
                         <CardDescription>
                             Proporciona los detalles de tu campaña. Asegúrate de ser claro y honesto para generar confianza.
                         </CardDescription>
@@ -88,7 +88,7 @@ export default async function CreateCampaignPage() {
                 {/* Tips for Success */}
                 <Card className="shadow-sm border-border/60">
                     <CardHeader>
-                        <CardTitle>Consejos para una Campaña Exitosa</CardTitle>
+                        <CardTitle>Consejos para una campaña exitosa</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="grid md:grid-cols-2 gap-4">
@@ -99,7 +99,7 @@ export default async function CreateCampaignPage() {
                                 </p>
                             </div>
                             <div className="space-y-2">
-                                <h4 className="font-medium text-primary">✓ Historia compelling</h4>
+                                <h4 className="font-medium text-primary">✓ Historia que conecta</h4>
                                 <p className="text-sm text-muted-foreground">
                                     Cuenta tu historia de manera personal y auténtica. Explica por qué es importante.
                                 </p>

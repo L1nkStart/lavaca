@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,6 +28,7 @@ import {
     ChevronsUpDown
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { formatUsd } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const VENEZUELA_STATES = [
@@ -83,7 +84,16 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
     const [uploading, setUploading] = useState(false)
+    const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 })
     const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
+    const [draftRestored, setDraftRestored] = useState(false)
+    // Errores por campo: el mensaje vive junto al control que falló, no en un
+    // solo banner arriba (mejor recuperación y soporte para lectores de pantalla).
+    const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+    // Borrador por usuario. El móvil lento es el caso base: una recarga o un
+    // cambio de app no debe borrar una historia de 1.500 caracteres.
+    const DRAFT_KEY = `lavaca:campaign-draft:${profile.id}`
 
     const [formData, setFormData] = useState({
         title: '',
@@ -106,15 +116,63 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const router = useRouter()
     const supabase = createClient()
 
+    // Restaurar borrador al montar. Solo texto y selecciones: los archivos no
+    // se pueden serializar, así que se vuelven a adjuntar en el paso Multimedia.
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(DRAFT_KEY)
+            if (!raw) return
+            const saved = JSON.parse(raw)
+            if (saved?.formData) {
+                setFormData(prev => ({
+                    ...prev,
+                    ...saved.formData,
+                    main_image: null,
+                    gallery_images: [],
+                    support_documents: [],
+                }))
+                if (saved.formData.title || saved.formData.story) setDraftRestored(true)
+            }
+            // Tope en el paso 2: los archivos se perdieron, así que el creador
+            // vuelve a pasar por Multimedia antes de la revisión.
+            if (saved?.currentStep) setCurrentStep(Math.min(saved.currentStep, 2))
+        } catch {
+            // borrador corrupto o storage no disponible: se ignora
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    // Guardar borrador en cada cambio (best-effort, sin archivos).
+    useEffect(() => {
+        try {
+            const { main_image, gallery_images, support_documents, ...serializable } = formData
+            localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData: serializable, currentStep }))
+        } catch {
+            // storage lleno o no disponible: el borrador es opcional
+        }
+    }, [formData, currentStep, DRAFT_KEY])
+
     const steps = [
-        { number: 1, title: 'Información Básica', description: 'Título, categoría y meta' },
+        { number: 1, title: 'Información básica', description: 'Título, categoría y meta' },
         { number: 2, title: 'Historia', description: 'Descripción detallada' },
         { number: 3, title: 'Multimedia', description: 'Fotos y documentos' },
         { number: 4, title: 'Revisión', description: 'Confirmar datos' }
     ]
 
+    // Zona de carga accesible: es un <button> real (operable con teclado y
+    // lectores de pantalla) con foco visible, no un <div onClick>.
+    const dropzoneClass =
+        'w-full border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-4 text-center cursor-pointer transition-colors hover:border-muted-foreground/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed'
+
     const updateFormData = (field: string, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }))
+        // Limpiar el error del campo en cuanto el usuario lo corrige.
+        setFieldErrors(prev => {
+            if (!prev[field]) return prev
+            const next = { ...prev }
+            delete next[field]
+            return next
+        })
     }
 
     const generateSlug = (title: string) => {
@@ -133,35 +191,43 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
             .substring(0, 60)
     }
 
+    // Orden de campos por paso, para enfocar el primero que falle.
+    const fieldFocusIds: Record<string, string> = {
+        title: 'title',
+        category_id: 'category',
+        goal_amount_usd: 'goal_amount_usd',
+        story: 'story',
+        main_image: 'main-image-upload',
+    }
+
     const validateStep = (step: number) => {
-        switch (step) {
-            case 1:
-                if (!formData.title.trim()) {
-                    setError('El título es requerido')
-                    return false
-                }
-                if (!formData.category_id) {
-                    setError('Debes seleccionar una categoría')
-                    return false
-                }
-                if (!formData.goal_amount_usd || parseFloat(formData.goal_amount_usd) < 10) {
-                    setError('La meta debe ser de al menos $10 USD')
-                    return false
-                }
-                break
-            case 2:
-                if (!formData.story.trim() || formData.story.length < 50) {
-                    setError('La historia debe tener al menos 50 caracteres')
-                    return false
-                }
-                break
-            case 3:
-                if (!formData.main_image) {
-                    setError('Debes subir una imagen principal')
-                    return false
-                }
-                break
+        const errs: Record<string, string> = {}
+
+        if (step === 1) {
+            if (!formData.title.trim()) errs.title = 'El título es requerido'
+            if (!formData.category_id) errs.category_id = 'Debes seleccionar una categoría'
+            if (!formData.goal_amount_usd || parseFloat(formData.goal_amount_usd) < 10) {
+                errs.goal_amount_usd = 'La meta debe ser de al menos $10 USD'
+            }
+        } else if (step === 2) {
+            if (!formData.story.trim() || formData.story.length < 50) {
+                errs.story = 'La historia debe tener al menos 50 caracteres'
+            }
+        } else if (step === 3) {
+            if (!formData.main_image) errs.main_image = 'Debes subir una imagen principal'
         }
+
+        setFieldErrors(errs)
+
+        const firstInvalid = Object.keys(errs)[0]
+        if (firstInvalid) {
+            const focusId = fieldFocusIds[firstInvalid]
+            if (focusId) {
+                requestAnimationFrame(() => document.getElementById(focusId)?.focus())
+            }
+            return false
+        }
+
         setError(null)
         return true
     }
@@ -191,16 +257,18 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const handleImageSelect = (type: 'main' | 'gallery', e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || [])
 
-        files.forEach(file => {
-            if (!file.type.startsWith('image/')) {
-                setError('Solo se permiten archivos de imagen')
-                return
-            }
-            if (file.size > 5 * 1024 * 1024) {
-                setError('Las imágenes deben ser menores a 5MB')
-                return
-            }
-        })
+        // Rechazar el lote completo si algún archivo no es válido, en lugar de
+        // mostrar un error y adjuntarlo igual.
+        if (files.some(file => !file.type.startsWith('image/'))) {
+            setError('Solo se permiten archivos de imagen')
+            e.target.value = ''
+            return
+        }
+        if (files.some(file => file.size > 5 * 1024 * 1024)) {
+            setError('Las imágenes deben ser menores a 5MB')
+            e.target.value = ''
+            return
+        }
 
         if (type === 'main' && files.length > 0) {
             updateFormData('main_image', files[0])
@@ -214,12 +282,11 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
     const handleDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(e.target.files || [])
 
-        files.forEach(file => {
-            if (file.size > 10 * 1024 * 1024) {
-                setError('Los documentos deben ser menores a 10MB')
-                return
-            }
-        })
+        if (files.some(file => file.size > 10 * 1024 * 1024)) {
+            setError('Los documentos deben ser menores a 10MB')
+            e.target.value = ''
+            return
+        }
 
         updateFormData('support_documents', [...formData.support_documents, ...files])
         setError(null)
@@ -259,16 +326,23 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
         setError(null)
         setUploading(true)
 
+        // Progreso real: un paso por cada archivo que se sube.
+        const totalUploads = (formData.main_image ? 1 : 0) +
+            formData.gallery_images.length +
+            formData.support_documents.length
+        setUploadProgress({ done: 0, total: totalUploads })
+        const bumpProgress = () => setUploadProgress(prev => ({ ...prev, done: prev.done + 1 }))
+
         try {
             // Upload main image
             const mainImageUrl = formData.main_image
-                ? await handleFileUpload(formData.main_image, 'campaigns', 'main-images')
+                ? await handleFileUpload(formData.main_image, 'campaigns', 'main-images').then(url => { bumpProgress(); return url })
                 : null
 
             // Upload gallery images
             const galleryUrls = await Promise.all(
                 formData.gallery_images.map(file =>
-                    handleFileUpload(file, 'campaigns', 'gallery')
+                    handleFileUpload(file, 'campaigns', 'gallery').then(url => { bumpProgress(); return url })
                 )
             )
 
@@ -285,8 +359,10 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                     title: formData.title,
                     slug: slug,
                     story: formData.story,
-                    description: 'descripción en desarrollo',
-                    category: 'no necesario',
+                    // Resumen corto derivado de la historia (columna legacy
+                    // `description`); `category` legacy = nombre de la categoría.
+                    description: formData.story.slice(0, 200),
+                    category: selectedCategory?.name ?? '',
                     goal_amount_usd: parseFloat(formData.goal_amount_usd),
                     current_amount_usd: 0,
                     category_id: formData.category_id,
@@ -307,7 +383,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
             // Upload support documents in dedicated documents/<campaignId>/ folder
             const documentUrls = await Promise.all(
                 formData.support_documents.map(file =>
-                    handleFileUpload(file, 'campaigns', `documents/${campaign.id}`)
+                    handleFileUpload(file, 'campaigns', `documents/${campaign.id}`).then(url => { bumpProgress(); return url })
                 )
             )
 
@@ -347,6 +423,10 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 }
             }
 
+            // El borrador ya se convirtió en campaña: limpiarlo.
+            try { localStorage.removeItem(DRAFT_KEY) } catch { /* noop */ }
+            setDraftRestored(false)
+
             setSuccess('Tu campaña fue enviada a revisión de seguridad. Este proceso toma entre 24 y 48 horas antes de activarse para donaciones.')
 
             // Redirect after success
@@ -382,31 +462,40 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
         <div className="space-y-8">
             {/* Progress Steps */}
             <div className="rounded-xl border bg-muted/30 p-4 md:p-5">
-                <div className="flex items-center justify-between">
+                {/* Conectores flexibles (flex-1) y círculos shrink-0: la fila
+                    se adapta de 320px en adelante sin desbordarse. */}
+                <div className="flex items-center" aria-hidden="true">
                     {steps.map((step, index) => (
-                        <div key={step.number} className="flex items-center">
-                            <div className={`
-              flex items-center justify-center w-8 h-8 rounded-full border-2 text-sm font-medium
-              ${currentStep >= step.number
-                                    ? 'bg-primary text-primary-foreground border-primary'
-                                    : 'bg-background text-muted-foreground border-muted'
-                                }
-            `}>
+                        <Fragment key={step.number}>
+                            <div className={`flex items-center justify-center w-8 h-8 shrink-0 rounded-full border-2 text-sm font-medium ${currentStep >= step.number
+                                ? 'bg-primary text-primary-foreground border-primary'
+                                : 'bg-background text-muted-foreground border-muted'
+                                }`}>
                                 {currentStep > step.number ? <Check className="h-4 w-4" /> : step.number}
                             </div>
                             {index < steps.length - 1 && (
-                                <div className={`w-16 h-0.5 mx-2 ${currentStep > step.number ? 'bg-primary' : 'bg-muted'
+                                <div className={`h-0.5 flex-1 mx-1.5 sm:mx-2 ${currentStep > step.number ? 'bg-primary' : 'bg-muted'
                                     }`} />
                             )}
-                        </div>
+                        </Fragment>
                     ))}
                 </div>
 
                 <div className="text-center mt-4">
+                    <p className="text-xs text-muted-foreground">Paso {currentStep} de {steps.length}</p>
                     <h3 className="text-lg font-medium">{steps[currentStep - 1].title}</h3>
                     <p className="text-sm text-muted-foreground">{steps[currentStep - 1].description}</p>
                 </div>
             </div>
+
+            {draftRestored && (
+                <Alert className="border-primary/30 bg-primary/5">
+                    <AlertCircle className="h-4 w-4 text-primary" />
+                    <AlertDescription className="text-foreground">
+                        Recuperamos tu borrador. Revisa los datos y vuelve a adjuntar las imágenes y documentos antes de enviar.
+                    </AlertDescription>
+                </Alert>
+            )}
 
             {error && (
                 <Alert variant="destructive">
@@ -415,8 +504,8 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
             )}
 
             {success && (
-                <Alert className="bg-green-50 text-green-800 border-green-200">
-                    <AlertDescription>{success}</AlertDescription>
+                <Alert className="border-primary/30 bg-primary/5">
+                    <AlertDescription className="text-foreground">{success}</AlertDescription>
                 </Alert>
             )}
 
@@ -425,7 +514,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 {currentStep === 1 && (
                     <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         <div className="space-y-2">
-                            <Label htmlFor="title">Título de la Campaña *</Label>
+                            <Label htmlFor="title">Título de la campaña *</Label>
                             <Input
                                 id="title"
                                 value={formData.title}
@@ -433,7 +522,12 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                 placeholder="Ej: Ayuda para cirugía de emergencia"
                                 maxLength={100}
                                 disabled={loading}
+                                aria-invalid={!!fieldErrors.title}
+                                aria-describedby={fieldErrors.title ? 'title-error' : undefined}
                             />
+                            {fieldErrors.title && (
+                                <p id="title-error" className="text-xs text-destructive">{fieldErrors.title}</p>
+                            )}
                             <p className="text-xs text-muted-foreground">
                                 {formData.title.length}/100 caracteres
                             </p>
@@ -446,7 +540,11 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                 onValueChange={(value) => updateFormData('category_id', value)}
                                 disabled={loading}
                             >
-                                <SelectTrigger>
+                                <SelectTrigger
+                                    id="category"
+                                    aria-invalid={!!fieldErrors.category_id}
+                                    aria-describedby={fieldErrors.category_id ? 'category-error' : undefined}
+                                >
                                     <SelectValue placeholder="Selecciona una categoría" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -460,6 +558,9 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                     ))}
                                 </SelectContent>
                             </Select>
+                            {fieldErrors.category_id && (
+                                <p id="category-error" className="text-xs text-destructive">{fieldErrors.category_id}</p>
+                            )}
                             {selectedCategory?.description && (
                                 <p className="text-xs text-muted-foreground">
                                     {selectedCategory.description}
@@ -470,7 +571,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                         <div className="space-y-2">
                             <Label htmlFor="goal_amount_usd" className="flex items-center gap-2">
                                 <DollarSign className="h-4 w-4" />
-                                Meta de Recaudación (USD) *
+                                Meta de recaudación (USD) *
                             </Label>
                             <Input
                                 id="goal_amount_usd"
@@ -481,7 +582,12 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                 onChange={(e) => updateFormData('goal_amount_usd', e.target.value)}
                                 placeholder="1500.00"
                                 disabled={loading}
+                                aria-invalid={!!fieldErrors.goal_amount_usd}
+                                aria-describedby={fieldErrors.goal_amount_usd ? 'goal-error' : undefined}
                             />
+                            {fieldErrors.goal_amount_usd && (
+                                <p id="goal-error" className="text-xs text-destructive">{fieldErrors.goal_amount_usd}</p>
+                            )}
                             <p className="text-xs text-muted-foreground">
                                 Monto mínimo: $10 USD. Sé realista con tu meta.
                             </p>
@@ -489,7 +595,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
 
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="location">Ciudad (Opcional)</Label>
+                                <Label htmlFor="location">Ciudad (opcional)</Label>
                                 <Input
                                     id="location"
                                     value={formData.location}
@@ -500,7 +606,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             </div>
 
                             <div className="space-y-2">
-                                <Label htmlFor="state">Estado (Opcional)</Label>
+                                <Label htmlFor="state">Estado (opcional)</Label>
                                 <Popover open={stateDropdownOpen} onOpenChange={setStateDropdownOpen}>
                                     <PopoverTrigger asChild>
                                         <Button
@@ -548,7 +654,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="urgency">Nivel de Urgencia</Label>
+                            <Label htmlFor="urgency">Nivel de urgencia</Label>
                             <Select
                                 value={formData.urgency_level}
                                 onValueChange={(value) => updateFormData('urgency_level', value)}
@@ -576,16 +682,22 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                 {currentStep === 2 && (
                     <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         <div className="space-y-2">
-                            <Label htmlFor="story">Historia de tu Campaña *</Label>
+                            <Label htmlFor="story">Historia de tu campaña *</Label>
                             <Textarea
                                 id="story"
                                 value={formData.story}
                                 onChange={(e) => updateFormData('story', e.target.value)}
                                 placeholder="Cuenta tu historia de manera personal y auténtica. Explica por qué necesitas ayuda, cómo usarás los fondos y por qué es importante para ti..."
                                 rows={12}
+                                maxLength={2000}
                                 disabled={loading}
                                 className="resize-none"
+                                aria-invalid={!!fieldErrors.story}
+                                aria-describedby={fieldErrors.story ? 'story-error' : undefined}
                             />
+                            {fieldErrors.story && (
+                                <p id="story-error" className="text-xs text-destructive">{fieldErrors.story}</p>
+                            )}
                             <div className="flex justify-between items-center text-xs text-muted-foreground">
                                 <span>{formData.story.length}/2000 caracteres</span>
                                 <span>Mínimo 50 caracteres</span>
@@ -598,21 +710,21 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             </CardHeader>
                             <CardContent className="space-y-3">
                                 <div className="flex gap-3">
-                                    <Users className="h-5 w-5 text-blue-500 mt-0.5 flex-shrink-0" />
+                                    <Users className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                                     <div>
                                         <p className="font-medium text-sm">Sé personal</p>
                                         <p className="text-xs text-muted-foreground">Comparte tu historia personal. La gente se conecta con experiencias reales.</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <Target className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                                    <Target className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                                     <div>
                                         <p className="font-medium text-sm">Sé específico</p>
                                         <p className="text-xs text-muted-foreground">Explica exactamente para qué necesitas el dinero y cómo lo usarás.</p>
                                     </div>
                                 </div>
                                 <div className="flex gap-3">
-                                    <Check className="h-5 w-5 text-purple-500 mt-0.5 flex-shrink-0" />
+                                    <Check className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
                                     <div>
                                         <p className="font-medium text-sm">Sé honesto</p>
                                         <p className="text-xs text-muted-foreground">La transparencia genera confianza. Comparte tanto los desafíos como las esperanzas.</p>
@@ -628,21 +740,17 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                     <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         {/* Main Image */}
                         <div className="space-y-3">
-                            <Label>Imagen Principal *</Label>
-                            <div
-                                className="border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-6 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
-                                onClick={() => mainImageRef.current?.click()}
-                            >
-                                {formData.main_image ? (
+                            <Label htmlFor="main-image-input">Imagen principal *</Label>
+                            {formData.main_image ? (
+                                <div className="border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-6 text-center">
                                     <div className="space-y-2">
-                                        <ImageIcon className="h-8 w-8 mx-auto text-green-600" />
-                                        <p className="text-sm font-medium text-green-700">{formData.main_image.name}</p>
+                                        <ImageIcon className="h-8 w-8 mx-auto text-primary" />
+                                        <p className="text-sm font-medium text-primary">{formData.main_image.name}</p>
                                         <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
-                                            onClick={(e) => {
-                                                e.stopPropagation()
+                                            onClick={() => {
                                                 updateFormData('main_image', null)
                                                 if (mainImageRef.current) mainImageRef.current.value = ''
                                             }}
@@ -650,16 +758,30 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                             Cambiar imagen
                                         </Button>
                                     </div>
-                                ) : (
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    id="main-image-upload"
+                                    onClick={() => mainImageRef.current?.click()}
+                                    disabled={loading}
+                                    aria-describedby={`main-image-hint${fieldErrors.main_image ? ' main-image-error' : ''}`}
+                                    aria-invalid={!!fieldErrors.main_image}
+                                    className={dropzoneClass}
+                                >
                                     <div className="space-y-2">
                                         <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
-                                        <p className="text-sm">Haz clic para subir la imagen principal</p>
-                                        <p className="text-xs text-muted-foreground">JPG, PNG hasta 5MB</p>
+                                        <p className="text-sm">Haz clic o presiona Enter para subir la imagen principal</p>
+                                        <p id="main-image-hint" className="text-xs text-muted-foreground">JPG, PNG hasta 5MB</p>
                                     </div>
-                                )}
-                            </div>
+                                </button>
+                            )}
+                            {fieldErrors.main_image && (
+                                <p id="main-image-error" className="text-xs text-destructive">{fieldErrors.main_image}</p>
+                            )}
                             <input
                                 ref={mainImageRef}
+                                id="main-image-input"
                                 type="file"
                                 accept="image/*"
                                 onChange={(e) => handleImageSelect('main', e)}
@@ -670,14 +792,16 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
 
                         {/* Gallery Images */}
                         <div className="space-y-3">
-                            <Label>Galería de Imágenes (Opcional)</Label>
-                            <div
-                                className="border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-4 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
+                            <Label>Galería de imágenes (opcional)</Label>
+                            <button
+                                type="button"
                                 onClick={() => galleryRef.current?.click()}
+                                disabled={loading}
+                                className={dropzoneClass}
                             >
                                 <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
                                 <p className="text-sm">Agregar más imágenes</p>
-                            </div>
+                            </button>
                             <input
                                 ref={galleryRef}
                                 type="file"
@@ -713,18 +837,20 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
 
                         {/* Support Documents */}
                         <div className="space-y-3">
-                            <Label>Documentos de Soporte (Opcional)</Label>
+                            <Label>Documentos de soporte (opcional)</Label>
                             <p className="text-xs text-muted-foreground">
                                 Sube documentos que respalden tu campaña (informes médicos, presupuestos, etc.)
                             </p>
-                            <div
-                                className="border-2 border-dashed border-muted-foreground/25 bg-muted/20 rounded-lg p-4 text-center cursor-pointer hover:border-muted-foreground/50 transition-colors"
+                            <button
+                                type="button"
                                 onClick={() => documentsRef.current?.click()}
+                                disabled={loading}
+                                className={dropzoneClass}
                             >
                                 <FileText className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
                                 <p className="text-sm">Agregar documentos</p>
                                 <p className="text-xs text-muted-foreground">PDF, DOC, JPG hasta 10MB cada uno</p>
-                            </div>
+                            </button>
                             <input
                                 ref={documentsRef}
                                 type="file"
@@ -766,7 +892,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                     <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Resumen de tu Campaña</CardTitle>
+                                <CardTitle>Resumen de tu campaña</CardTitle>
                                 <CardDescription>
                                     Revisa todos los detalles antes de enviar tu campaña para aprobación
                                 </CardDescription>
@@ -774,19 +900,19 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                             <CardContent className="space-y-4">
                                 <div className="grid md:grid-cols-2 gap-4">
                                     <div className="rounded-lg border bg-muted/30 p-3">
-                                        <Label className="text-xs text-muted-foreground">TÍTULO</Label>
+                                        <Label className="text-xs text-muted-foreground">Título</Label>
                                         <p className="font-medium">{formData.title}</p>
                                     </div>
                                     <div className="rounded-lg border bg-muted/30 p-3">
-                                        <Label className="text-xs text-muted-foreground">CATEGORÍA</Label>
+                                        <Label className="text-xs text-muted-foreground">Categoría</Label>
                                         <p className="font-medium">{selectedCategory?.name}</p>
                                     </div>
                                     <div className="rounded-lg border bg-muted/30 p-3">
-                                        <Label className="text-xs text-muted-foreground">META</Label>
-                                        <p className="font-medium">${formData.goal_amount_usd} USD</p>
+                                        <Label className="text-xs text-muted-foreground">Meta</Label>
+                                        <p className="font-medium font-mono">{formatUsd(parseFloat(formData.goal_amount_usd) || 0)}</p>
                                     </div>
                                     <div className="rounded-lg border bg-muted/30 p-3">
-                                        <Label className="text-xs text-muted-foreground">UBICACIÓN</Label>
+                                        <Label className="text-xs text-muted-foreground">Ubicación</Label>
                                         <p className="font-medium">{fullLocation || 'No especificada'}</p>
                                     </div>
                                 </div>
@@ -794,7 +920,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                 <Separator />
 
                                 <div className="rounded-lg border bg-muted/30 p-3">
-                                    <Label className="text-xs text-muted-foreground">HISTORIA</Label>
+                                    <Label className="text-xs text-muted-foreground">Historia</Label>
                                     <p className="text-sm mt-1 line-clamp-3">{formData.story}</p>
                                 </div>
 
@@ -802,15 +928,15 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
 
                                 <div className="flex gap-4">
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">IMAGEN PRINCIPAL</Label>
+                                        <Label className="text-xs text-muted-foreground">Imagen principal</Label>
                                         <p className="text-sm">{formData.main_image ? '✓ Subida' : '✗ Faltante'}</p>
                                     </div>
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">GALERÍA</Label>
+                                        <Label className="text-xs text-muted-foreground">Galería</Label>
                                         <p className="text-sm">{formData.gallery_images.length} imágenes</p>
                                     </div>
                                     <div>
-                                        <Label className="text-xs text-muted-foreground">DOCUMENTOS</Label>
+                                        <Label className="text-xs text-muted-foreground">Documentos</Label>
                                         <p className="text-sm">{formData.support_documents.length} archivos</p>
                                     </div>
                                 </div>
@@ -831,9 +957,18 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                     <div className="space-y-2">
                                         <div className="flex items-center justify-between text-sm">
                                             <span>Subiendo archivos...</span>
-                                            <span>Por favor espera</span>
+                                            <span>
+                                                {uploadProgress.total > 0
+                                                    ? `${uploadProgress.done} de ${uploadProgress.total}`
+                                                    : 'Por favor espera'}
+                                            </span>
                                         </div>
-                                        <Progress value={66} className="w-full" />
+                                        <Progress
+                                            value={uploadProgress.total > 0
+                                                ? (uploadProgress.done / uploadProgress.total) * 100
+                                                : 0}
+                                            className="w-full"
+                                        />
                                     </div>
                                 </CardContent>
                             </Card>

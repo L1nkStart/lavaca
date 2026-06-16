@@ -11,7 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { Loader2, Save, Upload, Trash2, FileText, PlusCircle, Star, Clock, ImageIcon, ShieldCheck, Info } from 'lucide-react'
+import { formatUsd } from '@/lib/format'
 
 interface Category {
     id: string
@@ -66,7 +78,7 @@ interface EditCampaignFormProps {
     currentUserId: string
 }
 
-const usd = (n: number) => `$${Number(n || 0).toFixed(2)}`
+const usd = (n: number) => formatUsd(n)
 
 export function EditCampaignForm({ campaign, categories, currentUserId }: EditCampaignFormProps) {
     const PAGE_SIZE = 5
@@ -398,8 +410,8 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                 </Alert>
             )}
             {success && (
-                <Alert>
-                    <AlertDescription>{success}</AlertDescription>
+                <Alert className="border-primary/30 bg-primary/5">
+                    <AlertDescription className="text-foreground">{success}</AlertDescription>
                 </Alert>
             )}
 
@@ -655,9 +667,27 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                                     {hasCompletedDonations ? (
                                         <Badge variant="secondary" className="text-[10px]"><ShieldCheck className="h-3 w-3 mr-1" /> Evidencia</Badge>
                                     ) : (
-                                        <Button type="button" variant="outline" size="sm" onClick={() => handleRemoveDocument(docUrl)} disabled={savingDocs}>
-                                            <Trash2 className="h-4 w-4 mr-2" /> Eliminar
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button type="button" variant="outline" size="sm" disabled={savingDocs}>
+                                                    <Trash2 className="h-4 w-4 mr-2" /> Eliminar
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Eliminar este documento?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        El documento {index + 1} dejará de respaldar tu campaña. Esta acción no se puede deshacer.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={() => handleRemoveDocument(docUrl)}>
+                                                        Eliminar documento
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     )}
                                 </div>
                             ))}
