@@ -134,8 +134,8 @@ export function ProfileForm({ profile }: ProfileFormProps) {
             )}
 
             {success && (
-                <Alert className="bg-green-50 text-green-800 border-green-200">
-                    <AlertDescription>{success}</AlertDescription>
+                <Alert className="border-primary/30 bg-primary/5">
+                    <AlertDescription className="text-foreground">{success}</AlertDescription>
                 </Alert>
             )}
 
@@ -241,6 +241,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
                     onChange={(e) => updateFormData('bio', e.target.value)}
                     placeholder="Cuéntanos un poco sobre ti..."
                     rows={4}
+                    maxLength={500}
                     disabled={loading}
                     className="resize-none"
                 />
@@ -253,7 +254,7 @@ export function ProfileForm({ profile }: ProfileFormProps) {
                 <div className="text-sm text-muted-foreground">
                     <strong>Estado actual:</strong> {getRoleDisplayName(profile.role)}
                     {profile.kyc_status === 'verified' && (
-                        <span className="ml-2 text-green-600">• Verificado</span>
+                        <span className="ml-2 text-primary">• Verificado</span>
                     )}
                 </div>
 

@@ -359,22 +359,22 @@ export function KYCFormImproved() {
 
     if (viewState === 'verified') {
         return (
-            <Card className="border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-800">
+            <Card className="border-primary/30 bg-primary/5">
                 <CardContent className="pt-6 space-y-4">
                     <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center shrink-0">
-                            <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                        <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                            <CheckCircle2 className="h-6 w-6 text-primary" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h3 className="text-lg font-semibold text-green-900 dark:text-green-100">
+                            <h3 className="text-lg font-semibold text-foreground">
                                 Tu cuenta está verificada ✓
                             </h3>
-                            <p className="text-sm text-green-800 dark:text-green-200 mt-1">
+                            <p className="text-sm text-muted-foreground mt-1">
                                 Ya pasaste el proceso de verificación de identidad.
                                 Puedes crear campañas y recibir donaciones sin restricciones.
                             </p>
                             {verifiedAt && (
-                                <p className="text-xs text-green-700 dark:text-green-300 mt-2">
+                                <p className="text-xs text-muted-foreground mt-2">
                                     Verificado el{' '}
                                     {new Date(verifiedAt).toLocaleDateString('es-VE', {
                                         year: 'numeric',
@@ -386,7 +386,7 @@ export function KYCFormImproved() {
                         </div>
                     </div>
 
-                    <div className="border-t border-green-200 dark:border-green-800 pt-4">
+                    <div className="border-t border-primary/20 pt-4">
                         <p className="text-xs text-muted-foreground">
                             Si necesitas actualizar tu información personal, escríbenos
                             a{' '}
@@ -403,23 +403,23 @@ export function KYCFormImproved() {
 
     if (viewState === 'in_review') {
         return (
-            <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20 dark:border-amber-800">
+            <Card className="border-accent/40 bg-accent/10">
                 <CardContent className="pt-6 space-y-4">
                     <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center shrink-0">
-                            <Loader2 className="h-6 w-6 text-amber-600 dark:text-amber-400 animate-spin" />
+                        <div className="w-12 h-12 rounded-full bg-accent/15 flex items-center justify-center shrink-0">
+                            <Loader2 className="h-6 w-6 text-accent animate-spin" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-100">
+                            <h3 className="text-lg font-semibold text-foreground">
                                 Tu solicitud está en revisión
                             </h3>
-                            <p className="text-sm text-amber-800 dark:text-amber-200 mt-1">
+                            <p className="text-sm text-muted-foreground mt-1">
                                 Recibimos tus documentos y nuestro equipo los está
                                 verificando. Cuando aprobemos o rechacemos tu solicitud,
                                 te avisamos por correo y este panel se actualizará.
                             </p>
                             {requestSubmittedAt && (
-                                <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                                <p className="text-xs text-muted-foreground mt-2">
                                     Enviada el{' '}
                                     {new Date(requestSubmittedAt).toLocaleDateString('es-VE', {
                                         year: 'numeric',
@@ -433,7 +433,7 @@ export function KYCFormImproved() {
                         </div>
                     </div>
 
-                    <Alert className="border-amber-300/50 bg-amber-100/50 dark:bg-amber-900/30">
+                    <Alert className="border-accent/40 bg-accent/10">
                         <Shield className="h-4 w-4" />
                         <AlertDescription className="text-sm">
                             Tiempo estimado de revisión:{' '}
@@ -487,9 +487,9 @@ export function KYCFormImproved() {
             )}
 
             {/* Info Alert */}
-            <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
-                <Shield className="h-4 w-4 text-blue-600" />
-                <AlertDescription className="text-blue-800 dark:text-blue-200">
+            <Alert>
+                <Shield className="h-4 w-4" />
+                <AlertDescription>
                     <strong>Importante:</strong> No podrás crear campañas mientras revisamos tu solicitud.
                     La verificación toma 24-48 horas.
                 </AlertDescription>
@@ -498,20 +498,20 @@ export function KYCFormImproved() {
             {/* Verification Type */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Tipo de Verificación</CardTitle>
+                    <CardTitle>Tipo de verificación</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <RadioGroup value={verificationType} onValueChange={(v) => setVerificationType(v as any)}>
                         <div className="flex items-center space-x-2">
                             <RadioGroupItem value="individual" id="individual" />
                             <Label htmlFor="individual" className="cursor-pointer">
-                                👤 Persona Natural (Individual)
+                                👤 Persona natural (individual)
                             </Label>
                         </div>
                         <div className="flex items-center space-x-2">
                             <RadioGroupItem value="company" id="company" />
                             <Label htmlFor="company" className="cursor-pointer">
-                                🏢 Empresa / Organización
+                                🏢 Empresa / organización
                             </Label>
                         </div>
                     </RadioGroup>
@@ -522,11 +522,11 @@ export function KYCFormImproved() {
             {verificationType === 'company' && (
                 <Card>
                     <CardHeader>
-                        <CardTitle>Datos de la Empresa</CardTitle>
+                        <CardTitle>Datos de la empresa</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div>
-                            <Label htmlFor="companyName">Nombre de la Empresa *</Label>
+                            <Label htmlFor="companyName">Nombre de la empresa *</Label>
                             <Input
                                 id="companyName"
                                 value={companyName}
@@ -564,12 +564,12 @@ export function KYCFormImproved() {
             <Card>
                 <CardHeader>
                     <CardTitle>
-                        {verificationType === 'company' ? 'Datos del Representante Legal' : 'Datos Personales'}
+                        {verificationType === 'company' ? 'Datos del representante legal' : 'Datos personales'}
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div>
-                        <Label htmlFor="fullName">Nombre Completo *</Label>
+                        <Label htmlFor="fullName">Nombre completo *</Label>
                         <Input
                             id="fullName"
                             value={fullName}
@@ -582,7 +582,7 @@ export function KYCFormImproved() {
 
                     <div className="grid md:grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="documentType">Tipo de Documento *</Label>
+                            <Label htmlFor="documentType">Tipo de documento *</Label>
                             <select
                                 id="documentType"
                                 value={documentType}
@@ -596,7 +596,7 @@ export function KYCFormImproved() {
                             </select>
                         </div>
                         <div>
-                            <Label htmlFor="documentNumber">Número de Documento *</Label>
+                            <Label htmlFor="documentNumber">Número de documento *</Label>
                             <Input
                                 id="documentNumber"
                                 value={documentNumber}
@@ -610,7 +610,7 @@ export function KYCFormImproved() {
 
                     <div className="grid md:grid-cols-2 gap-4">
                         <div>
-                            <Label htmlFor="birthDate">Fecha de Nacimiento</Label>
+                            <Label htmlFor="birthDate">Fecha de nacimiento</Label>
                             <Input
                                 id="birthDate"
                                 type="date"
@@ -635,7 +635,7 @@ export function KYCFormImproved() {
             {/* Contact Info */}
             <Card>
                 <CardHeader>
-                    <CardTitle>Información de Contacto</CardTitle>
+                    <CardTitle>Información de contacto</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
@@ -748,7 +748,7 @@ export function KYCFormImproved() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div>
-                        <Label htmlFor="documentFront">Documento (Frente) * <span className="text-xs text-muted-foreground">JPG, PNG o PDF (máx. 5MB)</span></Label>
+                        <Label htmlFor="documentFront">Documento (frente) * <span className="text-xs text-muted-foreground">JPG, PNG o PDF (máx. 5MB)</span></Label>
                         <Input
                             id="documentFront"
                             type="file"
@@ -758,14 +758,14 @@ export function KYCFormImproved() {
                             disabled={loading || isSubmissionBlocked}
                         />
                         {documentFront && (
-                            <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                            <p className="text-sm text-primary mt-1 flex items-center gap-1">
                                 <CheckCircle2 className="h-4 w-4" /> {documentFront.name}
                             </p>
                         )}
                     </div>
 
                     <div>
-                        <Label htmlFor="documentBack">Documento (Reverso) <span className="text-xs text-muted-foreground">Opcional</span></Label>
+                        <Label htmlFor="documentBack">Documento (reverso) <span className="text-xs text-muted-foreground">Opcional</span></Label>
                         <Input
                             id="documentBack"
                             type="file"
@@ -774,14 +774,14 @@ export function KYCFormImproved() {
                             disabled={loading || isSubmissionBlocked}
                         />
                         {documentBack && (
-                            <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                            <p className="text-sm text-primary mt-1 flex items-center gap-1">
                                 <CheckCircle2 className="h-4 w-4" /> {documentBack.name}
                             </p>
                         )}
                     </div>
 
                     <div>
-                        <Label htmlFor="selfie">Selfie con Documento * <span className="text-xs text-muted-foreground">Foto tuya sosteniendo el documento</span></Label>
+                        <Label htmlFor="selfie">Selfie con documento * <span className="text-xs text-muted-foreground">Foto tuya sosteniendo el documento</span></Label>
                         <Input
                             id="selfie"
                             type="file"
@@ -791,14 +791,14 @@ export function KYCFormImproved() {
                             disabled={loading || isSubmissionBlocked}
                         />
                         {selfie && (
-                            <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                            <p className="text-sm text-primary mt-1 flex items-center gap-1">
                                 <CheckCircle2 className="h-4 w-4" /> {selfie.name}
                             </p>
                         )}
                     </div>
 
                     <div>
-                        <Label htmlFor="proofOfAddress">Comprobante de Domicilio <span className="text-xs text-muted-foreground">Recibo de servicio</span></Label>
+                        <Label htmlFor="proofOfAddress">Comprobante de domicilio <span className="text-xs text-muted-foreground">Recibo de servicio</span></Label>
                         <Input
                             id="proofOfAddress"
                             type="file"
@@ -807,7 +807,7 @@ export function KYCFormImproved() {
                             disabled={loading || isSubmissionBlocked}
                         />
                         {proofOfAddress && (
-                            <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                            <p className="text-sm text-primary mt-1 flex items-center gap-1">
                                 <CheckCircle2 className="h-4 w-4" /> {proofOfAddress.name}
                             </p>
                         )}
@@ -815,7 +815,7 @@ export function KYCFormImproved() {
 
                     {verificationType === 'company' && (
                         <div>
-                            <Label htmlFor="companyRegistration">Registro Mercantil / Acta Constitutiva *</Label>
+                            <Label htmlFor="companyRegistration">Registro mercantil / acta constitutiva *</Label>
                             <Input
                                 id="companyRegistration"
                                 type="file"
@@ -825,7 +825,7 @@ export function KYCFormImproved() {
                                 disabled={loading || isSubmissionBlocked}
                             />
                             {companyRegistration && (
-                                <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
+                                <p className="text-sm text-primary mt-1 flex items-center gap-1">
                                     <CheckCircle2 className="h-4 w-4" /> {companyRegistration.name}
                                 </p>
                             )}
@@ -863,7 +863,7 @@ export function KYCFormImproved() {
                 ) : (
                     <>
                         <Upload className="mr-2 h-4 w-4" />
-                        Enviar Solicitud de Verificación
+                        Enviar solicitud de verificación
                     </>
                 )}
             </Button>

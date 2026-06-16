@@ -10,9 +10,34 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
-import { Shield, User, CreditCard, Info, Heart, TrendingUp, DollarSign, Calendar, Settings, LogOut, Plus, Eye } from 'lucide-react'
+import { Shield, User, CreditCard, Info, Heart, TrendingUp, DollarSign, Settings, LogOut, Plus, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { CampaignCard } from '@/components/campaign-card'
+import { formatUsd, formatBs } from '@/lib/format'
+
+const ROLE_LABELS: Record<string, string> = {
+    donor: 'Donante',
+    creator: 'Creador',
+    guarantor: 'Garante',
+    admin: 'Admin',
+}
+const roleLabel = (role: string) => ROLE_LABELS[role] ?? 'Admin'
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    card: 'Tarjeta',
+    paypal: 'PayPal',
+    pagomovil: 'PagoMóvil',
+    zelle: 'Zelle',
+    transfer: 'Transferencia',
+    crypto: 'Cripto',
+}
+const paymentMethodLabel = (method: string) => PAYMENT_METHOD_LABELS[method] ?? method
+
+// Monto de una donación en su moneda original (Bs si aplica, USD si no).
+const donationAmountLabel = (donation: { currency?: string | null; amount_bs?: number | null; amount_usd?: number | null }) =>
+    donation.currency === 'BS' && donation.amount_bs != null
+        ? formatBs(Number(donation.amount_bs))
+        : formatUsd(Number(donation.amount_usd || 0))
 
 export default async function ProfilePage({
     searchParams
@@ -113,12 +138,15 @@ export default async function ProfilePage({
     const totalRaised = campaigns?.reduce((sum, c) => sum + (c.current_amount_usd || 0), 0) || 0
     const donationsCount = donations?.length || 0
 
+    // Estado KYC en tokens de marca: verificado = Verde Confianza (primary),
+    // la única señal de "verificado" del producto; rechazado = destructive;
+    // pendiente = terracota (atención); sin verificar = neutro.
     const getKYCStatusColor = (status: string) => {
         switch (status) {
-            case 'verified': return 'bg-green-500'
-            case 'rejected': return 'bg-red-500'
-            case 'pending': return 'bg-yellow-500'
-            default: return 'bg-gray-500'
+            case 'verified': return 'bg-primary text-primary-foreground'
+            case 'rejected': return 'bg-destructive text-white'
+            case 'pending': return 'bg-accent text-accent-foreground'
+            default: return 'bg-muted text-muted-foreground'
         }
     }
 
@@ -156,9 +184,7 @@ export default async function ProfilePage({
                                     <p className="text-muted-foreground">{profile.email}</p>
                                     <div className="flex items-center gap-2 mt-2">
                                         <Badge variant="outline" className="capitalize">
-                                            {profile.role === 'donor' ? 'Donante' :
-                                                profile.role === 'creator' ? 'Creador' :
-                                                    profile.role === 'guarantor' ? 'Garante' : 'Admin'}
+                                            {roleLabel(profile.role)}
                                         </Badge>
                                         <Badge className={getKYCStatusColor(profile.kyc_status)}>
                                             <Shield className="h-3 w-3 mr-1" />
@@ -194,14 +220,14 @@ export default async function ProfilePage({
                         </div>
                     </div>
 
-                    {/* Stats Cards */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                    {/* Stats Cards: las métricas de creador solo aplican a creadores. */}
+                    <div className={`grid grid-cols-2 gap-4 mt-8 ${isCreatorOrAdmin ? 'md:grid-cols-4' : 'md:grid-cols-2'}`}>
                         <Card>
                             <CardContent className="pt-6">
                                 <div className="flex items-center justify-between">
                                     <div>
                                         <p className="text-sm text-muted-foreground">Total donado</p>
-                                        <p className="text-2xl font-bold">${totalDonated.toFixed(2)}</p>
+                                        <p className="text-2xl font-bold font-mono text-primary">{formatUsd(totalDonated)}</p>
                                     </div>
                                     <Heart className="h-8 w-8 text-primary" />
                                 </div>
@@ -215,34 +241,38 @@ export default async function ProfilePage({
                                         <p className="text-sm text-muted-foreground">Donaciones</p>
                                         <p className="text-2xl font-bold">{donationsCount}</p>
                                     </div>
-                                    <DollarSign className="h-8 w-8 text-green-500" />
+                                    <Heart className="h-8 w-8 text-muted-foreground" />
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Card>
-                            <CardContent className="pt-6">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Campañas</p>
-                                        <p className="text-2xl font-bold">{totalCampaigns}</p>
-                                    </div>
-                                    <TrendingUp className="h-8 w-8 text-blue-500" />
-                                </div>
-                            </CardContent>
-                        </Card>
+                        {isCreatorOrAdmin && (
+                            <>
+                                <Card>
+                                    <CardContent className="pt-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-muted-foreground">Campañas</p>
+                                                <p className="text-2xl font-bold">{totalCampaigns}</p>
+                                            </div>
+                                            <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                                        </div>
+                                    </CardContent>
+                                </Card>
 
-                        <Card>
-                            <CardContent className="pt-6">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-sm text-muted-foreground">Recaudado</p>
-                                        <p className="text-2xl font-bold">${totalRaised.toFixed(2)}</p>
-                                    </div>
-                                    <Calendar className="h-8 w-8 text-purple-500" />
-                                </div>
-                            </CardContent>
-                        </Card>
+                                <Card>
+                                    <CardContent className="pt-6">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-muted-foreground">Recaudado</p>
+                                                <p className="text-2xl font-bold font-mono text-primary">{formatUsd(totalRaised)}</p>
+                                            </div>
+                                            <DollarSign className="h-8 w-8 text-primary" />
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>
@@ -255,7 +285,7 @@ export default async function ProfilePage({
                         <Info className="h-4 w-4 text-destructive" />
                         <AlertDescription>
                             Necesitas verificar tu identidad para acceder a esta función.
-                            Ve a la pestaña "Verificación", completa el formulario de Identidad (KYC) y envía tus documentos.
+                            Ve a la pestaña "Verificación", completa el formulario de identidad (KYC) y envía tus documentos.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -270,30 +300,30 @@ export default async function ProfilePage({
                 )}
 
                 <Tabs defaultValue="dashboard" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 mb-8">
-                        <TabsTrigger value="dashboard" className="flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4" />
-                            <span className="hidden sm:inline">Dashboard</span>
+                    <TabsList className="grid w-full grid-cols-3 sm:grid-cols-6 h-auto mb-8">
+                        <TabsTrigger value="dashboard" aria-label="Inicio" className="flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 shrink-0" />
+                            <span>Inicio</span>
                         </TabsTrigger>
-                        <TabsTrigger value="donations" className="flex items-center gap-2">
-                            <Heart className="h-4 w-4" />
-                            <span className="hidden sm:inline">Donaciones</span>
+                        <TabsTrigger value="donations" aria-label="Donaciones" className="flex items-center gap-2">
+                            <Heart className="h-4 w-4 shrink-0" />
+                            <span>Donaciones</span>
                         </TabsTrigger>
-                        <TabsTrigger value="campaigns" className="flex items-center gap-2">
-                            <Eye className="h-4 w-4" />
-                            <span className="hidden sm:inline">Campañas</span>
+                        <TabsTrigger value="campaigns" aria-label="Campañas" className="flex items-center gap-2">
+                            <Eye className="h-4 w-4 shrink-0" />
+                            <span>Campañas</span>
                         </TabsTrigger>
-                        <TabsTrigger value="profile" className="flex items-center gap-2">
-                            <User className="h-4 w-4" />
-                            <span className="hidden sm:inline">Perfil</span>
+                        <TabsTrigger value="profile" aria-label="Perfil" className="flex items-center gap-2">
+                            <User className="h-4 w-4 shrink-0" />
+                            <span>Perfil</span>
                         </TabsTrigger>
-                        <TabsTrigger value="kyc" className="flex items-center gap-2">
-                            <Shield className="h-4 w-4" />
-                            <span className="hidden sm:inline">Verificación</span>
+                        <TabsTrigger value="kyc" aria-label="Verificación de identidad" className="flex items-center gap-2">
+                            <Shield className="h-4 w-4 shrink-0" />
+                            <span>KYC</span>
                         </TabsTrigger>
-                        <TabsTrigger value="withdrawal" className="flex items-center gap-2">
-                            <CreditCard className="h-4 w-4" />
-                            <span className="hidden sm:inline">Retiros</span>
+                        <TabsTrigger value="withdrawal" aria-label="Retiros" className="flex items-center gap-2">
+                            <CreditCard className="h-4 w-4 shrink-0" />
+                            <span>Retiros</span>
                         </TabsTrigger>
                     </TabsList>
 
@@ -332,13 +362,11 @@ export default async function ProfilePage({
                                                         </p>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="font-bold text-primary">
-                                                            {donation.currency === 'BS' && donation.amount_bs != null
-                                                                ? `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(donation.amount_bs))}`
-                                                                : `$${Number(donation.amount_usd || 0).toFixed(2)}`}
+                                                        <p className="font-bold text-primary font-mono">
+                                                            {donationAmountLabel(donation)}
                                                         </p>
                                                         <Badge variant="outline" className="text-xs">
-                                                            {donation.payment_method}
+                                                            {paymentMethodLabel(donation.payment_method)}
                                                         </Badge>
                                                     </div>
                                                 </div>
@@ -372,9 +400,7 @@ export default async function ProfilePage({
                                         <div className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
                                             <span className="text-sm font-medium">Tipo de cuenta</span>
                                             <Badge variant="outline" className="capitalize">
-                                                {profile.role === 'donor' ? 'Donante' :
-                                                    profile.role === 'creator' ? 'Creador' :
-                                                        profile.role === 'guarantor' ? 'Garante' : 'Admin'}
+                                                {roleLabel(profile.role)}
                                             </Badge>
                                         </div>
 
@@ -498,7 +524,7 @@ export default async function ProfilePage({
                                                         })}
                                                     </p>
                                                     <div className="flex items-center gap-2 mt-2">
-                                                        <Badge variant="outline">{donation.payment_method}</Badge>
+                                                        <Badge variant="outline">{paymentMethodLabel(donation.payment_method)}</Badge>
                                                         <Badge
                                                             variant={donation.payment_status === 'completed' ? 'default' : 'secondary'}
                                                         >
@@ -515,14 +541,14 @@ export default async function ProfilePage({
                                                 <div className="text-right">
                                                     {donation.currency === 'BS' && donation.amount_bs != null ? (
                                                         <>
-                                                            <p className="text-2xl font-bold text-primary">
-                                                                Bs {new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(donation.amount_bs))}
+                                                            <p className="text-2xl font-bold text-primary font-mono">
+                                                                {formatBs(Number(donation.amount_bs))}
                                                             </p>
-                                                            <p className="text-sm text-muted-foreground">≈ ${Number(donation.amount_usd || 0).toFixed(2)} USD</p>
+                                                            <p className="text-sm text-muted-foreground font-mono">≈ {formatUsd(Number(donation.amount_usd || 0))} USD</p>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <p className="text-2xl font-bold text-primary">${Number(donation.amount_usd || 0).toFixed(2)}</p>
+                                                            <p className="text-2xl font-bold text-primary font-mono">{formatUsd(Number(donation.amount_usd || 0))}</p>
                                                             <p className="text-sm text-muted-foreground">USD</p>
                                                         </>
                                                     )}
@@ -591,7 +617,7 @@ export default async function ProfilePage({
                                                 image={campaign.main_image_url || '/placeholder.svg'}
                                                 goalAmount={campaign.goal_amount_usd}
                                                 raisedAmount={campaign.current_amount_usd}
-                                                category={campaign.categories?.[0]?.name || 'General'}
+                                                category={(Array.isArray(campaign.categories) ? campaign.categories[0]?.name : campaign.categories?.name) || 'General'}
                                                 creator={profile.full_name}
                                                 verified={profile.kyc_status === 'verified'}
                                                 donorCount={0}
@@ -639,7 +665,7 @@ export default async function ProfilePage({
                     <TabsContent value="profile">
                         <Card>
                             <CardHeader>
-                                <CardTitle>Información Personal</CardTitle>
+                                <CardTitle>Información personal</CardTitle>
                                 <CardDescription>
                                     Actualiza tu información personal básica
                                 </CardDescription>
@@ -656,7 +682,7 @@ export default async function ProfilePage({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <Shield className="h-5 w-5" />
-                                    Verificación de Identidad (KYC)
+                                    Verificación de identidad (KYC)
                                 </CardTitle>
                                 <CardDescription>
                                     Verifica tu identidad para crear campañas y acceder a funciones avanzadas
@@ -674,7 +700,7 @@ export default async function ProfilePage({
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
                                     <CreditCard className="h-5 w-5" />
-                                    Cuentas de Retiro
+                                    Cuentas de retiro
                                 </CardTitle>
                                 <CardDescription>
                                     {profile.role === 'creator' ?
