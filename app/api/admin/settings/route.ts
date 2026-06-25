@@ -62,7 +62,7 @@ export async function GET() {
         const { data: config, error } = await adminSupabase
             .from("admin_config")
             .select(
-                "id, platform_commission_percentage, bcv_exchange_rate, bcv_last_updated, auto_update_exchange_rate, min_withdrawal_usd, min_withdrawal_bs, updated_at"
+                "id, platform_commission_percentage, bcv_exchange_rate, bcv_last_updated, auto_update_exchange_rate, min_withdrawal_usd, min_withdrawal_bs, crisis_mode_enabled, updated_at"
             )
             .limit(1)
             .single();
@@ -114,6 +114,10 @@ export async function PATCH(request: NextRequest) {
 
         if (body.auto_update_exchange_rate !== undefined) {
             updates.auto_update_exchange_rate = Boolean(body.auto_update_exchange_rate);
+        }
+
+        if (body.crisis_mode_enabled !== undefined) {
+            updates.crisis_mode_enabled = Boolean(body.crisis_mode_enabled);
         }
 
         if (body.min_withdrawal_usd !== undefined) {

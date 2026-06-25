@@ -76,9 +76,10 @@ interface Category {
 interface CreateCampaignFormProps {
     profile: Profile
     categories: Category[]
+    crisisEnabled?: boolean
 }
 
-export function CreateCampaignForm({ profile, categories }: CreateCampaignFormProps) {
+export function CreateCampaignForm({ profile, categories, crisisEnabled = false }: CreateCampaignFormProps) {
     const [currentStep, setCurrentStep] = useState(1)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -104,6 +105,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
         location: '',
         state: '',
         urgency_level: 'medium',
+        campaign_type: 'normal',
         main_image: null as File | null,
         gallery_images: [] as File[],
         support_documents: [] as File[]
@@ -368,6 +370,7 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                     category_id: formData.category_id,
                     location: fullLocation || null,
                     urgency_level: formData.urgency_level,
+                    campaign_type: crisisEnabled && formData.campaign_type === 'crisis' ? 'crisis' : 'normal',
                     main_image_url: mainImageUrl,
                     featured_image_url: mainImageUrl,
                     status: initialStatus
@@ -675,6 +678,40 @@ export function CreateCampaignForm({ profile, categories }: CreateCampaignFormPr
                                 {urgencyDescriptions[formData.urgency_level] || 'Selecciona el nivel que mejor describa tu caso.'}
                             </div>
                         </div>
+
+                        {/* Tipo de campaña (solo si el modo crisis está habilitado) */}
+                        {crisisEnabled && (
+                            <div className="space-y-2">
+                                <Label htmlFor="campaign-type">Tipo de campaña</Label>
+                                <Select
+                                    value={formData.campaign_type}
+                                    onValueChange={(value) => updateFormData('campaign_type', value)}
+                                    disabled={loading}
+                                >
+                                    <SelectTrigger id="campaign-type" className="h-11 px-3">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="normal" className="py-2">Normal</SelectItem>
+                                        <SelectItem value="crisis" className="py-2">Crisis (emergencia)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                                    {formData.campaign_type === 'crisis' ? (
+                                        <>
+                                            <span className="font-medium text-foreground">Crisis:</span> además del método normal,
+                                            podrás publicar tus propias cuentas de pago para que la gente te pague directo y tú confirmes
+                                            esos aportes. Ideal para emergencias donde necesitas recibir ayuda lo antes posible.
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span className="font-medium text-foreground">Normal:</span> las donaciones pasan por la
+                                            plataforma (con comisión y retiros). Es el método estándar.
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

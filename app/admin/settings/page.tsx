@@ -19,6 +19,7 @@ interface AdminConfig {
   auto_update_exchange_rate: boolean;
   min_withdrawal_usd: number;
   min_withdrawal_bs: number;
+  crisis_mode_enabled: boolean;
   updated_at: string;
 }
 
@@ -37,6 +38,8 @@ export default function AdminSettingsPage() {
   const [minWithdrawalUsd, setMinWithdrawalUsd] = useState("");
   const [minWithdrawalBs, setMinWithdrawalBs] = useState("");
   const [autoUpdate, setAutoUpdate] = useState(false);
+  const [crisisEnabled, setCrisisEnabled] = useState(false);
+  const [savingCrisis, setSavingCrisis] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingRate, setSavingRate] = useState(false);
   const [savingCommission, setSavingCommission] = useState(false);
@@ -61,6 +64,7 @@ export default function AdminSettingsPage() {
       setMinWithdrawalUsd(String(data.config.min_withdrawal_usd ?? "10"));
       setMinWithdrawalBs(String(data.config.min_withdrawal_bs ?? "500"));
       setAutoUpdate(Boolean(data.config.auto_update_exchange_rate));
+      setCrisisEnabled(Boolean(data.config.crisis_mode_enabled));
     } catch (error: any) {
       toast.error(error?.message || "No se pudo cargar la configuración");
     } finally {
@@ -155,6 +159,27 @@ export default function AdminSettingsPage() {
     }
   };
 
+  const saveCrisisMode = async (enabled: boolean) => {
+    setSavingCrisis(true);
+    setCrisisEnabled(enabled);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crisis_mode_enabled: enabled }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "No se pudo guardar");
+      setConfig(data.config);
+      toast.success(enabled ? "Modo crisis habilitado" : "Modo crisis deshabilitado");
+    } catch (error: any) {
+      setCrisisEnabled(!enabled);
+      toast.error(error?.message || "Error al guardar el modo crisis");
+    } finally {
+      setSavingCrisis(false);
+    }
+  };
+
   const refreshLiveRate = async () => {
     setRefreshingRate(true);
     try {
@@ -245,6 +270,7 @@ export default function AdminSettingsPage() {
             <TabsList>
               <TabsTrigger value="exchange">Tasa de Cambio</TabsTrigger>
               <TabsTrigger value="commission">Comisión</TabsTrigger>
+              <TabsTrigger value="crisis">Modo Crisis</TabsTrigger>
               <TabsTrigger value="categories">Categorías</TabsTrigger>
             </TabsList>
 
@@ -400,6 +426,48 @@ export default function AdminSettingsPage() {
                         )}
                         Guardar cambios
                       </Button>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="crisis">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Modo Crisis</CardTitle>
+                  <CardDescription>
+                    Habilita las campañas en modo crisis para emergencias (ej: terremoto).
+                    En modo crisis, el donante puede pagar directo a la cuenta del creador y el
+                    creador confirma esos pagos para subir la barra (sin comisión ni retiros).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {loadingConfig ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between rounded-lg border border-border p-4">
+                        <div className="pr-4">
+                          <p className="font-medium text-sm">Habilitar campañas en modo crisis</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Interruptor maestro. Si está apagado, nadie puede crear ni usar el modo
+                            crisis y las campañas marcadas como crisis se comportan como normales
+                            (se oculta el pago directo). Enciéndelo durante la emergencia y apágalo
+                            cuando termine.
+                          </p>
+                        </div>
+                        <Switch checked={crisisEnabled} onCheckedChange={saveCrisisMode} disabled={savingCrisis} />
+                      </div>
+
+                      <div className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground space-y-1">
+                        <p>Con el modo crisis encendido:</p>
+                        <ul className="list-disc list-inside space-y-1">
+                          <li>Al crear una campaña, el creador puede elegir el tipo "Crisis".</li>
+                          <li>Puedes convertir cualquier campaña de Normal a Crisis (y viceversa) desde "Campañas pendientes".</li>
+                          <li>Las campañas crisis muestran al donante el pago directo al creador, además del método normal.</li>
+                        </ul>
+                      </div>
                     </>
                   )}
                 </CardContent>

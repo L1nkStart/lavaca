@@ -46,6 +46,7 @@ export async function GET() {
         slug,
         story,
         status,
+        campaign_type,
         goal_amount_usd,
         current_amount_usd,
         main_image_url,

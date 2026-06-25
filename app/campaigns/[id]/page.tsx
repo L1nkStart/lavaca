@@ -20,6 +20,7 @@ import { CampaignReport } from "@/components/campaign-report";
 import { CheckCircle2, MapPin, User, FileText, ArrowLeft, Heart, Loader2, Clock, ShieldCheck, Download } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { DonationStatusBanner } from '@/components/donation-status-banner';
+import { CrisisDirectDonate } from '@/components/crisis-direct-donate';
 import { getClientBaseUrl } from '@/lib/url';
 
 interface Campaign {
@@ -31,6 +32,7 @@ interface Campaign {
   goal_amount_usd: number;
   current_amount_usd: number;
   original_goal_amount_usd?: number | null;
+  campaign_type?: string;
   main_image_url: string | null;
   status: string;
   created_at: string;
@@ -90,6 +92,14 @@ export default function CampaignPage() {
   const [updatesLoading, setUpdatesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [crisisEnabled, setCrisisEnabled] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/crisis-status', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => setCrisisEnabled(Boolean(d?.enabled)))
+      .catch(() => setCrisisEnabled(false));
+  }, []);
 
   const supabase = createClient();
 
@@ -650,6 +660,11 @@ export default function CampaignPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Pago directo al organizador — solo en campañas crisis con el modo habilitado */}
+            {crisisEnabled && campaign.campaign_type === 'crisis' && campaign.status === 'active' && (
+              <CrisisDirectDonate campaignId={campaign.id} />
+            )}
 
             {/* Guarantor trust card — reinforce at the decision point */}
             {hasGuarantors && (

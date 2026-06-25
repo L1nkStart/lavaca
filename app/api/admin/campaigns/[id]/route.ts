@@ -49,14 +49,33 @@ export async function PATCH(
 
         const { id } = params;
         const body = await request.json();
-        const newStatus = body?.status as string;
+        const newStatus = body?.status as string | undefined;
+        const newCampaignType = body?.campaign_type as string | undefined;
         const reviewNotes = typeof body?.reviewNotes === "string" ? body.reviewNotes.trim() : "";
+
+        const adminSupabase = createAdminClient();
+
+        // Cambio de tipo Normal <-> Crisis (independiente del cambio de estado).
+        if (newCampaignType !== undefined) {
+            if (newCampaignType !== "normal" && newCampaignType !== "crisis") {
+                return NextResponse.json({ error: "Tipo de campaña inválido" }, { status: 400 });
+            }
+            const { data: updated, error: typeError } = await adminSupabase
+                .from("campaigns")
+                .update({ campaign_type: newCampaignType, updated_at: new Date().toISOString() })
+                .eq("id", id)
+                .select("id, campaign_type")
+                .single();
+
+            if (typeError || !updated) {
+                return NextResponse.json({ error: "No se pudo cambiar el tipo de campaña" }, { status: 500 });
+            }
+            return NextResponse.json({ success: true, campaign: updated });
+        }
 
         if (!newStatus || !ALLOWED_STATUSES.has(newStatus)) {
             return NextResponse.json({ error: "Estado inválido" }, { status: 400 });
         }
-
-        const adminSupabase = createAdminClient();
 
         const { data: existingCampaign, error: existingError } = await adminSupabase
             .from("campaigns")

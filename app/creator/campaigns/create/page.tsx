@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { CreateCampaignForm } from '@/components/create-campaign-form'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
@@ -38,6 +39,20 @@ export default async function CreateCampaignPage() {
         .select('*')
         .order('order_index', { ascending: true })
         .order('name', { ascending: true })
+
+    // Modo crisis global: solo si está habilitado se ofrece el tipo "Crisis".
+    let crisisEnabled = false
+    try {
+        const adminSupabase = createAdminClient()
+        const { data: cfg } = await adminSupabase
+            .from('admin_config')
+            .select('crisis_mode_enabled')
+            .limit(1)
+            .maybeSingle()
+        crisisEnabled = Boolean(cfg?.crisis_mode_enabled)
+    } catch {
+        crisisEnabled = false
+    }
 
     return (
         <div className="min-h-screen bg-muted/30">
@@ -81,6 +96,7 @@ export default async function CreateCampaignPage() {
                         <CreateCampaignForm
                             profile={profile}
                             categories={categories || []}
+                            crisisEnabled={crisisEnabled}
                         />
                     </CardContent>
                 </Card>

@@ -21,7 +21,8 @@ import {
   CheckCircle,
   XCircle,
   Trophy,
-  Camera
+  Camera,
+  ShieldAlert
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -34,6 +35,7 @@ interface Campaign {
   goal_amount_usd: number
   current_amount_usd: number
   status: 'draft' | 'pending_review' | 'active' | 'closed' | 'completed' | 'rejected'
+  campaign_type?: string
   urgency_level: 'low' | 'medium' | 'high' | 'critical'
   main_image_url: string | null
   location: string | null
@@ -339,6 +341,14 @@ export default async function CreatorCampaignsPage() {
                                   Editar
                                 </Link>
                               </Button>
+                              {campaign.campaign_type === 'crisis' && (
+                                <Button size="sm" variant="outline" className="flex-1 md:flex-none text-orange-600 hover:text-orange-700" asChild>
+                                  <Link href={`/creator/campaigns/${campaign.id}/crisis`}>
+                                    <ShieldAlert className="h-4 w-4 mr-1" />
+                                    Modo crisis
+                                  </Link>
+                                </Button>
+                              )}
                               {campaign.status === 'active' && (
                                 <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
                                   <Link href={`/campaigns/${campaign.id}`} target="_blank">

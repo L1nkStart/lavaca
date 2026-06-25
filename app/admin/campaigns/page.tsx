@@ -28,6 +28,7 @@ interface Campaign {
     slug: string
     story: string
     status: string
+    campaign_type?: string
     goal_amount_usd: number
     current_amount_usd: number
     main_image_url: string | null
@@ -169,6 +170,26 @@ export default function AdminCampaignsPage() {
         } catch (err: any) {
             console.error('Error updating campaign:', err)
             alert('Error al actualizar: ' + err.message)
+        } finally {
+            setProcessing(null)
+        }
+    }
+
+    const handleToggleType = async (campaignId: string, currentType: string) => {
+        const nextType = currentType === 'crisis' ? 'normal' : 'crisis'
+        if (!confirm(`¿Cambiar esta campaña a modo ${nextType === 'crisis' ? 'CRISIS' : 'NORMAL'}?`)) return
+        try {
+            setProcessing(campaignId)
+            const response = await fetch(`/api/admin/campaigns/${campaignId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ campaign_type: nextType }),
+            })
+            const result = await response.json()
+            if (!response.ok) throw new Error(result?.error || 'No se pudo cambiar el tipo')
+            fetchCampaigns()
+        } catch (err: any) {
+            alert('Error: ' + err.message)
         } finally {
             setProcessing(null)
         }
@@ -359,7 +380,12 @@ export default function AdminCampaignsPage() {
                                                             {campaign.users?.email}
                                                         </p>
                                                     </div>
-                                                    {getStatusBadge(campaign.status)}
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        {getStatusBadge(campaign.status)}
+                                                        {campaign.campaign_type === 'crisis' && (
+                                                            <Badge className="bg-orange-500">Crisis</Badge>
+                                                        )}
+                                                    </div>
                                                 </div>
 
                                                 {/* Progress */}
@@ -403,6 +429,17 @@ export default function AdminCampaignsPage() {
                                                             Ver campaña
                                                             <ExternalLink className="w-3 h-3 ml-1" />
                                                         </Link>
+                                                    </Button>
+
+                                                    {/* Toggle Normal/Crisis */}
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className={campaign.campaign_type === 'crisis' ? 'text-orange-600 hover:text-orange-700' : ''}
+                                                        onClick={() => handleToggleType(campaign.id, campaign.campaign_type || 'normal')}
+                                                        disabled={processing === campaign.id}
+                                                    >
+                                                        {campaign.campaign_type === 'crisis' ? 'Pasar a Normal' : 'Marcar Crisis'}
                                                     </Button>
 
                                                     {/* Activate */}
