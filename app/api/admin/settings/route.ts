@@ -62,7 +62,7 @@ export async function GET() {
         const { data: config, error } = await adminSupabase
             .from("admin_config")
             .select(
-                "id, platform_commission_percentage, bcv_exchange_rate, bcv_last_updated, auto_update_exchange_rate, min_withdrawal_usd, min_withdrawal_bs, crisis_mode_enabled, updated_at"
+                "id, platform_commission_percentage, bcv_exchange_rate, bcv_last_updated, auto_update_exchange_rate, min_withdrawal_usd, min_withdrawal_bs, crisis_mode_enabled, crisis_mode_forced, updated_at"
             )
             .limit(1)
             .single();
@@ -117,7 +117,18 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (body.crisis_mode_enabled !== undefined) {
-            updates.crisis_mode_enabled = Boolean(body.crisis_mode_enabled);
+            const enabled = Boolean(body.crisis_mode_enabled);
+            updates.crisis_mode_enabled = enabled;
+            // Apagar el maestro también desactiva el forzado (no se puede forzar
+            // crisis si el modo crisis está apagado).
+            if (!enabled) updates.crisis_mode_forced = false;
+        }
+
+        if (body.crisis_mode_forced !== undefined) {
+            const forced = Boolean(body.crisis_mode_forced);
+            updates.crisis_mode_forced = forced;
+            // Forzar implica el modo crisis maestro encendido.
+            if (forced) updates.crisis_mode_enabled = true;
         }
 
         if (body.min_withdrawal_usd !== undefined) {

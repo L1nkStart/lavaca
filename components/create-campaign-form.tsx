@@ -77,9 +77,10 @@ interface CreateCampaignFormProps {
     profile: Profile
     categories: Category[]
     crisisEnabled?: boolean
+    crisisForced?: boolean
 }
 
-export function CreateCampaignForm({ profile, categories, crisisEnabled = false }: CreateCampaignFormProps) {
+export function CreateCampaignForm({ profile, categories, crisisEnabled = false, crisisForced = false }: CreateCampaignFormProps) {
     const [currentStep, setCurrentStep] = useState(1)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -370,7 +371,9 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false 
                     category_id: formData.category_id,
                     location: fullLocation || null,
                     urgency_level: formData.urgency_level,
-                    campaign_type: crisisEnabled && formData.campaign_type === 'crisis' ? 'crisis' : 'normal',
+                    campaign_type: crisisForced
+                        ? 'crisis'
+                        : (crisisEnabled && formData.campaign_type === 'crisis' ? 'crisis' : 'normal'),
                     main_image_url: mainImageUrl,
                     featured_image_url: mainImageUrl,
                     status: initialStatus
@@ -679,8 +682,17 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false 
                             </div>
                         </div>
 
-                        {/* Tipo de campaña (solo si el modo crisis está habilitado) */}
-                        {crisisEnabled && (
+                        {/* Modo crisis forzado: todas las campañas nacen en crisis, sin selector */}
+                        {crisisForced && (
+                            <div className="rounded-md border border-orange-200 dark:border-orange-900 bg-orange-50/50 dark:bg-orange-950/20 px-3 py-2 text-xs text-foreground/80">
+                                <span className="font-medium">Modo crisis activo:</span> por la emergencia, tu campaña
+                                se creará en modo crisis. Podrás publicar tus propias cuentas para recibir pagos
+                                directos y la plataforma no cobra comisión por estas campañas.
+                            </div>
+                        )}
+
+                        {/* Tipo de campaña (solo si el modo crisis está habilitado y NO forzado) */}
+                        {crisisEnabled && !crisisForced && (
                             <div className="space-y-2">
                                 <Label htmlFor="campaign-type">Tipo de campaña</Label>
                                 <Select

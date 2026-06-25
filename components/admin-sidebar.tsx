@@ -5,7 +5,7 @@ import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetHeader } from "@/components/ui/sheet"
-import { LayoutDashboard, Users, FileText, CreditCard, Settings, Wallet, Menu, ImageIcon } from 'lucide-react'
+import { LayoutDashboard, Users, FileText, CreditCard, Settings, Wallet, Menu, ImageIcon, Receipt } from 'lucide-react'
 
 interface BadgeCounts {
   verifications: number
@@ -27,6 +27,7 @@ function SidebarNav({ badges, pathname, onNavigate }: SidebarNavProps) {
     { label: "Verificaciones", href: "/admin/verifications", icon: Users, badge: badges.verifications },
     { label: "Campañas pendientes", href: "/admin/campaigns", icon: FileText, badge: badges.campaigns },
     { label: "Pagos manuales", href: "/admin/payments", icon: CreditCard, badge: badges.payments },
+    { label: "Historial de donaciones", href: "/admin/donations", icon: Receipt },
     { label: "Retiros", href: "/admin/withdrawals", icon: Wallet, badge: badges.withdrawals },
     { label: "Moderar imágenes", href: "/admin/media-changes", icon: ImageIcon, badge: badges.mediaChanges },
     { label: "Métodos de Pago", href: "/admin/payment-methods", icon: Wallet },

@@ -20,6 +20,7 @@ interface AdminConfig {
   min_withdrawal_usd: number;
   min_withdrawal_bs: number;
   crisis_mode_enabled: boolean;
+  crisis_mode_forced: boolean;
   updated_at: string;
 }
 
@@ -39,6 +40,7 @@ export default function AdminSettingsPage() {
   const [minWithdrawalBs, setMinWithdrawalBs] = useState("");
   const [autoUpdate, setAutoUpdate] = useState(false);
   const [crisisEnabled, setCrisisEnabled] = useState(false);
+  const [crisisForced, setCrisisForced] = useState(false);
   const [savingCrisis, setSavingCrisis] = useState(false);
   const [loadingConfig, setLoadingConfig] = useState(true);
   const [savingRate, setSavingRate] = useState(false);
@@ -65,6 +67,7 @@ export default function AdminSettingsPage() {
       setMinWithdrawalBs(String(data.config.min_withdrawal_bs ?? "500"));
       setAutoUpdate(Boolean(data.config.auto_update_exchange_rate));
       setCrisisEnabled(Boolean(data.config.crisis_mode_enabled));
+      setCrisisForced(Boolean(data.config.crisis_mode_forced));
     } catch (error: any) {
       toast.error(error?.message || "No se pudo cargar la configuración");
     } finally {
@@ -162,6 +165,7 @@ export default function AdminSettingsPage() {
   const saveCrisisMode = async (enabled: boolean) => {
     setSavingCrisis(true);
     setCrisisEnabled(enabled);
+    if (!enabled) setCrisisForced(false);
     try {
       const response = await fetch("/api/admin/settings", {
         method: "PATCH",
@@ -171,10 +175,36 @@ export default function AdminSettingsPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data?.error || "No se pudo guardar");
       setConfig(data.config);
+      setCrisisEnabled(Boolean(data.config.crisis_mode_enabled));
+      setCrisisForced(Boolean(data.config.crisis_mode_forced));
       toast.success(enabled ? "Modo crisis habilitado" : "Modo crisis deshabilitado");
     } catch (error: any) {
       setCrisisEnabled(!enabled);
       toast.error(error?.message || "Error al guardar el modo crisis");
+    } finally {
+      setSavingCrisis(false);
+    }
+  };
+
+  const saveCrisisForced = async (forced: boolean) => {
+    setSavingCrisis(true);
+    setCrisisForced(forced);
+    if (forced) setCrisisEnabled(true);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ crisis_mode_forced: forced }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data?.error || "No se pudo guardar");
+      setConfig(data.config);
+      setCrisisEnabled(Boolean(data.config.crisis_mode_enabled));
+      setCrisisForced(Boolean(data.config.crisis_mode_forced));
+      toast.success(forced ? "Modo crisis forzado para todas las campañas" : "Forzado desactivado");
+    } catch (error: any) {
+      setCrisisForced(!forced);
+      toast.error(error?.message || "Error al guardar");
     } finally {
       setSavingCrisis(false);
     }
@@ -458,6 +488,19 @@ export default function AdminSettingsPage() {
                           </p>
                         </div>
                         <Switch checked={crisisEnabled} onCheckedChange={saveCrisisMode} disabled={savingCrisis} />
+                      </div>
+
+                      <div className="flex items-center justify-between rounded-lg border border-orange-200 dark:border-orange-900 bg-orange-50/50 dark:bg-orange-950/20 p-4">
+                        <div className="pr-4">
+                          <p className="font-medium text-sm">Forzar modo crisis en todas las campañas</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Si está encendido, <strong>todas las campañas nuevas se crean en modo crisis</strong>{' '}
+                            automáticamente y el creador no elige el tipo. Solo tú (admin) puedes cambiar el tipo
+                            de una campaña. Al encenderlo se activa también el modo crisis. Úsalo durante una
+                            emergencia masiva (ej: el terremoto).
+                          </p>
+                        </div>
+                        <Switch checked={crisisForced} onCheckedChange={saveCrisisForced} disabled={savingCrisis} />
                       </div>
 
                       <div className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground space-y-1">

@@ -41,17 +41,21 @@ export default async function CreateCampaignPage() {
         .order('name', { ascending: true })
 
     // Modo crisis global: solo si está habilitado se ofrece el tipo "Crisis".
+    // Si está forzado, todas las campañas nacen en crisis y se oculta el selector.
     let crisisEnabled = false
+    let crisisForced = false
     try {
         const adminSupabase = createAdminClient()
         const { data: cfg } = await adminSupabase
             .from('admin_config')
-            .select('crisis_mode_enabled')
+            .select('crisis_mode_enabled, crisis_mode_forced')
             .limit(1)
             .maybeSingle()
         crisisEnabled = Boolean(cfg?.crisis_mode_enabled)
+        crisisForced = Boolean(cfg?.crisis_mode_forced)
     } catch {
         crisisEnabled = false
+        crisisForced = false
     }
 
     return (
@@ -97,6 +101,7 @@ export default async function CreateCampaignPage() {
                             profile={profile}
                             categories={categories || []}
                             crisisEnabled={crisisEnabled}
+                            crisisForced={crisisForced}
                         />
                     </CardContent>
                 </Card>

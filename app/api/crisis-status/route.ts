@@ -15,12 +15,15 @@ export async function GET() {
         const adminSupabase = createAdminClient()
         const { data } = await adminSupabase
             .from('admin_config')
-            .select('crisis_mode_enabled')
+            .select('crisis_mode_enabled, crisis_mode_forced')
             .limit(1)
             .maybeSingle()
 
-        return NextResponse.json({ enabled: Boolean(data?.crisis_mode_enabled) })
+        return NextResponse.json({
+            enabled: Boolean(data?.crisis_mode_enabled),
+            forced: Boolean(data?.crisis_mode_forced),
+        })
     } catch {
-        return NextResponse.json({ enabled: false })
+        return NextResponse.json({ enabled: false, forced: false })
     }
 }

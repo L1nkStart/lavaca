@@ -731,7 +731,12 @@ export default async function CreatorDashboard() {
 
           {/* Recent Donations */}
           <div>
-            <h2 className="text-xl font-bold mb-4">Donaciones recientes</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Donaciones recientes</h2>
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/creator/donations">Ver historial completo</Link>
+              </Button>
+            </div>
 
             <Card>
               <CardHeader>
