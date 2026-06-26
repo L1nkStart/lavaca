@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -111,6 +112,19 @@ export default async function CreatorCampaignsPage() {
     getBalancesForCampaigns(supabase, campaignIds),
     getWithdrawalMinimums(supabase),
   ])
+
+  // Modo crisis global: si está activo, las campañas crisis no usan saldo ni retiros.
+  let crisisEnabled = false
+  try {
+    const { data: cfg } = await createAdminClient()
+      .from('admin_config')
+      .select('crisis_mode_enabled')
+      .limit(1)
+      .maybeSingle()
+    crisisEnabled = Boolean(cfg?.crisis_mode_enabled)
+  } catch {
+    crisisEnabled = false
+  }
 
   // Get campaign statistics
   const stats = {
@@ -421,14 +435,26 @@ export default async function CreatorCampaignsPage() {
                               </div>
                             </div>
 
-                            {/* Saldos por moneda + retiros */}
-                            <CampaignBalancePanel
-                              campaignId={campaign.id}
-                              campaignTitle={campaign.title}
-                              balances={campaignBalances}
-                              accounts={creatorWithdrawalAccounts}
-                              minimums={withdrawalMinimums}
-                            />
+                            {/* Saldos por moneda + retiros. Las campañas crisis
+                                no usan saldo ni retiros (reciben pago directo). */}
+                            {crisisEnabled && campaign.campaign_type === 'crisis' ? (
+                              <Alert className="border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800">
+                                <ShieldAlert className="h-4 w-4 text-orange-600" />
+                                <AlertDescription className="text-sm">
+                                  Campaña en modo crisis: las donaciones llegan directo a tus cuentas, así que
+                                  no hay saldo en la plataforma ni retiros. Confirma los pagos en{' '}
+                                  <Link href={`/creator/campaigns/${campaign.id}/crisis`} className="underline font-medium">Modo crisis</Link>.
+                                </AlertDescription>
+                              </Alert>
+                            ) : (
+                              <CampaignBalancePanel
+                                campaignId={campaign.id}
+                                campaignTitle={campaign.title}
+                                balances={campaignBalances}
+                                accounts={creatorWithdrawalAccounts}
+                                minimums={withdrawalMinimums}
+                              />
+                            )}
 
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm text-muted-foreground">
                               <span>

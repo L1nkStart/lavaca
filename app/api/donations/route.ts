@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentManager } from "@/lib/payments/payment-manager";
 import { PaymentProvider, PaymentType } from "@/lib/payments/types";
@@ -99,6 +100,23 @@ export async function POST(request: NextRequest) {
         { error: "El correo electrónico no es válido" },
         { status: 400 }
       );
+    }
+
+    // Las campañas en modo crisis NO admiten donaciones normales de plataforma:
+    // solo reciben pagos directos al organizador. (Si el modo crisis global está
+    // apagado, una campaña marcada crisis se comporta como normal y sí acepta.)
+    {
+      const adminSupabase = createAdminClient();
+      const [{ data: campaignRow }, { data: cfg }] = await Promise.all([
+        adminSupabase.from("campaigns").select("campaign_type").eq("id", campaignId).maybeSingle(),
+        adminSupabase.from("admin_config").select("crisis_mode_enabled").limit(1).maybeSingle(),
+      ]);
+      if (campaignRow?.campaign_type === "crisis" && cfg?.crisis_mode_enabled) {
+        return NextResponse.json(
+          { error: "Esta campaña recibe pagos directos al organizador. Usa la opción \"Pagar directo al organizador\"." },
+          { status: 400 }
+        );
+      }
     }
 
     // Initialize payment system

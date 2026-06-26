@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getCampaignBalances } from '@/lib/balances'
 import {
     computeWithdrawalQuote,
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
 
         const { data: campaign, error: campaignError } = await supabase
             .from('campaigns')
-            .select('id, creator_id')
+            .select('id, creator_id, campaign_type')
             .eq('id', campaignId)
             .maybeSingle()
 
@@ -61,6 +62,22 @@ export async function POST(request: NextRequest) {
 
         if (campaign.creator_id !== user.id) {
             return NextResponse.json({ error: 'No tienes permisos para solicitar retiros de esta campaña' }, { status: 403 })
+        }
+
+        // Las campañas en modo crisis no usan retiros: el dinero llega directo
+        // al organizador. (Si el modo crisis global está apagado, se comporta normal.)
+        if (campaign.campaign_type === 'crisis') {
+            const { data: cfg } = await createAdminClient()
+                .from('admin_config')
+                .select('crisis_mode_enabled')
+                .limit(1)
+                .maybeSingle()
+            if (cfg?.crisis_mode_enabled) {
+                return NextResponse.json(
+                    { error: 'Las campañas en modo crisis no usan retiros: las donaciones llegan directo a tus cuentas.' },
+                    { status: 400 }
+                )
+            }
         }
 
         const { data: account, error: accountError } = await supabase

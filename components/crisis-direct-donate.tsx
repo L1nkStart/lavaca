@@ -62,7 +62,7 @@ function accountLines(a: CrisisAccount): { label: string; value: string }[] {
     }
 }
 
-export function CrisisDirectDonate({ campaignId }: { campaignId: string }) {
+export function CrisisDirectDonate({ campaignId, showEmptyState = false }: { campaignId: string; showEmptyState?: boolean }) {
     const supabase = createClient()
     const [accounts, setAccounts] = useState<CrisisAccount[]>([])
     const [accountId, setAccountId] = useState('')
@@ -77,6 +77,7 @@ export function CrisisDirectDonate({ campaignId }: { campaignId: string }) {
     const [submitting, setSubmitting] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [done, setDone] = useState(false)
+    const [loaded, setLoaded] = useState(false)
 
     useEffect(() => {
         const load = async () => {
@@ -89,6 +90,7 @@ export function CrisisDirectDonate({ campaignId }: { campaignId: string }) {
             const list = (data as CrisisAccount[]) || []
             setAccounts(list)
             if (list.length > 0) setAccountId(list[0].id)
+            setLoaded(true)
         }
         load()
         supabase.auth.getUser().then(({ data }) => {
@@ -151,7 +153,32 @@ export function CrisisDirectDonate({ campaignId }: { campaignId: string }) {
         }
     }
 
-    if (accounts.length === 0) return null
+    if (accounts.length === 0) {
+        // En el sidebar no estorbamos (null). En la página de donar mostramos
+        // un mensaje claro mientras el organizador no haya cargado cuentas.
+        if (showEmptyState && loaded) {
+            return (
+                <Card className="border-orange-200 dark:border-orange-800">
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <HandHeart className="h-5 w-5 text-orange-500" />
+                            Pagar directo al organizador
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Alert>
+                            <Clock className="h-4 w-4" />
+                            <AlertDescription className="text-sm">
+                                El organizador aún no publicó sus cuentas para recibir pagos directos.
+                                Vuelve en un momento o contáctalo para coordinar tu aporte.
+                            </AlertDescription>
+                        </Alert>
+                    </CardContent>
+                </Card>
+            )
+        }
+        return null
+    }
 
     if (done) {
         return (
