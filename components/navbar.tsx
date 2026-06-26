@@ -13,7 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Heart, Menu, X, Search, User, Loader2, FolderKanban, LayoutDashboard } from 'lucide-react'
+import { Heart, Menu, X, Search, User, Loader2, FolderKanban, LayoutDashboard, UserSearch } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Navbar() {
@@ -129,6 +129,15 @@ export function Navbar() {
                             >
                                 Cómo funciona
                             </Link>
+                            <a
+                                href="https://apoyo.salu.pro/"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-sm font-medium text-red-600 transition-colors hover:text-red-700"
+                            >
+                                <UserSearch className="h-4 w-4" />
+                                Personas desaparecidas
+                            </a>
                         </div>
                     </div>
 
@@ -268,6 +277,16 @@ export function Navbar() {
                         >
                             Cómo funciona
                         </Link>
+                        <a
+                            href="https://apoyo.salu.pro/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-muted"
+                            onClick={() => setMobileMenuOpen(false)}
+                        >
+                            <UserSearch className="h-4 w-4" />
+                            Personas desaparecidas
+                        </a>
                         {!authLoading && user && (
                             <Link
                                 href="/profile"
