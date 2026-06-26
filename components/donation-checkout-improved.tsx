@@ -17,6 +17,10 @@ import { createClient } from "@/lib/supabase/client";
 interface DonationCheckoutProps {
     campaignId: string;
     campaignTitle: string;
+    /** Campaña en modo crisis: se ocultan los métodos manuales de plataforma
+     *  (PagoMóvil/Zelle/Transferencia) porque el pago local va directo al
+     *  organizador (sección "Pagar directo al organizador"). */
+    isCrisis?: boolean;
 }
 
 type Currency = 'USD' | 'BS';
@@ -112,6 +116,7 @@ const moneyLabel = (value: number, currency: Currency) =>
 export function DonationCheckout({
     campaignId,
     campaignTitle,
+    isCrisis = false,
 }: DonationCheckoutProps) {
     const [currency, setCurrency] = useState<Currency>('USD');
     const [amount, setAmount] = useState(10);
@@ -305,6 +310,10 @@ export function DonationCheckout({
     const availableMethods = activeConfigMethods
         .filter((config) => {
             const method = config.code;
+            // En modo crisis ocultamos los métodos manuales de plataforma
+            // (apuntan a datos de la plataforma, no del organizador). El pago
+            // local se hace en "Pagar directo al organizador".
+            if (isCrisis && MANUAL_METHODS.includes(method)) return false;
             if (currency === 'USD' && !USD_ALLOWED_METHODS.includes(method)) return false;
             if (currency === 'BS' && !BS_ALLOWED_METHODS.includes(method)) return false;
             if (method === 'card' && stripeStatus !== 'available') return false;
@@ -630,10 +639,22 @@ export function DonationCheckout({
                         </Alert>
                     )}
 
+                    {isCrisis && (
+                        <Alert className="border-orange-200 bg-orange-50/50 dark:bg-orange-950/20">
+                            <AlertDescription className="text-sm">
+                                Esta es una campaña de emergencia. Para pagar por <strong>PagoMóvil, Zelle, transferencia o cripto</strong>,
+                                usa la sección <strong>&quot;Pagar directo al organizador&quot;</strong> de arriba. Aquí abajo puedes donar con
+                                tarjeta si está disponible.
+                            </AlertDescription>
+                        </Alert>
+                    )}
+
                     {availableMethods.length === 0 && (
                         <Alert className="border-accent/30 bg-accent/5">
                             <AlertDescription>
-                                No hay métodos de pago activos para esta moneda en este momento.
+                                {isCrisis
+                                    ? 'En esta campaña de emergencia, el pago va directo al organizador (sección de arriba).'
+                                    : 'No hay métodos de pago activos para esta moneda en este momento.'}
                             </AlertDescription>
                         </Alert>
                     )}

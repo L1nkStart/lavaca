@@ -698,7 +698,7 @@ export default function CampaignPage() {
             <CampaignDonorsList donations={donationsList} totalCount={donorCount} />
 
             {/* Commission disclosure */}
-            <Card className="border-primary/20 bg-primary/5">
+            {/* <Card className="border-primary/20 bg-primary/5">
               <CardHeader>
                 <CardTitle className="text-base">Cómo se usa tu donación</CardTitle>
               </CardHeader>
@@ -713,7 +713,7 @@ export default function CampaignPage() {
                   propias tarifas según el método que elijas.
                 </p>
               </CardContent>
-            </Card>
+            </Card> */}
           </aside>
         </div>
       </div>

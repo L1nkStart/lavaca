@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from "next/link";
 import { DonationCheckout } from "@/components/donation-checkout-improved";
+import { CrisisDirectDonate } from "@/components/crisis-direct-donate";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -11,25 +12,28 @@ import { createClient } from '@/lib/supabase/client';
 interface CampaignRow {
   id: string;
   title: string;
+  campaign_type?: string | null;
 }
 
 export default function DonatePage() {
   const params = useParams();
   const campaignId = params.id as string;
   const [campaignTitle, setCampaignTitle] = useState<string>("Campaña");
+  const [campaignType, setCampaignType] = useState<string>("normal");
+  const [crisisEnabled, setCrisisEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
-    const fetchCampaignTitle = async () => {
+    const fetchCampaign = async () => {
       if (!campaignId) return;
 
       try {
         setLoading(true);
         const { data, error: fetchError } = await supabase
           .from('campaigns')
-          .select('id, title')
+          .select('id, title, campaign_type')
           .eq('id', campaignId)
           .single();
 
@@ -37,17 +41,26 @@ export default function DonatePage() {
           throw fetchError || new Error('No se encontró la campaña');
         }
 
-        setCampaignTitle((data as CampaignRow).title || 'Campaña');
+        const row = data as CampaignRow;
+        setCampaignTitle(row.title || 'Campaña');
+        setCampaignType(row.campaign_type || 'normal');
       } catch (err: any) {
-        console.error('Error fetching campaign title:', err);
-        setError('No se pudo cargar el título de la campaña.');
+        console.error('Error fetching campaign:', err);
+        setError('No se pudo cargar la campaña.');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchCampaignTitle();
+    fetchCampaign();
+
+    fetch('/api/crisis-status', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((d) => setCrisisEnabled(Boolean(d?.enabled)))
+      .catch(() => setCrisisEnabled(false));
   }, [campaignId]);
+
+  const isCrisis = crisisEnabled && campaignType === 'crisis';
 
   return (
     <main className="flex min-h-screen flex-col bg-background">
@@ -75,10 +88,17 @@ export default function DonatePage() {
             <Loader2 className="size-6 animate-spin" />
           </div>
         ) : (
-          <DonationCheckout
-            campaignId={campaignId}
-            campaignTitle={campaignTitle}
-          />
+          <div className="space-y-6">
+            {/* En campañas crisis, el pago directo a las cuentas del organizador
+                es el método principal (la plataforma no recibe ni cobra comisión). */}
+            {isCrisis && <CrisisDirectDonate campaignId={campaignId} />}
+
+            <DonationCheckout
+              campaignId={campaignId}
+              campaignTitle={campaignTitle}
+              isCrisis={isCrisis}
+            />
+          </div>
         )}
       </div>
     </main>
