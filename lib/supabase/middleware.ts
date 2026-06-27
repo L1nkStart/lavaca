@@ -103,20 +103,20 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Verified routes - only for verified creators
-    if (verifiedRoutes.some(route => path.startsWith(route))) {
-      if (profile?.role !== 'creator' || profile?.kyc_status !== 'verified') {
-        const url = request.nextUrl.clone();
-        url.pathname = '/profile?verify=true';
-        return NextResponse.redirect(url);
-      }
-    }
+    // if (verifiedRoutes.some(route => path.startsWith(route))) {
+    //   if (profile?.role !== 'creator' || profile?.kyc_status !== 'verified') {
+    //     const url = request.nextUrl.clone();
+    //     url.pathname = '/profile?verify=true';
+    //     return NextResponse.redirect(url);
+    //   }
+    // }
 
     // Creator routes - only for creators
-    if (path.startsWith('/creator') && profile?.role !== 'creator' && profile?.role !== 'admin') {
-      const url = request.nextUrl.clone();
-      url.pathname = '/profile?becomeCreator=true';
-      return NextResponse.redirect(url);
-    }
+    // if (path.startsWith('/creator') && profile?.role !== 'creator' && profile?.role !== 'admin') {
+    //   const url = request.nextUrl.clone();
+    //   url.pathname = '/profile?becomeCreator=true';
+    //   return NextResponse.redirect(url);
+    // }
   }
 
   return supabaseResponse;
