@@ -48,7 +48,7 @@ export async function POST(
         // Modo crisis global + campaña crisis + activa + cuenta válida.
         const [{ data: cfg }, { data: campaign }, { data: account }] = await Promise.all([
             adminSupabase.from('admin_config').select('crisis_mode_enabled').limit(1).maybeSingle(),
-            adminSupabase.from('campaigns').select('id, status, campaign_type').eq('id', id).maybeSingle(),
+            adminSupabase.from('campaigns').select('id, status, campaign_type, creator_id, title').eq('id', id).maybeSingle(),
             adminSupabase.from('campaign_crisis_accounts').select('id, account_type, campaign_id, is_active').eq('id', accountId).maybeSingle(),
         ])
 
@@ -103,6 +103,27 @@ export async function POST(
             .single()
 
         if (error) throw error
+
+        // Notificar al organizador que tiene un pago directo POR CONFIRMAR
+        // (en modo crisis el creador es quien aprueba). Best-effort.
+        try {
+            const amountLabel = currency === 'BS'
+                ? `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amountBs)}`
+                : `$${amountUsd.toFixed(2)}`
+            const donorLabel = isAnonymous ? 'Alguien' : (rawName || 'Un donante')
+            await adminSupabase.from('notifications').insert({
+                user_id: campaign.creator_id,
+                type: 'donation_received',
+                title: 'Tienes un pago por confirmar',
+                message: `${donorLabel} registró un pago de ${amountLabel} en "${campaign.title}". Confírmalo para que sume a tu campaña.`,
+                link: `/creator/campaigns/${id}/crisis`,
+                campaign_id: id,
+                related_id: donation.id,
+            })
+        } catch (notifyError) {
+            console.warn('[direct-donation] no se pudo crear la notificación:', notifyError)
+        }
+
         return NextResponse.json({ ok: true, donationId: donation.id })
     } catch (error: any) {
         return NextResponse.json({ error: error?.message || 'No se pudo registrar el pago' }, { status: 500 })
