@@ -25,6 +25,8 @@ interface CampaignCardProps {
   verified: boolean;
   guarantor?: string;
   donorCount: number;
+  /** Campaña sin meta fija: no se muestra barra ni objetivo. */
+  openEnded?: boolean;
 }
 
 export function CampaignCard({
@@ -39,6 +41,7 @@ export function CampaignCard({
   verified,
   guarantor,
   donorCount,
+  openEnded = false,
 }: CampaignCardProps) {
   const progressPercent = goalAmount > 0 ? (raisedAmount / goalAmount) * 100 : 0;
 
@@ -88,23 +91,40 @@ export function CampaignCard({
         </p>
 
         {/* Progress */}
-        <div className="space-y-2">
-          <div className="flex items-baseline justify-between gap-2 text-sm">
-            <span className="font-mono font-semibold text-primary">
-              {usd(raisedAmount)}
-            </span>
-            <span className="font-mono text-muted-foreground">
-              de {usd(goalAmount)}
-            </span>
+        {openEnded ? (
+          <div className="space-y-1">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="font-mono font-semibold text-primary">
+                {usd(raisedAmount)}
+              </span>
+              <span className="text-xs text-muted-foreground">recaudados</span>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Sin meta fija · toda ayuda suma</span>
+              <span>
+                {donorCount} {donorCount === 1 ? "donante" : "donantes"}
+              </span>
+            </div>
           </div>
-          <Progress value={Math.min(progressPercent, 100)} className="h-2" />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{Math.round(progressPercent)}% recaudado</span>
-            <span>
-              {donorCount} {donorCount === 1 ? "donante" : "donantes"}
-            </span>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-baseline justify-between gap-2 text-sm">
+              <span className="font-mono font-semibold text-primary">
+                {usd(raisedAmount)}
+              </span>
+              <span className="font-mono text-muted-foreground">
+                de {usd(goalAmount)}
+              </span>
+            </div>
+            <Progress value={Math.min(progressPercent, 100)} className="h-2" />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{Math.round(progressPercent)}% recaudado</span>
+              <span>
+                {donorCount} {donorCount === 1 ? "donante" : "donantes"}
+              </span>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Creator */}
         <p className="text-xs text-muted-foreground">

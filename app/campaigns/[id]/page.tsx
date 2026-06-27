@@ -33,6 +33,7 @@ interface Campaign {
   current_amount_usd: number;
   original_goal_amount_usd?: number | null;
   campaign_type?: string;
+  is_open_ended?: boolean;
   main_image_url: string | null;
   status: string;
   created_at: string;
@@ -584,38 +585,54 @@ export default function CampaignPage() {
                   <p className="font-mono text-3xl font-bold tracking-tight text-primary">
                     {usd(campaign.current_amount_usd)}
                   </p>
-                  <p className="mt-1 text-sm text-foreground/70">
-                    recaudado de{' '}
-                    <span className="font-medium text-foreground">
-                      {usd(campaign.goal_amount_usd)}
-                    </span>
-                  </p>
-                  {campaign.original_goal_amount_usd != null &&
-                    Number(campaign.original_goal_amount_usd) !== Number(campaign.goal_amount_usd) && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Meta original: {usd(campaign.original_goal_amount_usd)} · actualizada por el creador
+                  {campaign.is_open_ended ? (
+                    <p className="mt-1 text-sm text-foreground/70">
+                      recaudados · <span className="font-medium text-foreground">Sin meta fija</span>
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mt-1 text-sm text-foreground/70">
+                        recaudado de{' '}
+                        <span className="font-medium text-foreground">
+                          {usd(campaign.goal_amount_usd)}
+                        </span>
                       </p>
-                    )}
+                      {campaign.original_goal_amount_usd != null &&
+                        Number(campaign.original_goal_amount_usd) !== Number(campaign.goal_amount_usd) && (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Meta original: {usd(campaign.original_goal_amount_usd)} · actualizada por el creador
+                          </p>
+                        )}
+                    </>
+                  )}
                 </div>
 
-                <Progress value={Math.min(progressPercent, 100)} className="h-2.5" />
+                {!campaign.is_open_ended && (
+                  <Progress value={Math.min(progressPercent, 100)} className="h-2.5" />
+                )}
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-semibold">
-                    {Math.round(progressPercent)}% alcanzado
-                  </span>
+                  {campaign.is_open_ended ? (
+                    <span className="font-semibold text-foreground/80">Toda ayuda suma 💚</span>
+                  ) : (
+                    <span className="font-semibold">
+                      {Math.round(progressPercent)}% alcanzado
+                    </span>
+                  )}
                   <span className="text-foreground/70">
                     {donorCount} {donorCount === 1 ? 'donante' : 'donantes'}
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 border-t border-border pt-4">
-                  <div>
-                    <p className="text-xs text-foreground/60">Falta recaudar</p>
-                    <p className="font-mono text-lg font-bold text-accent">
-                      {usd(remaining)}
-                    </p>
-                  </div>
+                  {!campaign.is_open_ended && (
+                    <div>
+                      <p className="text-xs text-foreground/60">Falta recaudar</p>
+                      <p className="font-mono text-lg font-bold text-accent">
+                        {usd(remaining)}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-foreground/60">Días activos</p>
                     <p className="font-mono text-lg font-bold">
@@ -727,7 +744,9 @@ export default function CampaignPage() {
                 {usd(campaign.current_amount_usd)}
               </p>
               <p className="mt-1 truncate text-xs text-foreground/70">
-                {Math.round(progressPercent)}% de {usd(campaign.goal_amount_usd)}
+                {campaign.is_open_ended
+                  ? 'recaudados · sin meta fija'
+                  : `${Math.round(progressPercent)}% de ${usd(campaign.goal_amount_usd)}`}
               </p>
             </div>
             <Button className="ml-auto h-11 shrink-0 px-6" asChild>

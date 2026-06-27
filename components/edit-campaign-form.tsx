@@ -58,6 +58,7 @@ interface EditCampaignFormProps {
         goal_amount_usd: number
         current_amount_usd?: number
         original_goal_amount_usd?: number | null
+        is_open_ended?: boolean
         status?: string
         main_image_url?: string | null
         urgency_level: string
@@ -84,6 +85,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
     const PAGE_SIZE = 5
 
     const raised = Number(campaign.current_amount_usd || 0)
+    const isOpenEnded = Boolean(campaign.is_open_ended)
     const isFrozen = campaign.status === 'closed' || campaign.status === 'completed'
     const hasCompletedDonations = Boolean(campaign.has_completed_donations)
 
@@ -178,14 +180,18 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
         setError(null)
         setSuccess(null)
 
-        const goal = parseFloat(goalAmountUsd)
-        if (Number.isNaN(goal) || goal < 10) {
-            setError('La meta debe ser de al menos $10 USD')
-            return
-        }
-        if (goal !== Number(campaign.goal_amount_usd) && goalReason.trim().length < 10) {
-            setError('Para cambiar la meta debes escribir el motivo (mínimo 10 caracteres). Tus donantes lo verán.')
-            return
+        // Campaña abierta (sin monto): no hay meta que validar ni cambiar,
+        // solo se guarda la urgencia.
+        const goal = isOpenEnded ? Number(campaign.goal_amount_usd) : parseFloat(goalAmountUsd)
+        if (!isOpenEnded) {
+            if (Number.isNaN(goal) || goal < 10) {
+                setError('La meta debe ser de al menos $10 USD')
+                return
+            }
+            if (goal !== Number(campaign.goal_amount_usd) && goalReason.trim().length < 10) {
+                setError('Para cambiar la meta debes escribir el motivo (mínimo 10 caracteres). Tus donantes lo verán.')
+                return
+            }
         }
 
         try {
@@ -202,7 +208,7 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
 
             // Meta: va por el endpoint con transparencia (historial, update,
             // comentario del sistema y notificaciones).
-            if (goal !== Number(campaign.goal_amount_usd)) {
+            if (!isOpenEnded && goal !== Number(campaign.goal_amount_usd)) {
                 const response = await fetch(`/api/campaigns/${campaign.id}/goal`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -431,19 +437,30 @@ export function EditCampaignForm({ campaign, categories, currentUserId }: EditCa
                         <div className="grid md:grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <Label htmlFor="goal">Meta USD</Label>
-                                <Input
-                                    id="goal"
-                                    type="number"
-                                    min="10"
-                                    step="0.01"
-                                    value={goalAmountUsd}
-                                    onChange={(e) => setGoalAmountUsd(e.target.value)}
-                                    disabled={savingGoal || isFrozen}
-                                    aria-invalid={decreasingBelowRaised}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Recaudado hasta ahora: <strong>{usd(raised)}</strong>. No puedes bajar la meta por debajo de ese monto.
-                                </p>
+                                {isOpenEnded ? (
+                                    <>
+                                        <Input id="goal" value="Sin meta fija" disabled />
+                                        <p className="text-xs text-muted-foreground">
+                                            Esta es una campaña abierta (sin monto): no tiene barra de objetivo. Recaudado: <strong>{usd(raised)}</strong>.
+                                        </p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Input
+                                            id="goal"
+                                            type="number"
+                                            min="10"
+                                            step="0.01"
+                                            value={goalAmountUsd}
+                                            onChange={(e) => setGoalAmountUsd(e.target.value)}
+                                            disabled={savingGoal || isFrozen}
+                                            aria-invalid={decreasingBelowRaised}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            Recaudado hasta ahora: <strong>{usd(raised)}</strong>. No puedes bajar la meta por debajo de ese monto.
+                                        </p>
+                                    </>
+                                )}
                             </div>
 
                             <div className="space-y-2">

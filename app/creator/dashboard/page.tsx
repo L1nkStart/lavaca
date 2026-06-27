@@ -16,6 +16,7 @@ type CampaignRow = {
   status: string
   current_amount_usd: number
   goal_amount_usd: number
+  is_open_ended?: boolean
   donor_count: number | null
   view_count: number | null
   created_at: string
@@ -51,7 +52,7 @@ export default async function CreatorDashboard() {
 
   const { data: allCampaignsRaw } = await supabase
     .from('campaigns')
-    .select('id, title, status, current_amount_usd, goal_amount_usd, donor_count, view_count, created_at, updated_at')
+    .select('id, title, status, current_amount_usd, goal_amount_usd, is_open_ended, donor_count, view_count, created_at, updated_at')
     .eq('creator_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -489,16 +490,18 @@ export default async function CreatorDashboard() {
                                   {formatUsd(campaign.current_amount_usd)} <span className="font-sans font-normal text-muted-foreground">acumulados</span>
                                 </span>
                                 <span className="text-muted-foreground">
-                                  de <span className="font-mono">{formatUsd(campaign.goal_amount_usd)}</span>
+                                  {campaign.is_open_ended ? 'Sin meta fija' : <>de <span className="font-mono">{formatUsd(campaign.goal_amount_usd)}</span></>}
                                 </span>
                               </div>
                               <div className="space-y-1">
-                                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                                  <div
-                                    className="h-full bg-primary transition-all"
-                                    style={{ width: `${Math.min(totalProgress, 100)}%` }}
-                                  />
-                                </div>
+                                {!campaign.is_open_ended && (
+                                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                    <div
+                                      className="h-full bg-primary transition-all"
+                                      style={{ width: `${Math.min(totalProgress, 100)}%` }}
+                                    />
+                                  </div>
+                                )}
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
                                     className="h-full bg-accent transition-all"
@@ -561,9 +564,11 @@ export default async function CreatorDashboard() {
                               <div>
                                 <p className="text-muted-foreground text-xs">Progreso</p>
                                 <p className="font-semibold">
-                                  {campaign.goal_amount_usd > 0
-                                    ? `${Math.round(totalProgress)}%`
-                                    : '0%'}
+                                  {campaign.is_open_ended
+                                    ? 'Sin meta'
+                                    : campaign.goal_amount_usd > 0
+                                      ? `${Math.round(totalProgress)}%`
+                                      : '0%'}
                                 </p>
                               </div>
                             </div>

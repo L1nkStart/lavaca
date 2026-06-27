@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import {
@@ -102,6 +103,7 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
         category_id: '',
         description: '',
         goal_amount_usd: '',
+        is_open_ended: false,
         story: '',
         location: '',
         state: '',
@@ -209,7 +211,8 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
         if (step === 1) {
             if (!formData.title.trim()) errs.title = 'El título es requerido'
             if (!formData.category_id) errs.category_id = 'Debes seleccionar una categoría'
-            if (!formData.goal_amount_usd || parseFloat(formData.goal_amount_usd) < 10) {
+            // Campaña "sin monto": no se valida la meta.
+            if (!formData.is_open_ended && (!formData.goal_amount_usd || parseFloat(formData.goal_amount_usd) < 10)) {
                 errs.goal_amount_usd = 'La meta debe ser de al menos $10 USD'
             }
         } else if (step === 2) {
@@ -366,7 +369,8 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                     // `description`); `category` legacy = nombre de la categoría.
                     description: formData.story.slice(0, 200),
                     category: selectedCategory?.name ?? '',
-                    goal_amount_usd: parseFloat(formData.goal_amount_usd),
+                    goal_amount_usd: formData.is_open_ended ? 0 : parseFloat(formData.goal_amount_usd),
+                    is_open_ended: formData.is_open_ended,
                     current_amount_usd: 0,
                     category_id: formData.category_id,
                     location: fullLocation || null,
@@ -577,26 +581,45 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                         <div className="space-y-2">
                             <Label htmlFor="goal_amount_usd" className="flex items-center gap-2">
                                 <DollarSign className="h-4 w-4" />
-                                Meta de recaudación (USD) *
+                                Meta de recaudación (USD) {formData.is_open_ended ? '' : '*'}
                             </Label>
                             <Input
                                 id="goal_amount_usd"
                                 type="number"
                                 min="10"
                                 step="0.01"
-                                value={formData.goal_amount_usd}
+                                value={formData.is_open_ended ? '' : formData.goal_amount_usd}
                                 onChange={(e) => updateFormData('goal_amount_usd', e.target.value)}
-                                placeholder="1500.00"
-                                disabled={loading}
+                                placeholder={formData.is_open_ended ? 'Sin meta fija' : '1500.00'}
+                                disabled={loading || formData.is_open_ended}
                                 aria-invalid={!!fieldErrors.goal_amount_usd}
                                 aria-describedby={fieldErrors.goal_amount_usd ? 'goal-error' : undefined}
                             />
                             {fieldErrors.goal_amount_usd && (
                                 <p id="goal-error" className="text-xs text-destructive">{fieldErrors.goal_amount_usd}</p>
                             )}
-                            <p className="text-xs text-muted-foreground">
-                                Monto mínimo: $10 USD. Sé realista con tu meta.
-                            </p>
+
+                            <label className="flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 cursor-pointer">
+                                <Checkbox
+                                    checked={formData.is_open_ended}
+                                    onCheckedChange={(checked) => updateFormData('is_open_ended', Boolean(checked))}
+                                    disabled={loading}
+                                    className="mt-0.5"
+                                />
+                                <span className="text-sm">
+                                    <span className="font-medium">Sin monto (campaña abierta)</span>
+                                    <span className="block text-xs text-muted-foreground">
+                                        Para causas benéficas donde el objetivo es ayudar, no alcanzar una cifra. No se muestra
+                                        barra de objetivo y no hay límite: toda donación suma.
+                                    </span>
+                                </span>
+                            </label>
+
+                            {!formData.is_open_ended && (
+                                <p className="text-xs text-muted-foreground">
+                                    Monto mínimo: $10 USD. Sé realista con tu meta.
+                                </p>
+                            )}
                         </div>
 
                         <div className="grid md:grid-cols-2 gap-4">
@@ -958,7 +981,7 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                                     </div>
                                     <div className="rounded-lg border bg-muted/30 p-3">
                                         <Label className="text-xs text-muted-foreground">Meta</Label>
-                                        <p className="font-medium font-mono">{formatUsd(parseFloat(formData.goal_amount_usd) || 0)}</p>
+                                        <p className="font-medium font-mono">{formData.is_open_ended ? 'Sin meta fija' : formatUsd(parseFloat(formData.goal_amount_usd) || 0)}</p>
                                     </div>
                                     <div className="rounded-lg border bg-muted/30 p-3">
                                         <Label className="text-xs text-muted-foreground">Ubicación</Label>

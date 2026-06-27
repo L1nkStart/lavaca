@@ -111,6 +111,7 @@ export default async function ProfilePage({
             main_image_url,
             goal_amount_usd,
             current_amount_usd,
+            is_open_ended,
             slug,
             status,
             created_at,
@@ -617,6 +618,7 @@ export default async function ProfilePage({
                                                 image={campaign.main_image_url || '/placeholder.svg'}
                                                 goalAmount={campaign.goal_amount_usd}
                                                 raisedAmount={campaign.current_amount_usd}
+                                                openEnded={Boolean((campaign as any).is_open_ended)}
                                                 category={(Array.isArray(campaign.categories) ? campaign.categories[0]?.name : campaign.categories?.name) || 'General'}
                                                 creator={profile.full_name}
                                                 verified={profile.kyc_status === 'verified'}

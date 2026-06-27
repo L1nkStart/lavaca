@@ -96,6 +96,7 @@ export default async function Home() {
       main_image_url,
       goal_amount_usd,
       current_amount_usd,
+      is_open_ended,
       slug,
       categories (
         name,
@@ -327,6 +328,7 @@ export default async function Home() {
                   image={campaign.main_image_url || '/placeholder.svg'}
                   goalAmount={campaign.goal_amount_usd}
                   raisedAmount={campaign.current_amount_usd}
+                  openEnded={Boolean((campaign as any).is_open_ended)}
                   category={campaign.categories?.name || 'General'}
                   creator={campaign.users?.full_name || 'Creador anónimo'}
                   verified={campaign.users?.kyc_status === 'verified'}

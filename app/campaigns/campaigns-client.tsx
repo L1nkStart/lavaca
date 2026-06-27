@@ -173,6 +173,7 @@ export default function CampaignsClient({
         image: campaign.main_image_url || '/placeholder.jpg',
         goalAmount: campaign.goal_amount_usd,
         raisedAmount: campaign.current_amount_usd,
+        openEnded: Boolean((campaign as any).is_open_ended),
         category: campaign.categories?.name || 'Sin categoría',
         creator: campaign.users.full_name,
         verified: campaign.users.kyc_status === 'verified',

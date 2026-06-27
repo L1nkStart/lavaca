@@ -37,6 +37,7 @@ interface Campaign {
   current_amount_usd: number
   status: 'draft' | 'pending_review' | 'active' | 'closed' | 'completed' | 'rejected'
   campaign_type?: string
+  is_open_ended?: boolean
   urgency_level: 'low' | 'medium' | 'high' | 'critical'
   main_image_url: string | null
   location: string | null
@@ -403,16 +404,18 @@ export default async function CreatorCampaignsPage() {
                                   <span className="font-mono">{formatUsd(campaign.current_amount_usd)}</span> acumulados
                                 </span>
                                 <span className="text-muted-foreground">
-                                  Meta: <span className="font-mono">{formatUsd(campaign.goal_amount_usd)}</span>
+                                  {campaign.is_open_ended ? 'Sin meta fija' : <>Meta: <span className="font-mono">{formatUsd(campaign.goal_amount_usd)}</span></>}
                                 </span>
                               </div>
                               <div className="space-y-1">
+                                {!campaign.is_open_ended && (
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
                                     className="h-full bg-primary transition-all"
                                     style={{ width: `${Math.min(progressPercentage, 100)}%` }}
                                   />
                                 </div>
+                                )}
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
                                     className="h-full bg-accent transition-all"
@@ -431,7 +434,7 @@ export default async function CreatorCampaignsPage() {
                                     Retirado
                                   </span>
                                 </div>
-                                <span>{progressPercentage.toFixed(1)}% completado</span>
+                                {!campaign.is_open_ended && <span>{progressPercentage.toFixed(1)}% completado</span>}
                               </div>
                             </div>
 

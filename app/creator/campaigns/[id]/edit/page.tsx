@@ -34,6 +34,7 @@ export default async function EditCampaignPage({ params }: EditCampaignPageProps
       goal_amount_usd,
       current_amount_usd,
       original_goal_amount_usd,
+      is_open_ended,
       status,
       main_image_url,
       urgency_level,
