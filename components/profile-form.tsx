@@ -34,7 +34,6 @@ export function ProfileForm({ profile }: ProfileFormProps) {
         location: profile.location || ''
     })
     const [loading, setLoading] = useState(false)
-    const [upgradingRole, setUpgradingRole] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [success, setSuccess] = useState<string | null>(null)
 
@@ -80,39 +79,6 @@ export function ProfileForm({ profile }: ProfileFormProps) {
             setError('Ocurrió un error inesperado')
         } finally {
             setLoading(false)
-        }
-    }
-
-    const handleBecomeCreator = async () => {
-        if (profile.role === 'creator') return
-
-        setUpgradingRole(true)
-        setError(null)
-        setSuccess(null)
-
-        try {
-            const { error: upgradeError } = await supabase
-                .from('users')
-                .update({
-                    role: 'creator',
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', profile.id)
-
-            if (upgradeError) {
-                setError(upgradeError.message)
-                return
-            }
-
-            setSuccess('Tu cuenta ahora es Creador de Campañas. Recargando...')
-            setTimeout(() => {
-                window.location.reload()
-            }, 900)
-        } catch (err) {
-            console.error('Role upgrade error:', err)
-            setError('No se pudo actualizar el tipo de cuenta')
-        } finally {
-            setUpgradingRole(false)
         }
     }
 
@@ -201,33 +167,14 @@ export function ProfileForm({ profile }: ProfileFormProps) {
                         <strong>Estado actual:</strong> {getRoleDisplayName(profile.role)}
                     </p>
 
-                    {profile.role !== 'creator' ? (
-                        <>
-                            <p className="text-sm text-muted-foreground">
-                                Puedes cambiar tu cuenta a <strong>Creador de Campañas</strong> para habilitar funciones de recaudación.
-                            </p>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={handleBecomeCreator}
-                                disabled={upgradingRole || loading}
-                            >
-                                {upgradingRole ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Actualizando...
-                                    </>
-                                ) : (
-                                    'Cambiar a Creador de Campañas'
-                                )}
-                            </Button>
-                            <p className="text-xs text-muted-foreground">
-                                Al cambiar, la página se recargará para activar las funciones de creador.
-                            </p>
-                        </>
+                    {profile.role === 'creator' ? (
+                        <p className="text-sm text-muted-foreground">
+                            Tu cuenta tiene habilitadas las funciones de creador.
+                        </p>
                     ) : (
                         <p className="text-sm text-muted-foreground">
-                            Tu cuenta ya tiene habilitadas las funciones de creador.
+                            Cualquier cuenta puede donar <strong>y crear campañas</strong>. Cuando publiques tu primera
+                            campaña, se activan automáticamente las funciones de creador. No necesitas ningún paso adicional.
                         </p>
                     )}
                 </div>

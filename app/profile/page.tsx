@@ -161,9 +161,7 @@ export default async function ProfilePage({
     }
 
     const showVerificationAlert = params.verify === 'true'
-    const showCreatorAlert = params.becomeCreator === 'true'
     const isCreatorOrAdmin = profile.role === 'creator' || profile.role === 'admin'
-    const canCreateCampaign = isCreatorOrAdmin && profile.kyc_status === 'verified'
 
     return (
         <div className="min-h-screen bg-muted/30">
@@ -195,21 +193,12 @@ export default async function ProfilePage({
                                 </div>
 
                                 <div className="flex gap-2">
-                                    {isCreatorOrAdmin && (
-                                        canCreateCampaign ? (
-                                            <Button asChild>
-                                                <Link href="/creator/campaigns/create">
-                                                    <Plus className="h-4 w-4 mr-2" />
-                                                    Crear campaña
-                                                </Link>
-                                            </Button>
-                                        ) : (
-                                            <Button disabled variant="outline" className="text-muted-foreground border-muted-foreground/30">
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Crear campaña
-                                            </Button>
-                                        )
-                                    )}
+                                    <Button asChild>
+                                        <Link href="/creator/campaigns/create">
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Crear campaña
+                                        </Link>
+                                    </Button>
                                     <form action="/auth/signout" method="post">
                                         <Button variant="outline" type="submit">
                                             <LogOut className="h-4 w-4 mr-2" />
@@ -287,15 +276,6 @@ export default async function ProfilePage({
                         <AlertDescription>
                             Necesitas verificar tu identidad para acceder a esta función.
                             Ve a la pestaña "Verificación", completa el formulario de identidad (KYC) y envía tus documentos.
-                        </AlertDescription>
-                    </Alert>
-                )}
-
-                {showCreatorAlert && (
-                    <Alert className="mb-6">
-                        <Info className="h-4 w-4" />
-                        <AlertDescription>
-                            Para crear campañas necesitas cambiar tu rol a "Creador" y verificar tu identidad.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -424,10 +404,10 @@ export default async function ProfilePage({
 
                                         {profile.role !== 'creator' && (
                                             <div className="pt-4 border-t">
-                                                <Button asChild className="w-full" variant="outline">
-                                                    <Link href="/profile?becomeCreator=true">
+                                                <Button asChild className="w-full">
+                                                    <Link href="/creator/campaigns/create">
                                                         <Plus className="h-4 w-4 mr-2" />
-                                                        Convertirse en creador
+                                                        Crear una campaña
                                                     </Link>
                                                 </Button>
                                             </div>
@@ -454,21 +434,12 @@ export default async function ProfilePage({
                                         </Link>
                                     </Button>
 
-                                    {isCreatorOrAdmin && (
-                                        canCreateCampaign ? (
-                                            <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
-                                                <Link href="/creator/campaigns/create">
-                                                    <Plus className="h-6 w-6" />
-                                                    <span>Nueva campaña</span>
-                                                </Link>
-                                            </Button>
-                                        ) : (
-                                            <Button disabled variant="outline" className="h-auto py-4 flex-col gap-2 text-muted-foreground border-muted-foreground/30">
-                                                <Plus className="h-6 w-6" />
-                                                <span>Nueva campaña</span>
-                                            </Button>
-                                        )
-                                    )}
+                                    <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
+                                        <Link href="/creator/campaigns/create">
+                                            <Plus className="h-6 w-6" />
+                                            <span>Nueva campaña</span>
+                                        </Link>
+                                    </Button>
 
                                     {profile.kyc_status !== 'verified' && (
                                         <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
@@ -589,21 +560,12 @@ export default async function ProfilePage({
                                             Campañas que has creado
                                         </CardDescription>
                                     </div>
-                                    {isCreatorOrAdmin && (
-                                        canCreateCampaign ? (
-                                            <Button asChild>
-                                                <Link href="/creator/campaigns/create">
-                                                    <Plus className="h-4 w-4 mr-2" />
-                                                    Nueva campaña
-                                                </Link>
-                                            </Button>
-                                        ) : (
-                                            <Button disabled variant="outline" className="text-muted-foreground border-muted-foreground/30">
-                                                <Plus className="h-4 w-4 mr-2" />
-                                                Nueva campaña
-                                            </Button>
-                                        )
-                                    )}
+                                    <Button asChild>
+                                        <Link href="/creator/campaigns/create">
+                                            <Plus className="h-4 w-4 mr-2" />
+                                            Nueva campaña
+                                        </Link>
+                                    </Button>
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -631,32 +593,15 @@ export default async function ProfilePage({
                                         <TrendingUp className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                                         <h3 className="text-lg font-semibold mb-2">No has creado campañas</h3>
                                         <p className="text-muted-foreground mb-6">
-                                            {profile.role === 'creator' && profile.kyc_status === 'verified'
-                                                ? 'Crea tu primera campaña y comienza a recaudar fondos'
-                                                : 'Necesitas ser creador verificado para crear campañas'
-                                            }
+                                            Crea tu primera campaña y comienza a recaudar fondos. Para activarla y recibir
+                                            donaciones necesitarás verificar tu identidad (KYC), pero puedes crearla desde ya.
                                         </p>
-                                        {isCreatorOrAdmin ? (
-                                            canCreateCampaign ? (
-                                                <Button asChild>
-                                                    <Link href="/creator/campaigns/create">
-                                                        <Plus className="h-4 w-4 mr-2" />
-                                                        Crear primera campaña
-                                                    </Link>
-                                                </Button>
-                                            ) : (
-                                                <Button disabled variant="outline" className="text-muted-foreground border-muted-foreground/30">
-                                                    <Plus className="h-4 w-4 mr-2" />
-                                                    Crear primera campaña
-                                                </Button>
-                                            )
-                                        ) : (
-                                            <Button asChild variant="outline">
-                                                <Link href="/profile?becomeCreator=true">
-                                                    Convertirse en creador
-                                                </Link>
-                                            </Button>
-                                        )}
+                                        <Button asChild>
+                                            <Link href="/creator/campaigns/create">
+                                                <Plus className="h-4 w-4 mr-2" />
+                                                Crear primera campaña
+                                            </Link>
+                                        </Button>
                                     </div>
                                 )}
                             </CardContent>
