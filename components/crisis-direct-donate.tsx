@@ -297,6 +297,14 @@ export function CrisisDirectDonate({ campaignId, showEmptyState = false }: { cam
                         </AlertDescription>
                     </Alert>
 
+                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                        Este es un <strong>pago directo</strong> a la cuenta del organizador: LaVaca no intermedia ni
+                        custodia estos fondos. Aunque verificamos las campañas con nuestros mejores esfuerzos, no podemos
+                        garantizar cada caso y no nos hacemos responsables por fraudes o estafas en pagos directos. Realiza
+                        tu aporte bajo tu criterio y conserva tu comprobante. Consulta los{' '}
+                        <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Términos y Condiciones</a>.
+                    </p>
+
                     <Button onClick={submit} disabled={submitting || uploading} className="w-full">
                         {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Registrando…</> : 'Registrar mi pago'}
                     </Button>

@@ -64,10 +64,26 @@ export default function DonationGuaranteePage() {
                 </section>
 
                 <section className="space-y-3">
-                    <h2 className="text-xl font-semibold">5. Alcance y límites de esta garantía</h2>
+                    <h2 className="text-xl font-semibold">5. Modo crisis y pagos directos</h2>
                     <p className="text-muted-foreground">
-                        Esta garantía aplica a donaciones hechas dentro de LaVaca y está sujeta a revisión de cumplimiento,
-                        trazabilidad de la operación, estado de los fondos y reglas de cada procesador de pago.
+                        Durante situaciones de contingencia, LaVaca puede activar el &quot;modo crisis&quot;, en el que algunas campañas
+                        reciben aportes mediante <strong>pago directo a las cuentas del organizador</strong>. En estos casos, los
+                        fondos no pasan por LaVaca: van directamente del donante al organizador, por lo que <strong>la custodia de
+                        fondos y la promesa de reembolso descritas arriba no aplican</strong>.
+                    </p>
+                    <p className="text-muted-foreground">
+                        Aunque seguimos verificando la identidad de los organizadores y la legitimidad de las campañas con nuestros
+                        mejores esfuerzos, LaVaca no garantiza la veracidad de cada caso ni se hace responsable por fraudes o
+                        estafas en pagos directos. Estos aportes se realizan bajo la responsabilidad y criterio del donante.
+                    </p>
+                </section>
+
+                <section className="space-y-3">
+                    <h2 className="text-xl font-semibold">6. Alcance y límites de esta garantía</h2>
+                    <p className="text-muted-foreground">
+                        Esta garantía aplica a donaciones procesadas dentro de LaVaca y está sujeta a revisión de cumplimiento,
+                        trazabilidad de la operación, estado de los fondos y reglas de cada procesador de pago. No cubre los pagos
+                        directos al organizador realizados bajo el modo crisis.
                     </p>
                     <p className="text-muted-foreground">
                         Al donar en LaVaca, aceptas nuestros Términos, Política de Privacidad y Política de Reembolso.

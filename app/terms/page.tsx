@@ -92,7 +92,30 @@ export default function TermsPage() {
                 </section>
 
                 <section className="space-y-3">
-                    <h2 className="text-xl font-semibold">8. Documentos complementarios</h2>
+                    <h2 className="text-xl font-semibold">8. Modo crisis y pagos directos al organizador</h2>
+                    <p className="text-muted-foreground">
+                        En situaciones de contingencia o emergencia, LaVaca puede habilitar el &quot;modo crisis&quot; para agilizar
+                        la ayuda. Bajo este modo, determinadas campañas pueden recibir aportes mediante pago directo a las cuentas
+                        del propio organizador. En estos pagos directos, LaVaca actúa únicamente como canal de difusión y registro:
+                        no intermedia, no procesa ni custodia los fondos, los cuales se transfieren directamente del donante al organizador.
+                    </p>
+                    <p className="text-muted-foreground">
+                        Aunque LaVaca realiza sus mejores esfuerzos razonables para verificar la identidad de los organizadores y la
+                        legitimidad de las campañas, no puede garantizar la veracidad de cada caso ni el destino final de los fondos.
+                        En consecuencia, durante el modo crisis y respecto de los pagos directos, LaVaca no asume responsabilidad por
+                        fraudes, estafas, tergiversaciones o uso indebido de los aportes. El donante reconoce y acepta que dichos
+                        aportes se realizan bajo su propia responsabilidad y criterio.
+                    </p>
+                    <p className="text-muted-foreground">
+                        LaVaca no cobra comisión por las campañas en modo crisis y mantiene sus mecanismos de prevención
+                        (verificación de identidad, moderación de contenido y la facultad de suspender campañas ante señales de
+                        fraude). No obstante, estos mecanismos no constituyen una garantía de resultado. Se recomienda a los donantes
+                        conservar sus comprobantes de pago y reportar cualquier irregularidad a través de los canales de contacto.
+                    </p>
+                </section>
+
+                <section className="space-y-3">
+                    <h2 className="text-xl font-semibold">9. Documentos complementarios</h2>
                     <p className="text-muted-foreground">
                         Estos Términos se interpretan en conjunto con la Garantía de Donación, Política de Reembolso,
                         Política de Privacidad y Política de Actividades Prohibidas. En caso de conflicto, prevalecerán
