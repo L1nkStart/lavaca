@@ -267,7 +267,7 @@ export default async function CreatorCampaignsPage() {
           </div>
 
           {/* Campaigns List */}
-          {!hasWithdrawalAccounts && (
+          {!hasWithdrawalAccounts && !crisisEnabled && (
             <Alert className="border-accent/40 bg-accent/10">
               <AlertCircle className="h-4 w-4 text-accent" />
               <AlertDescription className="text-foreground">
@@ -276,6 +276,15 @@ export default async function CreatorCampaignsPage() {
                 <Link href="/profile" className="underline font-medium">Configurar cuentas</Link>
                 {' '}o{' '}
                 <Link href="/contact" className="underline font-medium">contactar soporte</Link>.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {!crisisEnabled && (
+            <Alert className="border-accent/40 bg-accent/10">
+              <AlertCircle className="h-4 w-4 text-accent" />
+              <AlertDescription className="text-foreground">
+                Recuerda mantener tus cuentas de donaciones actualizadas para poder recibir tus fondos. (Haz click sobre "Verificar pagos" para ver tus cuentas.)
               </AlertDescription>
             </Alert>
           )}
@@ -417,12 +426,12 @@ export default async function CreatorCampaignsPage() {
                               </div>
                               <div className="space-y-1">
                                 {!campaign.is_open_ended && (
-                                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                                  <div
-                                    className="h-full bg-primary transition-all"
-                                    style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-                                  />
-                                </div>
+                                  <div className="h-2 rounded-full bg-muted overflow-hidden">
+                                    <div
+                                      className="h-full bg-primary transition-all"
+                                      style={{ width: `${Math.min(progressPercentage, 100)}%` }}
+                                    />
+                                  </div>
                                 )}
                                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                                   <div
