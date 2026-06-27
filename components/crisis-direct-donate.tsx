@@ -299,9 +299,7 @@ export function CrisisDirectDonate({ campaignId, showEmptyState = false }: { cam
 
                     <p className="text-[11px] leading-relaxed text-muted-foreground">
                         Este es un <strong>pago directo</strong> a la cuenta del organizador: LaVaca no intermedia ni
-                        custodia estos fondos. Aunque verificamos las campañas con nuestros mejores esfuerzos, no podemos
-                        garantizar cada caso y no nos hacemos responsables por fraudes o estafas en pagos directos. Realiza
-                        tu aporte bajo tu criterio y conserva tu comprobante. Consulta los{' '}
+                        custodia estos fondos.Si bien hacemos nuestro mayor esfuerzo por validar las campañas, no nos es posible garantizar devoluciones de dinero ni asumir responsabilidad por fraudes o estafas. Todo aporte se realiza bajo tu propio consentimiento y riesgo. Te sugerimos conservar tu comprobante y consultar los {' '}
                         <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">Términos y Condiciones</a>.
                     </p>
 
