@@ -13,7 +13,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select'
-import { Heart, Menu, X, Search, User, Loader2, FolderKanban, LayoutDashboard, UserSearch } from 'lucide-react'
+import { Heart, Menu, X, Search, User, Loader2, FolderKanban, LayoutDashboard, UserSearch, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export function Navbar() {
@@ -90,6 +90,7 @@ export function Navbar() {
     const creatorNavOptions = [
         { value: '/creator/dashboard', label: 'Panel principal' },
         { value: '/creator/campaigns', label: 'Mis campañas' },
+        { value: '/creator/donations', label: 'Donaciones' },
     ]
 
     const creatorNavValue = creatorNavOptions.some((option) => option.value === pathname)
@@ -200,6 +201,18 @@ export function Navbar() {
                                             <Link href="/creator/campaigns">
                                                 <FolderKanban className="h-4 w-4 mr-2" />
                                                 Mis campañas
+                                            </Link>
+                                        </Button>
+
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="hidden md:flex"
+                                            asChild
+                                        >
+                                            <Link href="/creator/donations">
+                                                <Wallet className="h-4 w-4 mr-2" />
+                                                Donaciones
                                             </Link>
                                         </Button>
                                     </>

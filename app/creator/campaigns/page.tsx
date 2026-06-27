@@ -365,10 +365,10 @@ export default async function CreatorCampaignsPage() {
                                 </Link>
                               </Button>
                               {campaign.campaign_type === 'crisis' && (
-                                <Button size="sm" variant="outline" className="flex-1 md:flex-none text-orange-600 hover:text-orange-700" asChild>
+                                <Button size="sm" className="flex-1 md:flex-none bg-orange-500 hover:bg-orange-600 text-white" asChild>
                                   <Link href={`/creator/campaigns/${campaign.id}/crisis`}>
                                     <ShieldAlert className="h-4 w-4 mr-1" />
-                                    Modo crisis
+                                    Verificar pagos
                                   </Link>
                                 </Button>
                               )}
