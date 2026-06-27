@@ -280,7 +280,7 @@ export default async function CreatorCampaignsPage() {
             </Alert>
           )}
 
-          {!crisisEnabled && (
+          {crisisEnabled && (
             <Alert className="border-accent/40 bg-accent/10">
               <AlertCircle className="h-4 w-4 text-accent" />
               <AlertDescription className="text-foreground">
