@@ -70,14 +70,10 @@ export default async function CreatorCampaignsPage() {
     redirect('/auth/login')
   }
 
-  // Check if user is verified and can create campaigns
-  if (profile.kyc_status !== 'verified') {
-    redirect('/profile?verify=true&becomeCreator=true')
-  }
-
-  if (profile.role !== 'creator' && profile.role !== 'admin') {
-    redirect('/profile?becomeCreator=true')
-  }
+  // Cualquier usuario autenticado puede crear y gestionar campañas, aunque
+  // su KYC no esté verificado. La campaña queda en revisión y NO puede
+  // activarse ni recibir donaciones hasta completar la verificación.
+  const isVerified = profile.kyc_status === 'verified'
 
   // Get user's campaigns with category info
   const { data: campaigns, error: campaignsError } = await supabase
@@ -206,6 +202,18 @@ export default async function CreatorCampaignsPage() {
               </Button>
             </div>
           </div>
+
+          {!isVerified && (
+            <Alert className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800">
+              <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+              <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+                Tu identidad aún no está verificada. Puedes crear y preparar tus campañas: quedarán en
+                revisión, pero <strong>no podrán activarse ni recibir donaciones</strong> hasta que completes
+                la verificación KYC.{' '}
+                <Link href="/profile" className="underline font-medium">Verificar mi identidad</Link>.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Stats Cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

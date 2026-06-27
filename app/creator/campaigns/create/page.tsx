@@ -79,11 +79,20 @@ export default async function CreateCampaignPage() {
             <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
 
                 {/* Verification Status */}
-                {profile.kyc_status === 'verified' && (
+                {profile.kyc_status === 'verified' ? (
                     <Alert className="border-primary/30 bg-primary/5">
                         <AlertCircle className="h-4 w-4 text-primary" />
                         <AlertDescription className="text-foreground">
                             Tu identidad está verificada. Puedes crear campañas con todas las funcionalidades.
+                        </AlertDescription>
+                    </Alert>
+                ) : (
+                    <Alert className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30 dark:border-yellow-800">
+                        <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
+                        <AlertDescription className="text-yellow-800 dark:text-yellow-200">
+                            Puedes crear tu campaña ahora mismo. Quedará en revisión y{' '}
+                            <strong>no podrá activarse ni recibir donaciones</strong> hasta que verifiques tu identidad (KYC).
+                            Ve completando la verificación en tu perfil para no perder tiempo.
                         </AlertDescription>
                     </Alert>
                 )}

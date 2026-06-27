@@ -58,7 +58,8 @@ export async function GET() {
         reviewed_at,
         users!campaigns_creator_id_fkey (
           full_name,
-          email
+          email,
+          kyc_status
         ),
         categories (
           name

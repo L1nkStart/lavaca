@@ -41,6 +41,7 @@ interface Campaign {
     users: {
         full_name: string
         email: string
+        kyc_status?: string
     }
     categories: {
         name: string
@@ -115,6 +116,20 @@ export default function AdminCampaignsPage() {
     }
 
     const handleStatusChange = async (campaignId: string, currentStatus: string, newStatus: string, creatorId: string) => {
+        // Aviso fuerte: activar una campaña cuyo creador NO tiene KYC verificado.
+        if (newStatus === 'active') {
+            const target = campaigns.find((c) => c.id === campaignId)
+            const creatorVerified = target?.users?.kyc_status === 'verified'
+            if (!creatorVerified) {
+                const warning =
+                    '⚠️ ATENCIÓN: EL CREADOR NO TIENE LA IDENTIDAD VERIFICADA (KYC).\n\n' +
+                    'Si activas esta campaña podrá recibir donaciones sin que el organizador haya completado la verificación de identidad. ' +
+                    'Esto aumenta el riesgo de fraude y va en contra del flujo recomendado.\n\n' +
+                    'Lo correcto es verificar primero al creador. ¿Aun así deseas activarla bajo tu responsabilidad?'
+                if (!confirm(warning)) return
+            }
+        }
+
         if (!confirm(`¿Estás seguro de cambiar el estado a "${newStatus}"?`)) return
 
         try {
@@ -384,6 +399,9 @@ export default function AdminCampaignsPage() {
                                                         {getStatusBadge(campaign.status)}
                                                         {campaign.campaign_type === 'crisis' && (
                                                             <Badge className="bg-orange-500">Crisis</Badge>
+                                                        )}
+                                                        {campaign.users?.kyc_status !== 'verified' && (
+                                                            <Badge variant="destructive">Creador sin verificar</Badge>
                                                         )}
                                                     </div>
                                                 </div>
