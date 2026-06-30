@@ -13,6 +13,47 @@ import { createClient } from '@/lib/supabase/client'
 import { Checkbox } from '@/components/ui/checkbox'
 import { getClientBaseUrl } from '@/lib/url'
 
+/**
+ * Convierte cualquier forma de error de Supabase Auth en un mensaje claro en
+ * español. Evita que la UI muestre "{}" o un objeto vacío y detecta el caso
+ * típico de fallo de envío del correo de confirmación (SMTP mal configurado).
+ */
+function humanizeAuthError(err: unknown): string {
+    const raw =
+        (err as any)?.message ||
+        (err as any)?.error_description ||
+        (err as any)?.msg ||
+        (typeof err === 'string' ? err : '')
+    const msg = String(raw || '').trim()
+    const lower = msg.toLowerCase()
+
+    // Fallo al enviar el correo de confirmación (causa habitual: SMTP propio).
+    if (
+        (lower.includes('email') && (lower.includes('send') || lower.includes('confirmation'))) ||
+        lower.includes('smtp') ||
+        lower.includes('unexpected_failure') ||
+        lower.includes('error sending')
+    ) {
+        return 'No pudimos enviar el correo de confirmación. Es un problema del servidor de correo (SMTP), no de tus datos. Inténtalo de nuevo en unos minutos o contacta al soporte.'
+    }
+
+    if (lower.includes('already registered') || lower.includes('already exists') || lower.includes('user already')) {
+        return 'Ya existe una cuenta con ese correo. Inicia sesión o usa la opción de recuperar contraseña.'
+    }
+    if (lower.includes('password')) {
+        return msg // mensajes de contraseña ya suelen ser claros
+    }
+    if (lower.includes('rate limit') || lower.includes('too many')) {
+        return 'Demasiados intentos. Espera unos minutos antes de volver a intentarlo.'
+    }
+
+    // Si no hay mensaje util (objeto vacio / timeout del proxy), damos contexto.
+    if (!msg || msg === '{}' || msg === '[object Object]') {
+        return 'No pudimos completar el registro. Puede ser un problema temporal con el envío del correo de confirmación. Inténtalo más tarde.'
+    }
+    return msg
+}
+
 function RegisterForm() {
     const CURRENT_TERMS_VERSION = 'v1.0'
 
@@ -92,7 +133,7 @@ function RegisterForm() {
             })
 
             if (signUpError) {
-                setError(signUpError.message)
+                setError(humanizeAuthError(signUpError))
                 return
             }
 
@@ -127,7 +168,7 @@ function RegisterForm() {
             }
         } catch (err) {
             console.error('Registration error:', err)
-            setError('Ocurrió un error inesperado durante el registro')
+            setError(humanizeAuthError(err))
         } finally {
             setLoading(false)
         }
@@ -146,10 +187,10 @@ function RegisterForm() {
             })
 
             if (error) {
-                setError(error.message)
+                setError(humanizeAuthError(error))
             }
         } catch (err) {
-            setError('Ocurrió un error inesperado')
+            setError(humanizeAuthError(err))
         } finally {
             setLoading(false)
         }
