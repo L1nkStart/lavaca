@@ -187,6 +187,7 @@ export class PaymentManager {
             [PaymentProvider.STRIPE]: { name: 'Tarjeta de Crédito/Débito', icon: '💳' },
             [PaymentProvider.PAYPAL]: { name: 'PayPal', icon: '🅿️' },
             [PaymentProvider.BINANCE]: { name: 'Criptomonedas (Binance)', icon: '₿' },
+            [PaymentProvider.CHINCHIN]: { name: 'ChinChin', icon: '💸' },
             [PaymentProvider.ZELLE]: { name: 'Zelle', icon: '💵' },
             [PaymentProvider.PAGO_MOVIL]: { name: 'Pago Móvil', icon: '📱' },
             [PaymentProvider.BANCO_VENEZUELA]: { name: 'Banco de Venezuela', icon: '🏦' },

@@ -6,6 +6,7 @@ import { PaymentProvider, PaymentType } from "@/lib/payments/types";
 import { initializePayments, isProviderConfigured } from "@/lib/payments/config";
 import { getActiveExchangeRate } from "@/lib/exchange-rate";
 import { computeDonationAmounts, donationCurrencyForMethod, getDonationFeeConfig } from "@/lib/fees";
+import { sanitizeRefCode } from "@/lib/lavaca-campaign";
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,7 +25,11 @@ export async function POST(request: NextRequest) {
       manualPaymentData,
       captureUrl,
       coverFees,
+      referralCode,
     } = body;
+
+    // ?ref= del enlace por el que llegó el donante (solo medición).
+    const safeReferralCode = sanitizeRefCode(typeof referralCode === "string" ? referralCode : null);
 
     const safeCaptureUrl =
       typeof captureUrl === "string" && captureUrl.startsWith("http")
@@ -194,6 +199,7 @@ export async function POST(request: NextRequest) {
                 ? manualPaymentData?.reference?.trim() || null
                 : null,
         capture_url: manualMethods.has(paymentMethod) ? safeCaptureUrl : null,
+        referral_code: safeReferralCode,
         admin_notes: manualMethods.has(paymentMethod)
           ? "Pago pendiente de verificación manual"
           : null,

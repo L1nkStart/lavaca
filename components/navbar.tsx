@@ -97,8 +97,6 @@ export function Navbar() {
         ? pathname
         : undefined
 
-    const canCreateCampaign = userKycStatus === 'verified'
-
     return (
         <nav className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
             <div className="max-w-7xl mx-auto px-4">
@@ -232,13 +230,9 @@ export function Navbar() {
                                     </Button>
                                 )}
 
-                                {/* Start Campaign Button */}
-                                <Button
-                                    size="sm"
-                                    variant={canCreateCampaign ? 'default' : 'outline'}
-                                    className={!canCreateCampaign ? 'text-muted-foreground border-muted-foreground/30' : undefined}
-                                    asChild
-                                >
+                                {/* Crear campaña: cualquier usuario puede (el KYC se
+                                    exige para activarla), así que el botón no se apaga. */}
+                                <Button size="sm" asChild>
                                     <Link href="/creator/campaigns/create">
                                         Crear campaña
                                     </Link>

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { isLikelyRestrictedRegion, loadStripeSdkConditionally } from "@/lib/payments/stripe-loader";
 import { createClient } from "@/lib/supabase/client";
+import { readStoredRef } from "@/lib/lavaca-campaign";
 
 interface DonationCheckoutProps {
     campaignId: string;
@@ -521,6 +522,8 @@ export function DonationCheckout({
                     amountBs: currency === 'BS' ? amount : null,
                     paymentMethod,
                     coverFees: effectiveCoverFees,
+                    // ?ref= con el que llegó a la campaña (medición de quién comparte).
+                    referralCode: readStoredRef(campaignId),
                     isAnonymous,
                     donorEmail: normalizedDonorEmail,
                     donorName: normalizedDonorName || null,

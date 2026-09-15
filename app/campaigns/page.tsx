@@ -2,32 +2,26 @@ import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import CampaignsClient from './campaigns-client';
 import { Loader2 } from 'lucide-react';
+import { LAVACA_SUPPORT_CAMPAIGN_ID } from '@/lib/lavaca-campaign';
+
+type CampaignsSearchParams = {
+  page?: string;
+  search?: string;
+  category?: string;
+  location?: string;
+  status?: string;
+  verified?: string;
+  sort?: string;
+};
 
 interface PageProps {
-  searchParams: {
-    page?: string;
-    search?: string;
-    category?: string;
-    location?: string;
-    status?: string;
-    verified?: string;
-    sort?: string;
-  };
+  // Next 15: searchParams llega como Promise.
+  searchParams: Promise<CampaignsSearchParams>;
 }
 
 const ITEMS_PER_PAGE = 12;
 
-async function getCampaigns(searchParams: PageProps['searchParams']) {
-  const supabase = await createClient();
-
-  const page = parseInt(searchParams.page || '1');
-  const from = (page - 1) * ITEMS_PER_PAGE;
-  const to = from + ITEMS_PER_PAGE - 1;
-
-  // Build query
-  let query = supabase
-    .from('campaigns')
-    .select(`
+const CAMPAIGN_SELECT = `
       *,
       categories (
         name,
@@ -37,8 +31,32 @@ async function getCampaigns(searchParams: PageProps['searchParams']) {
         full_name,
         kyc_status
       )
-    `, { count: 'exact' })
-    .eq('status', 'active');
+    `;
+
+async function getCampaigns(searchParams: CampaignsSearchParams) {
+  const supabase = await createClient();
+
+  const page = parseInt(searchParams.page || '1');
+  const from = (page - 1) * ITEMS_PER_PAGE;
+  const to = from + ITEMS_PER_PAGE - 1;
+
+  // La campaña propia de LaVaca va fija de primera en la página 1 (sea cual
+  // sea el filtro) y se excluye del resto para que no se repita ni mueva la
+  // paginación. Se consulta en todas las páginas solo para que el total
+  // mostrado sea el mismo en cada una.
+  const pinnedPromise = supabase
+    .from('campaigns')
+    .select(CAMPAIGN_SELECT)
+    .eq('id', LAVACA_SUPPORT_CAMPAIGN_ID)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  // Build query
+  let query = supabase
+    .from('campaigns')
+    .select(CAMPAIGN_SELECT, { count: 'exact' })
+    .eq('status', 'active')
+    .neq('id', LAVACA_SUPPORT_CAMPAIGN_ID);
 
   // Apply filters
   if (searchParams.search) {
@@ -87,12 +105,17 @@ async function getCampaigns(searchParams: PageProps['searchParams']) {
   // Apply pagination
   query = query.range(from, to);
 
-  const { data: campaigns, error, count } = await query;
+  const [{ data: pinned }, { data: pagedCampaigns, error, count }] = await Promise.all([pinnedPromise, query]);
 
   if (error) {
     console.error('Error fetching campaigns:', error);
-    return { campaigns: [], total: 0, error: error.message };
+    return { campaigns: [], total: 0, totalPages: 1, error: error.message };
   }
+
+  const campaigns = [
+    ...(pinned && page === 1 ? [pinned] : []),
+    ...(pagedCampaigns || []),
+  ];
 
   // Get donation counts efficiently with a single query
   const campaignIds = campaigns?.map(c => c.id) || [];
@@ -116,7 +139,9 @@ async function getCampaigns(searchParams: PageProps['searchParams']) {
 
   return {
     campaigns: campaignsWithCounts,
-    total: count || 0,
+    // Total visible (incluye la fija) y páginas según las demás.
+    total: (count || 0) + (pinned ? 1 : 0),
+    totalPages: Math.ceil((count || 0) / ITEMS_PER_PAGE) || 1,
     error: null,
   };
 }
@@ -135,13 +160,12 @@ export default async function CampaignsPage({ searchParams }: PageProps) {
   // Await searchParams to fix Next.js 15 requirement
   const params = await searchParams;
 
-  const [{ campaigns, total, error }, categories] = await Promise.all([
+  const [{ campaigns, total, totalPages, error }, categories] = await Promise.all([
     getCampaigns(params),
     getCategories(),
   ]);
 
   const currentPage = parseInt(params.page || '1');
-  const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 
   return (
     <Suspense fallback={

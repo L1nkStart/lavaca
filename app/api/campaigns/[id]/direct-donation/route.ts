@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveExchangeRate } from '@/lib/exchange-rate'
+import { sanitizeRefCode } from '@/lib/lavaca-campaign'
 
 /**
  * POST /api/campaigns/[id]/direct-donation
@@ -26,6 +27,8 @@ export async function POST(
         const isAnonymous = body?.isAnonymous === true
         const rawEmail = typeof body?.donorEmail === 'string' ? body.donorEmail.trim().toLowerCase() : ''
         const rawName = typeof body?.donorName === 'string' ? body.donorName.trim().replace(/\s+/g, ' ') : ''
+        // ?ref= del enlace por el que llegó el donante (solo medición).
+        const referralCode = sanitizeRefCode(typeof body?.referralCode === 'string' ? body.referralCode : null)
 
         if (!Number.isFinite(amount) || amount <= 0) {
             return NextResponse.json({ error: 'Ingresa un monto válido' }, { status: 400 })
@@ -97,6 +100,7 @@ export async function POST(
                 fee_covered_by_donor: false,
                 is_direct: true,
                 crisis_account_id: accountId,
+                referral_code: referralCode,
                 admin_notes: 'Pago directo (modo crisis) — pendiente de confirmación del organizador',
             })
             .select('id')

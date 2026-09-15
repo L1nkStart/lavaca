@@ -22,6 +22,7 @@ import { createClient } from '@/lib/supabase/client';
 import { DonationStatusBanner } from '@/components/donation-status-banner';
 import { CrisisDirectDonate } from '@/components/crisis-direct-donate';
 import { getClientBaseUrl } from '@/lib/url';
+import { sanitizeRefCode, storeRef } from '@/lib/lavaca-campaign';
 
 interface Campaign {
   id: string;
@@ -107,6 +108,12 @@ export default function CampaignPage() {
   useEffect(() => {
     if (params.id) {
       fetchCampaignData(params.id as string);
+      // ?ref=<código> de un enlace compartido: se guarda 7 días para
+      // atribuir la donación a quien compartió.
+      try {
+        const ref = sanitizeRefCode(new URLSearchParams(window.location.search).get('ref'));
+        if (ref) storeRef(params.id as string, ref);
+      } catch { /* noop */ }
     }
   }, [params.id]);
 
@@ -668,11 +675,22 @@ export default function CampaignPage() {
                   </div>
                 )}
 
-                <div className="flex justify-center">
+                {/* Compartir: WhatsApp a un toque. En Venezuela la campaña se
+                    mueve por grupos, así que no lo escondemos en un menú. */}
+                <div className="space-y-2 border-t border-border pt-4">
+                  <p className="text-center text-xs text-foreground/70">
+                    ¿No puedes donar ahora? Compartir también ayuda.
+                  </p>
                   <CampaignShare
                     campaignId={campaign.id}
                     campaignTitle={campaign.title}
                     campaignUrl={`${getClientBaseUrl()}/campaigns/${campaign.id}`}
+                    progressText={
+                      campaign.is_open_ended
+                        ? `Ya lleva ${usd(campaign.current_amount_usd)} recaudados`
+                        : `Ya va ${Math.round(progressPercent)}% de ${usd(campaign.goal_amount_usd)}`
+                    }
+                    variant="full"
                   />
                 </div>
               </CardContent>
@@ -680,7 +698,7 @@ export default function CampaignPage() {
 
             {/* Pago directo al organizador — solo en campañas crisis con el modo habilitado */}
             {crisisEnabled && campaign.campaign_type === 'crisis' && campaign.status === 'active' && (
-              <CrisisDirectDonate campaignId={campaign.id} />
+              <CrisisDirectDonate campaignId={campaign.id} campaignTitle={campaign.title} />
             )}
 
             {/* Guarantor trust card — reinforce at the decision point */}

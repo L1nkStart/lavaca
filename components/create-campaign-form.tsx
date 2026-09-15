@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useRef, useEffect, Fragment } from 'react'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,11 +25,22 @@ import {
     Users,
     Target,
     AlertCircle,
-    ChevronsUpDown
+    ChevronsUpDown,
+    Wallet,
+    Trash2,
+    CheckCircle2,
+    Circle,
+    Clock,
+    ShieldCheck,
+    ArrowRight,
+    ExternalLink,
 } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { formatUsd } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import { ReceivingAccountForm, ReceivingAccountItem } from '@/components/receiving-account-form'
+import { RECEIVING_ACCOUNT_LABEL, receivingAccountSummary, type ReceivingAccountInput } from '@/lib/venezuela'
 
 const VENEZUELA_STATES = [
     'Amazonas',
@@ -79,13 +89,32 @@ interface CreateCampaignFormProps {
     categories: Category[]
     crisisEnabled?: boolean
     crisisForced?: boolean
+    /** Campañas normales: si el creador ya tiene cuentas de retiro en su perfil. */
+    hasWithdrawalAccounts?: boolean
 }
 
-export function CreateCampaignForm({ profile, categories, crisisEnabled = false, crisisForced = false }: CreateCampaignFormProps) {
+/** Resultado de la creación, para la pantalla de "¿y ahora qué?". */
+interface CreatedCampaign {
+    id: string
+    title: string
+    isCrisis: boolean
+    accountsSaved: number
+    accountsFailed: number
+}
+
+const TOTAL_STEPS = 5
+
+export function CreateCampaignForm({
+    profile,
+    categories,
+    crisisEnabled = false,
+    crisisForced = false,
+    hasWithdrawalAccounts = false,
+}: CreateCampaignFormProps) {
     const [currentStep, setCurrentStep] = useState(1)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
-    const [success, setSuccess] = useState<string | null>(null)
+    const [created, setCreated] = useState<CreatedCampaign | null>(null)
     const [uploading, setUploading] = useState(false)
     const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 })
     const [stateDropdownOpen, setStateDropdownOpen] = useState(false)
@@ -109,16 +138,22 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
         state: '',
         urgency_level: 'medium',
         campaign_type: 'normal',
+        // Cuentas donde el creador recibe los pagos directos (campañas crisis).
+        // Son serializables, así que sobreviven en el borrador local.
+        receiving_accounts: [] as ReceivingAccountInput[],
         main_image: null as File | null,
         gallery_images: [] as File[],
         support_documents: [] as File[]
     })
 
+    // Una campaña es "crisis" si el admin lo forzó o si el creador la eligió
+    // con el modo habilitado. Define qué muestra el paso "Cómo recibir el dinero".
+    const isCrisisCampaign = crisisForced || (crisisEnabled && formData.campaign_type === 'crisis')
+
     const mainImageRef = useRef<HTMLInputElement>(null)
     const galleryRef = useRef<HTMLInputElement>(null)
     const documentsRef = useRef<HTMLInputElement>(null)
 
-    const router = useRouter()
     const supabase = createClient()
 
     // Restaurar borrador al montar. Solo texto y selecciones: los archivos no
@@ -161,7 +196,12 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
         { number: 1, title: 'Información básica', description: 'Título, categoría y meta' },
         { number: 2, title: 'Historia', description: 'Descripción detallada' },
         { number: 3, title: 'Multimedia', description: 'Fotos y documentos' },
-        { number: 4, title: 'Revisión', description: 'Confirmar datos' }
+        {
+            number: 4,
+            title: 'Cómo recibir el dinero',
+            description: isCrisisCampaign ? 'Cuentas donde te pagarán' : 'Dónde retirarás lo recaudado',
+        },
+        { number: 5, title: 'Revisión', description: 'Confirmar y enviar' }
     ]
 
     // Zona de carga accesible: es un <button> real (operable con teclado y
@@ -221,6 +261,12 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
             }
         } else if (step === 3) {
             if (!formData.main_image) errs.main_image = 'Debes subir una imagen principal'
+        } else if (step === 4) {
+            // Sin cuenta no hay forma de que te paguen: es el paso que más se
+            // saltaba la gente, por eso es obligatorio en campañas crisis.
+            if (isCrisisCampaign && formData.receiving_accounts.length === 0) {
+                errs.receiving_accounts = 'Agrega al menos una cuenta para poder recibir donaciones'
+            }
         }
 
         setFieldErrors(errs)
@@ -310,7 +356,9 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
 
     const nextStep = () => {
         if (validateStep(currentStep)) {
-            setCurrentStep(prev => Math.min(prev + 1, 4))
+            setCurrentStep(prev => Math.min(prev + 1, TOTAL_STEPS))
+            // En móvil el botón queda abajo: al cambiar de paso subimos al indicador.
+            requestAnimationFrame(() => document.getElementById('campaign-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
         }
     }
 
@@ -318,15 +366,27 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
         setCurrentStep(prev => Math.max(prev - 1, 1))
     }
 
+    const addReceivingAccount = (account: ReceivingAccountInput) => {
+        updateFormData('receiving_accounts', [...formData.receiving_accounts, account])
+    }
+
+    const removeReceivingAccount = (index: number) => {
+        updateFormData('receiving_accounts', formData.receiving_accounts.filter((_, i) => i !== index))
+    }
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        if (currentStep !== 4) {
+        if (currentStep !== TOTAL_STEPS) {
             setError('Completa todos los pasos y usa "Enviar a revisión" en la pantalla final.')
             return
         }
 
         if (!validateStep(3)) return
+        if (!validateStep(4)) {
+            setCurrentStep(4)
+            return
+        }
 
         setLoading(true)
         setError(null)
@@ -433,16 +493,40 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                 }
             }
 
+            // Cuentas para recibir (campañas crisis): se guardan una a una vía
+            // API para reutilizar la validación server-side. Si alguna falla,
+            // no se pierde la campaña: se avisa y se puede completar después.
+            const isCrisis = campaign.campaign_type === 'crisis'
+            let accountsSaved = 0
+            let accountsFailed = 0
+            if (isCrisis && formData.receiving_accounts.length > 0) {
+                for (const account of formData.receiving_accounts) {
+                    try {
+                        const res = await fetch(`/api/campaigns/${campaign.id}/crisis-accounts`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(account),
+                        })
+                        if (res.ok) accountsSaved += 1
+                        else accountsFailed += 1
+                    } catch {
+                        accountsFailed += 1
+                    }
+                }
+            }
+
             // El borrador ya se convirtió en campaña: limpiarlo.
             try { localStorage.removeItem(DRAFT_KEY) } catch { /* noop */ }
             setDraftRestored(false)
 
-            setSuccess('Tu campaña fue enviada a revisión de seguridad. Este proceso toma entre 24 y 48 horas antes de activarse para donaciones.')
-
-            // Redirect after success
-            setTimeout(() => {
-                router.push('/creator/campaigns')
-            }, 2000)
+            setCreated({
+                id: campaign.id,
+                title: campaign.title,
+                isCrisis,
+                accountsSaved,
+                accountsFailed,
+            })
+            requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'smooth' }))
 
         } catch (err) {
             console.error('Campaign creation error:', err)
@@ -468,10 +552,143 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
         critical: 'Emergencia inmediata con alta prioridad.',
     }
 
+    const isVerified = profile.kyc_status === 'verified'
+
+    // Pantalla de "¿y ahora qué?": en vez de redirigir a ciegas, dejamos claro
+    // qué quedó listo, qué falta (cuentas, KYC) y qué sigue (revisión).
+    if (created) {
+        const accountsOk = !created.isCrisis || (created.accountsSaved > 0 && created.accountsFailed === 0)
+        const checklist: { key: string; done: boolean; pending?: boolean; title: string; body: string; action?: React.ReactNode }[] = [
+            {
+                key: 'campaign',
+                done: true,
+                title: 'Campaña creada',
+                body: `"${created.title}" quedó guardada y enviada a revisión.`,
+            },
+            created.isCrisis
+                ? {
+                    key: 'accounts',
+                    done: accountsOk,
+                    title: accountsOk
+                        ? `Cuentas para recibir: ${created.accountsSaved} lista${created.accountsSaved === 1 ? '' : 's'}`
+                        : created.accountsFailed > 0
+                            ? `No pudimos guardar ${created.accountsFailed} cuenta${created.accountsFailed === 1 ? '' : 's'}`
+                            : 'Falta agregar tus cuentas para recibir',
+                    body: accountsOk
+                        ? 'Los donantes verán estos datos para pagarte directo. Puedes agregar o cambiar cuentas cuando quieras.'
+                        : 'Sin cuentas nadie puede donarte. Agrégalas ahora, toma un minuto.',
+                    action: (
+                        <Button size="sm" variant={accountsOk ? 'outline' : 'default'} asChild>
+                            <Link href={`/creator/campaigns/${created.id}/crisis`}>
+                                <Wallet className="mr-2 h-4 w-4" />
+                                {accountsOk ? 'Ver mis cuentas' : 'Agregar cuentas'}
+                            </Link>
+                        </Button>
+                    ),
+                }
+                : {
+                    key: 'withdrawal',
+                    done: hasWithdrawalAccounts,
+                    title: hasWithdrawalAccounts ? 'Cuenta de retiro configurada' : 'Configura una cuenta de retiro',
+                    body: hasWithdrawalAccounts
+                        ? 'Cuando recaudes, podrás solicitar retiros a esa cuenta desde "Mis campañas".'
+                        : 'Es donde te enviaremos lo recaudado. Puedes hacerlo ahora o antes de tu primer retiro.',
+                    action: !hasWithdrawalAccounts ? (
+                        <Button size="sm" asChild>
+                            <Link href="/profile">
+                                <Wallet className="mr-2 h-4 w-4" />
+                                Agregar cuenta de retiro
+                            </Link>
+                        </Button>
+                    ) : undefined,
+                },
+            {
+                key: 'kyc',
+                done: isVerified,
+                title: isVerified ? 'Identidad verificada' : 'Verifica tu identidad',
+                body: isVerified
+                    ? 'Tu campaña puede activarse en cuanto pase la revisión.'
+                    : 'Sin verificación tu campaña no se activa ni recibe donaciones. Sube tu cédula en tu perfil.',
+                action: !isVerified ? (
+                    <Button size="sm" variant="outline" asChild>
+                        <Link href="/profile">
+                            <ShieldCheck className="mr-2 h-4 w-4" />
+                            Verificar identidad
+                        </Link>
+                    </Button>
+                ) : undefined,
+            },
+            {
+                key: 'review',
+                done: false,
+                pending: true,
+                title: 'Revisión del equipo LaVaca',
+                body: 'Revisamos cada campaña a mano. Suele tomar entre 24 y 48 horas; te avisamos por correo y en tus notificaciones cuando esté activa.',
+            },
+        ]
+
+        return (
+            <div className="space-y-6" role="status" aria-live="polite">
+                <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 md:p-6">
+                    <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                            <Check className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                            <h2 className="text-xl font-bold">¡Tu campaña fue enviada!</h2>
+                            <p className="mt-1 text-sm text-foreground/80">
+                                {accountsOk
+                                    ? 'Ya está casi todo listo. Esto es lo que sigue:'
+                                    : 'Queda un paso importante antes de que puedas recibir donaciones:'}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <ol className="space-y-3">
+                    {checklist.map((item) => (
+                        <li
+                            key={item.key}
+                            className={cn(
+                                'flex items-start gap-3 rounded-xl border p-4',
+                                item.done ? 'bg-card' : item.pending ? 'bg-muted/30' : 'border-accent/40 bg-accent/10'
+                            )}
+                        >
+                            {item.done ? (
+                                <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-label="Listo" />
+                            ) : item.pending ? (
+                                <Clock className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" aria-label="Pendiente" />
+                            ) : (
+                                <Circle className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-label="Falta" />
+                            )}
+                            <div className="min-w-0 flex-1 space-y-2">
+                                <p className="font-medium leading-tight">{item.title}</p>
+                                <p className="text-sm text-foreground/75">{item.body}</p>
+                                {item.action}
+                            </div>
+                        </li>
+                    ))}
+                </ol>
+
+                <div className="flex flex-col gap-2 border-t pt-4 sm:flex-row sm:justify-end">
+                    <Button variant="outline" asChild>
+                        <Link href={`/creator/campaigns/${created.id}/edit`}>Editar campaña</Link>
+                    </Button>
+                    <Button asChild>
+                        <Link href="/creator/campaigns">
+                            Ir a mis campañas
+                            <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                    </Button>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="space-y-8">
             {/* Progress Steps */}
-            <div className="rounded-xl border bg-muted/30 p-4 md:p-5">
+            <div id="campaign-steps" className="scroll-mt-24 rounded-xl border bg-muted/30 p-4 md:p-5">
                 {/* Conectores flexibles (flex-1) y círculos shrink-0: la fila
                     se adapta de 320px en adelante sin desbordarse. */}
                 <div className="flex items-center" aria-hidden="true">
@@ -513,13 +730,17 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                 </Alert>
             )}
 
-            {success && (
-                <Alert className="border-primary/30 bg-primary/5">
-                    <AlertDescription className="text-foreground">{success}</AlertDescription>
-                </Alert>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form
+                onSubmit={handleSubmit}
+                className="space-y-6"
+                onKeyDown={(e) => {
+                    // Enter en un input no debe "enviar a revisión" a medio camino:
+                    // solo el botón de la pantalla final envía.
+                    if (e.key === 'Enter' && currentStep < TOTAL_STEPS && (e.target as HTMLElement).tagName === 'INPUT') {
+                        e.preventDefault()
+                    }
+                }}
+            >
                 {/* Step 1: Basic Information */}
                 {currentStep === 1 && (
                     <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
@@ -708,7 +929,7 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                         {/* Modo crisis forzado: todas las campañas nacen en crisis, sin selector */}
                         {crisisForced && (
                             <div className="rounded-md border border-orange-200 dark:border-orange-900 bg-orange-50/50 dark:bg-orange-950/20 px-3 py-2 text-xs text-foreground/80">
-                                <span className="font-medium">Modo crisis activo:</span> por la emergencia, tu campaña
+                                <span className="font-medium"></span> por la emergencia, tu campaña
                                 se creará en modo crisis. Podrás publicar tus propias cuentas para recibir pagos
                                 directos y la plataforma no cobra comisión por estas campañas.
                             </div>
@@ -959,8 +1180,156 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                     </div>
                 )}
 
-                {/* Step 4: Review */}
+                {/* Step 4: Cómo recibir el dinero */}
                 {currentStep === 4 && (
+                    <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
+                        {isCrisisCampaign ? (
+                            <>
+                                <div className="space-y-1">
+                                    <h3 className="flex items-center gap-2 text-lg font-semibold">
+                                        <Wallet className="h-5 w-5 text-primary" />
+                                        ¿Dónde te van a pagar?
+                                    </h3>
+                                    <p className="text-sm text-foreground/75">
+                                        En esta campaña los donantes te pagan <strong>directo a tu cuenta</strong> y tú confirmas
+                                        cada pago. Estos datos se mostrarán públicamente en tu campaña.{' '}
+                                        <strong>Sin al menos una cuenta, nadie puede donarte.</strong>
+                                    </p>
+                                </div>
+
+                                {fieldErrors.receiving_accounts && (
+                                    <Alert variant="destructive" id="receiving-accounts-error">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <AlertDescription>{fieldErrors.receiving_accounts}</AlertDescription>
+                                    </Alert>
+                                )}
+
+                                {formData.receiving_accounts.length > 0 ? (
+                                    <div className="space-y-2">
+                                        <p className="text-sm font-medium">
+                                            Cuentas agregadas ({formData.receiving_accounts.length})
+                                        </p>
+                                        <ul className="space-y-2">
+                                            {formData.receiving_accounts.map((account, index) => (
+                                                <li key={`${account.account_type}-${index}`}>
+                                                    <ReceivingAccountItem
+                                                        account={account}
+                                                        actions={
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+                                                                onClick={() => removeReceivingAccount(index)}
+                                                                aria-label={`Quitar cuenta ${RECEIVING_ACCOUNT_LABEL[account.account_type]}`}
+                                                                disabled={loading}
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        }
+                                                    />
+                                                </li>
+                                            ))}
+                                        </ul>
+                                        <p className="text-xs text-muted-foreground">
+                                            Tip: PagoMóvil + Zelle cubre a casi todos los donantes. Puedes agregar más.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="rounded-lg border border-dashed border-accent/50 bg-accent/5 p-4 text-sm">
+                                        <p className="font-medium">Aún no has agregado ninguna cuenta.</p>
+                                        <p className="mt-1 text-foreground/75">
+                                            Empieza por PagoMóvil: es lo que más usan los donantes en Venezuela.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="rounded-lg border bg-muted/30 p-4">
+                                    <p className="mb-3 text-sm font-medium">
+                                        {formData.receiving_accounts.length > 0 ? 'Agregar otra cuenta' : 'Agregar cuenta'}
+                                    </p>
+                                    <ReceivingAccountForm
+                                        defaultHolderName={profile.full_name || ''}
+                                        onAdd={addReceivingAccount}
+                                        submitting={loading}
+                                        submitLabel="Agregar a la lista"
+                                    />
+                                </div>
+
+                                <p className="text-xs text-muted-foreground">
+                                    Agrega solo cuentas a tu nombre o de un familiar de confianza. LaVaca no intermedia ni
+                                    custodia estos pagos; tú los confirmas desde tu panel.
+                                </p>
+                            </>
+                        ) : (
+                            <>
+                                <div className="space-y-1">
+                                    <h3 className="flex items-center gap-2 text-lg font-semibold">
+                                        <Wallet className="h-5 w-5 text-primary" />
+                                        ¿Cómo recibirás lo recaudado?
+                                    </h3>
+                                    <p className="text-sm text-foreground/75">
+                                        Las donaciones entran a LaVaca (tarjeta, PayPal, PagoMóvil, Zelle, cripto) y luego
+                                        las retiras a una cuenta tuya. Necesitas al menos una cuenta de retiro para cobrar.
+                                    </p>
+                                </div>
+
+                                {hasWithdrawalAccounts ? (
+                                    <div className="flex items-start gap-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                                        <div className="text-sm">
+                                            <p className="font-medium">Ya tienes una cuenta de retiro configurada</p>
+                                            <p className="mt-1 text-foreground/75">
+                                                Podrás solicitar retiros desde "Mis campañas" cuando tengas saldo.{' '}
+                                                <Link href="/profile" target="_blank" className="font-medium text-primary underline">
+                                                    Ver o cambiar cuentas
+                                                </Link>
+                                            </p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3 rounded-lg border border-accent/40 bg-accent/10 p-4">
+                                        <div className="flex items-start gap-3">
+                                            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-accent" />
+                                            <div className="text-sm">
+                                                <p className="font-medium">Todavía no tienes una cuenta de retiro</p>
+                                                <p className="mt-1 text-foreground/75">
+                                                    Puedes seguir y enviar tu campaña ahora. Para retirar el dinero necesitarás
+                                                    registrar una cuenta (PagoMóvil, banco en Bs, Zelle, PayPal o cripto) en tu perfil.
+                                                    Tu borrador se guarda solo, así que puedes ir y volver sin perder nada.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Button type="button" variant="outline" size="sm" asChild>
+                                            <Link href="/profile" target="_blank" rel="noopener noreferrer">
+                                                Configurar cuenta de retiro
+                                                <ExternalLink className="ml-2 h-3.5 w-3.5" />
+                                            </Link>
+                                        </Button>
+                                    </div>
+                                )}
+
+                                <div className="grid gap-3 text-sm sm:grid-cols-3">
+                                    <div className="rounded-lg border bg-muted/30 p-3">
+                                        <p className="font-medium">1. Donan</p>
+                                        <p className="text-xs text-muted-foreground">El donante paga con el método que tenga a mano.</p>
+                                    </div>
+                                    <div className="rounded-lg border bg-muted/30 p-3">
+                                        <p className="font-medium">2. Se acredita</p>
+                                        <p className="text-xs text-muted-foreground">Ves tu saldo en Bs y en USD por separado.</p>
+                                    </div>
+                                    <div className="rounded-lg border bg-muted/30 p-3">
+                                        <p className="font-medium">3. Retiras</p>
+                                        <p className="text-xs text-muted-foreground">Solicitas el retiro a tu cuenta y te lo enviamos.</p>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
+
+                {/* Step 5: Review */}
+                {currentStep === 5 && (
                     <div className="space-y-6 rounded-xl border bg-card p-4 md:p-6">
                         <Card>
                             <CardHeader>
@@ -1012,6 +1381,51 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                                         <p className="text-sm">{formData.support_documents.length} archivos</p>
                                     </div>
                                 </div>
+
+                                <Separator />
+
+                                {/* Cómo recibirás el dinero: visible en el resumen para que
+                                    nadie envíe la campaña sin darse cuenta de que falta. */}
+                                <div
+                                    className={cn(
+                                        'rounded-lg border p-3',
+                                        isCrisisCampaign && formData.receiving_accounts.length === 0
+                                            ? 'border-accent/50 bg-accent/10'
+                                            : 'bg-muted/30'
+                                    )}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <Label className="text-xs text-muted-foreground">Cómo recibirás el dinero</Label>
+                                            {isCrisisCampaign ? (
+                                                formData.receiving_accounts.length > 0 ? (
+                                                    <ul className="mt-1 space-y-1 text-sm">
+                                                        {formData.receiving_accounts.map((a, i) => (
+                                                            <li key={i} className="flex items-center gap-2">
+                                                                <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />
+                                                                <span className="font-medium">{RECEIVING_ACCOUNT_LABEL[a.account_type]}</span>
+                                                                <span className="truncate text-muted-foreground">{receivingAccountSummary(a)}</span>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                ) : (
+                                                    <p className="mt-1 text-sm font-medium text-foreground">
+                                                        Sin cuentas: nadie podrá donarte hasta que agregues una.
+                                                    </p>
+                                                )
+                                            ) : (
+                                                <p className="mt-1 text-sm">
+                                                    {hasWithdrawalAccounts
+                                                        ? 'Retiros a tu cuenta configurada en el perfil.'
+                                                        : 'Aún sin cuenta de retiro. Podrás configurarla en tu perfil antes de cobrar.'}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setCurrentStep(4)} disabled={loading || uploading}>
+                                            {isCrisisCampaign && formData.receiving_accounts.length === 0 ? 'Agregar' : 'Editar'}
+                                        </Button>
+                                    </div>
+                                </div>
                             </CardContent>
                         </Card>
 
@@ -1060,7 +1474,7 @@ export function CreateCampaignForm({ profile, categories, crisisEnabled = false,
                         Anterior
                     </Button>
 
-                    {currentStep < 4 ? (
+                    {currentStep < TOTAL_STEPS ? (
                         <Button
                             type="button"
                             onClick={nextStep}

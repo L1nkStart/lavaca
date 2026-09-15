@@ -72,6 +72,23 @@ export async function GET() {
             throw error;
         }
 
+        // Cuentas activas para recibir por campaña crisis: el admin debe ver
+        // si va a activar una campaña a la que nadie puede donar.
+        const crisisIds = (data || [])
+            .filter((c: any) => c.campaign_type === "crisis")
+            .map((c: any) => c.id);
+        const activeAccountsById = new Map<string, number>();
+        if (crisisIds.length > 0) {
+            const { data: accountRows } = await adminSupabase
+                .from("campaign_crisis_accounts")
+                .select("campaign_id")
+                .in("campaign_id", crisisIds)
+                .eq("is_active", true);
+            for (const row of accountRows || []) {
+                activeAccountsById.set(row.campaign_id, (activeAccountsById.get(row.campaign_id) || 0) + 1);
+            }
+        }
+
         const normalized = (data || []).map((campaign: any) => ({
             ...campaign,
             users: Array.isArray(campaign.users) ? campaign.users[0] : campaign.users,
@@ -80,6 +97,9 @@ export async function GET() {
                 : campaign.categories
                     ? [campaign.categories]
                     : [],
+            crisis_accounts_count: campaign.campaign_type === "crisis"
+                ? (activeAccountsById.get(campaign.id) || 0)
+                : null,
         }));
 
         return NextResponse.json({ campaigns: normalized });

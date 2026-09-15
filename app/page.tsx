@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CampaignCard } from "@/components/campaign-card";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
+import { LAVACA_SUPPORT_CAMPAIGN_ID, isLavacaCampaign } from "@/lib/lavaca-campaign";
 import {
   ArrowRight,
   BadgeCheck,
@@ -87,9 +88,7 @@ export default async function Home() {
   // tabla `campaigns` tiene dos FKs hacia `users` (`creator_id` y
   // `reviewed_by`). Hay que ser explícito con !campaigns_creator_id_fkey,
   // sino PostgREST devuelve error y el array queda vacío.
-  const { data: campaigns, error: campaignsError } = await supabase
-    .from('campaigns')
-    .select(`
+  const campaignSelect = `
       id,
       title,
       story,
@@ -106,10 +105,25 @@ export default async function Home() {
         full_name,
         kyc_status
       )
-    `)
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(3)
+    `
+
+  // La campaña propia de LaVaca (sostiene la plataforma) va fija de primera;
+  // las otras dos son las más recientes.
+  const [{ data: pinnedCampaign }, { data: campaigns, error: campaignsError }] = await Promise.all([
+    supabase
+      .from('campaigns')
+      .select(campaignSelect)
+      .eq('id', LAVACA_SUPPORT_CAMPAIGN_ID)
+      .eq('status', 'active')
+      .maybeSingle(),
+    supabase
+      .from('campaigns')
+      .select(campaignSelect)
+      .eq('status', 'active')
+      .neq('id', LAVACA_SUPPORT_CAMPAIGN_ID)
+      .order('created_at', { ascending: false })
+      .limit(3),
+  ])
 
   if (campaignsError) {
     console.error('[home] error fetching featured campaigns:', campaignsError)
@@ -118,7 +132,10 @@ export default async function Home() {
   // PostgREST devuelve categories/users como objeto (FK única explícita),
   // pero la inferencia de tipos de Supabase los asume array; el cast alinea
   // el tipo con la forma real en runtime.
-  const featuredCampaigns = (campaigns ?? []) as unknown as Campaign[]
+  const featuredCampaigns = [
+    ...(pinnedCampaign ? [pinnedCampaign] : []),
+    ...(campaigns ?? []),
+  ].slice(0, 3) as unknown as Campaign[]
 
   // Conteo real de donaciones completadas por campaña destacada, para no
   // mostrar "0 donantes" junto a un monto recaudado (contradice la confianza).
@@ -329,6 +346,7 @@ export default async function Home() {
                   goalAmount={campaign.goal_amount_usd}
                   raisedAmount={campaign.current_amount_usd}
                   openEnded={Boolean((campaign as any).is_open_ended)}
+                  pinned={isLavacaCampaign(campaign.id)}
                   category={campaign.categories?.name || 'General'}
                   creator={campaign.users?.full_name || 'Creador anónimo'}
                   verified={campaign.users?.kyc_status === 'verified'}

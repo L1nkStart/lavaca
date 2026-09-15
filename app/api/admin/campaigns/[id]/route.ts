@@ -38,7 +38,7 @@ async function assertAdmin() {
 
 export async function PATCH(
     request: NextRequest,
-    { params }: { params: { id: string } },
+    { params }: { params: Promise<{ id: string }> },
 ) {
     try {
         const adminCheck = await assertAdmin();
@@ -47,7 +47,7 @@ export async function PATCH(
             return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
         }
 
-        const { id } = params;
+        const { id } = await params;
         const body = await request.json();
         const newStatus = body?.status as string | undefined;
         const newCampaignType = body?.campaign_type as string | undefined;
@@ -154,7 +154,7 @@ export async function PATCH(
 
 export async function DELETE(
     _request: NextRequest,
-    { params }: { params: { id: string } },
+    { params }: { params: Promise<{ id: string }> },
 ) {
     try {
         const adminCheck = await assertAdmin();
@@ -163,7 +163,7 @@ export async function DELETE(
             return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status });
         }
 
-        const { id } = params;
+        const { id } = await params;
         const adminSupabase = createAdminClient();
 
         const { data: campaign, error: campaignError } = await adminSupabase

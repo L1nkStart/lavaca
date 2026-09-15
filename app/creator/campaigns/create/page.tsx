@@ -40,6 +40,14 @@ export default async function CreateCampaignPage() {
         .order('order_index', { ascending: true })
         .order('name', { ascending: true })
 
+    // ¿Ya tiene cuentas de retiro? (campañas normales). Sirve para que el paso
+    // "Cómo recibir el dinero" muestre el estado real en vez de suponer.
+    const { count: withdrawalAccountsCount } = await supabase
+        .from('withdrawal_accounts')
+        .select('id', { count: 'exact', head: true })
+        .eq('creator_id', user.id)
+    const hasWithdrawalAccounts = (withdrawalAccountsCount || 0) > 0
+
     // Modo crisis global: solo si está habilitado se ofrece el tipo "Crisis".
     // Si está forzado, todas las campañas nacen en crisis y se oculta el selector.
     let crisisEnabled = false
@@ -111,6 +119,7 @@ export default async function CreateCampaignPage() {
                             categories={categories || []}
                             crisisEnabled={crisisEnabled}
                             crisisForced={crisisForced}
+                            hasWithdrawalAccounts={hasWithdrawalAccounts}
                         />
                     </CardContent>
                 </Card>
@@ -144,6 +153,20 @@ export default async function CreateCampaignPage() {
                                 <h4 className="font-medium text-primary">✓ Evidencia visual</h4>
                                 <p className="text-sm text-muted-foreground">
                                     Incluye fotos y documentos que respalden tu causa.
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <h4 className="font-medium text-primary">✓ Cuentas listas para recibir</h4>
+                                <p className="text-sm text-muted-foreground">
+                                    {crisisEnabled
+                                        ? 'Ten a mano tu PagoMóvil (banco, teléfono y cédula) o tu Zelle: sin cuenta, nadie puede donarte.'
+                                        : 'Registra una cuenta de retiro en tu perfil para cobrar lo recaudado sin demoras.'}
+                                </p>
+                            </div>
+                            <div className="space-y-2">
+                                <h4 className="font-medium text-primary">✓ Comparte por WhatsApp</h4>
+                                <p className="text-sm text-muted-foreground">
+                                    Las campañas que se comparten en grupos familiares y de trabajo el primer día recaudan mucho más.
                                 </p>
                             </div>
                         </div>

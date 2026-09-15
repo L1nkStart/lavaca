@@ -6,7 +6,7 @@ type Decision = "approved" | "rejected";
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } },
+    { params }: { params: Promise<{ id: string }> },
 ) {
     try {
         const param = await params;

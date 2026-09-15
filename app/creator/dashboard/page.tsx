@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart, Wallet, Banknote, TrendingDown } from 'lucide-react';
+import { TrendingUp, Users, DollarSign, AlertCircle, Eye, PlusCircle, Clock, FileText, Heart, Wallet, Banknote, TrendingDown, HandHeart } from 'lucide-react';
 import { getBalancesForCampaigns } from '@/lib/balances';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { formatBs, formatUsd } from '@/lib/format';
 import { ExchangeRateChart } from '@/components/exchange-rate-chart';
 
@@ -52,14 +53,48 @@ export default async function CreatorDashboard() {
 
   const { data: allCampaignsRaw } = await supabase
     .from('campaigns')
-    .select('id, title, status, current_amount_usd, goal_amount_usd, is_open_ended, donor_count, view_count, created_at, updated_at')
+    .select('id, title, status, campaign_type, current_amount_usd, goal_amount_usd, is_open_ended, donor_count, view_count, created_at, updated_at')
     .eq('creator_id', user.id)
     .order('created_at', { ascending: false })
 
-  const allCampaigns = (allCampaignsRaw || []) as CampaignRow[]
+  const allCampaigns = (allCampaignsRaw || []) as (CampaignRow & { campaign_type?: string })[]
   const recentCampaigns = allCampaigns.slice(0, 5)
 
   const campaignIds = allCampaigns.map(campaign => campaign.id)
+
+  // Pendientes de acción del creador en campañas crisis: pagos directos por
+  // confirmar y campañas activas sin ninguna cuenta para recibir.
+  const crisisCampaigns = allCampaigns.filter((c) => c.campaign_type === 'crisis')
+  let pendingDirectPayments = 0
+  const crisisWithoutAccounts: { id: string; title: string }[] = []
+  if (crisisCampaigns.length > 0) {
+    try {
+      const adminSupabase = createAdminClient()
+      const ids = crisisCampaigns.map((c) => c.id)
+      const [{ count: pendingCount }, { data: accountRows }] = await Promise.all([
+        adminSupabase
+          .from('donations')
+          .select('id', { count: 'exact', head: true })
+          .in('campaign_id', ids)
+          .eq('is_direct', true)
+          .eq('payment_status', 'pending'),
+        adminSupabase
+          .from('campaign_crisis_accounts')
+          .select('campaign_id')
+          .in('campaign_id', ids)
+          .eq('is_active', true),
+      ])
+      pendingDirectPayments = pendingCount || 0
+      const withAccounts = new Set((accountRows || []).map((r) => r.campaign_id))
+      for (const c of crisisCampaigns) {
+        if (!withAccounts.has(c.id) && c.status !== 'rejected' && c.status !== 'closed' && c.status !== 'completed') {
+          crisisWithoutAccounts.push({ id: c.id, title: c.title })
+        }
+      }
+    } catch (e) {
+      console.error('[creator/dashboard] no se pudo leer pendientes de crisis:', e)
+    }
+  }
 
   const { data: donationAggregateRows } = campaignIds.length > 0
     ? await supabase
@@ -285,6 +320,55 @@ export default async function CreatorDashboard() {
         </div>
 
         <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+          {/* Lo que requiere tu acción hoy */}
+          {pendingDirectPayments > 0 && (
+            <Card className="border-orange-300 bg-orange-50/70 dark:bg-orange-950/30 dark:border-orange-800">
+              <CardContent className="pt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="flex items-start gap-4 flex-1">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-500 text-white">
+                    <HandHeart className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      {pendingDirectPayments} pago{pendingDirectPayments === 1 ? '' : 's'} esperando tu confirmación
+                    </h3>
+                    <p className="text-sm text-foreground/80 mt-1">
+                      Alguien registró un pago directo a tu cuenta. Revisa tu banco y confírmalo para que sume a la barra.
+                    </p>
+                  </div>
+                </div>
+                <Button className="bg-orange-500 hover:bg-orange-600 text-white sm:shrink-0 min-h-[44px]" asChild>
+                  <Link href="/creator/donations?status=pending">Confirmar pagos</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {crisisWithoutAccounts.length > 0 && (
+            <Card className="border-accent/50 bg-accent/10">
+              <CardContent className="pt-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div className="flex items-start gap-4 flex-1">
+                  <Wallet className="w-5 h-5 text-accent flex-shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">
+                      {crisisWithoutAccounts.length === 1
+                        ? `"${crisisWithoutAccounts[0].title}" no tiene cuentas para recibir`
+                        : `${crisisWithoutAccounts.length} campañas sin cuentas para recibir`}
+                    </h3>
+                    <p className="text-sm text-foreground/80 mt-1">
+                      Nadie puede donarte hasta que agregues un PagoMóvil, Zelle u otra cuenta. Toma un minuto.
+                    </p>
+                  </div>
+                </div>
+                <Button className="sm:shrink-0 min-h-[44px]" asChild>
+                  <Link href={crisisWithoutAccounts.length === 1 ? `/creator/campaigns/${crisisWithoutAccounts[0].id}/crisis` : '/creator/campaigns'}>
+                    Agregar cuentas
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Status Cards */}
           {!profileVerified && (
             <Card className="border-accent/40 bg-accent/10">
@@ -295,7 +379,7 @@ export default async function CreatorDashboard() {
                     Verifica tu identidad
                   </h3>
                   <p className="text-sm text-foreground mt-1">
-                    Completa tu perfil y verifica tu identidad para crear campañas.
+                    Sin verificación tus campañas no se activan ni reciben donaciones. Sube tu cédula: toma dos minutos.
                   </p>
                   <Button size="sm" className="mt-3" asChild>
                     <Link href="/profile">Completar ahora</Link>

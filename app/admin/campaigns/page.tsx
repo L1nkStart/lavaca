@@ -29,6 +29,8 @@ interface Campaign {
     story: string
     status: string
     campaign_type?: string
+    /** Cuentas activas para recibir (solo campañas crisis; null en normales). */
+    crisis_accounts_count?: number | null
     goal_amount_usd: number
     current_amount_usd: number
     main_image_url: string | null
@@ -126,6 +128,16 @@ export default function AdminCampaignsPage() {
                     'Si activas esta campaña podrá recibir donaciones sin que el organizador haya completado la verificación de identidad. ' +
                     'Esto aumenta el riesgo de fraude y va en contra del flujo recomendado.\n\n' +
                     'Lo correcto es verificar primero al creador. ¿Aun así deseas activarla bajo tu responsabilidad?'
+                if (!confirm(warning)) return
+            }
+            // Aviso: campaña crisis sin cuentas para recibir. Activarla así
+            // publica una campaña a la que nadie puede donar.
+            if (target?.campaign_type === 'crisis' && (target.crisis_accounts_count ?? 0) === 0) {
+                const warning =
+                    '⚠️ ESTA CAMPAÑA CRISIS NO TIENE CUENTAS PARA RECIBIR PAGOS.\n\n' +
+                    'Si la activas, los donantes verán "el organizador aún no publicó sus cuentas" y no podrán donar. ' +
+                    'Lo ideal es pedirle al creador que agregue al menos una cuenta (PagoMóvil, Zelle, etc.) antes de activarla.\n\n' +
+                    '¿Activarla de todos modos?'
                 if (!confirm(warning)) return
             }
         }
@@ -399,6 +411,9 @@ export default function AdminCampaignsPage() {
                                                         {getStatusBadge(campaign.status)}
                                                         {campaign.campaign_type === 'crisis' && (
                                                             <Badge className="bg-orange-500">Crisis</Badge>
+                                                        )}
+                                                        {campaign.campaign_type === 'crisis' && (campaign.crisis_accounts_count ?? 0) === 0 && (
+                                                            <Badge variant="destructive">Sin cuentas para recibir</Badge>
                                                         )}
                                                         {campaign.users?.kyc_status !== 'verified' && (
                                                             <Badge variant="destructive">Creador sin verificar</Badge>

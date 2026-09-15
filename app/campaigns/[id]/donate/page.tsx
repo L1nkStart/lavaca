@@ -92,7 +92,7 @@ export default function DonatePage() {
             {isCrisis ? (
               /* Campaña crisis: SOLO pago directo al organizador. No se admite
                  el checkout normal de plataforma (aunque haya métodos configurados). */
-              <CrisisDirectDonate campaignId={campaignId} showEmptyState />
+              <CrisisDirectDonate campaignId={campaignId} campaignTitle={campaignTitle} showEmptyState />
             ) : (
               <DonationCheckout
                 campaignId={campaignId}

@@ -27,6 +27,8 @@ interface CampaignCardProps {
   donorCount: number;
   /** Campaña sin meta fija: no se muestra barra ni objetivo. */
   openEnded?: boolean;
+  /** Campaña propia de LaVaca (sostiene la plataforma): va fija de primera. */
+  pinned?: boolean;
 }
 
 export function CampaignCard({
@@ -42,11 +44,14 @@ export function CampaignCard({
   guarantor,
   donorCount,
   openEnded = false,
+  pinned = false,
 }: CampaignCardProps) {
   const progressPercent = goalAmount > 0 ? (raisedAmount / goalAmount) * 100 : 0;
 
   return (
-    <Card className="group relative flex h-full flex-col overflow-hidden transition-shadow hover:shadow-lg">
+    <Card
+      className={`group relative flex h-full flex-col overflow-hidden transition-shadow hover:shadow-lg ${pinned ? "border-primary/40" : ""}`}
+    >
       {/* Image Container */}
       <div className="relative h-48 w-full overflow-hidden bg-muted">
         <Image
@@ -55,6 +60,12 @@ export function CampaignCard({
           fill
           className="object-cover transition-transform duration-300 group-hover:scale-105"
         />
+        {pinned && (
+          <div className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-primary px-2 py-1 text-primary-foreground">
+            <Heart className="h-3.5 w-3.5 fill-current" />
+            <span className="text-xs font-semibold">Mantiene LaVaca</span>
+          </div>
+        )}
         {verified && (
           <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-primary px-2 py-1 text-primary-foreground">
             <CheckCircle2 className="h-4 w-4" />

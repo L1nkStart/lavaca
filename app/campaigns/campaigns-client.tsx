@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { isLavacaCampaign } from '@/lib/lavaca-campaign';
 
 interface Campaign {
     id: string;
@@ -174,6 +175,7 @@ export default function CampaignsClient({
         goalAmount: campaign.goal_amount_usd,
         raisedAmount: campaign.current_amount_usd,
         openEnded: Boolean((campaign as any).is_open_ended),
+        pinned: isLavacaCampaign(campaign.id),
         category: campaign.categories?.name || 'Sin categoría',
         creator: campaign.users.full_name,
         verified: campaign.users.kyc_status === 'verified',

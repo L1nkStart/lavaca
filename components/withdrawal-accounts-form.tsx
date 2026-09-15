@@ -264,7 +264,10 @@ export function WithdrawalAccountsForm({ profile, accounts }: WithdrawalAccounts
         }
     }
 
-    const canAddAccounts = profile.role === 'creator' || profile.role === 'admin'
+    // Cualquier usuario autenticado puede registrar sus cuentas (la política
+    // RLS solo exige creator_id = auth.uid()). Antes se bloqueaba a quien aún
+    // era "donor", que es justo quien está por crear su primera campaña.
+    const canAddAccounts = Boolean(profile?.id)
 
     if (!canAddAccounts) {
         return (

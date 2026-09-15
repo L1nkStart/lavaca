@@ -6,7 +6,13 @@ import { refreshExchangeRate } from '@/lib/exchange-rate';
 
 const STATIC_FALLBACK_RATE = 43.02;
 
-async function tryFreezeRate(sessionId: string) {
+type RateResult = {
+  rate: number;
+  expiresAt: string;
+  source: 'frozen' | 'refreshed-fallback' | 'latest-rate-fallback' | 'static-fallback';
+};
+
+async function tryFreezeRate(sessionId: string): Promise<RateResult | null> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -18,9 +24,9 @@ async function tryFreezeRate(sessionId: string) {
 
   if (!error && (data as any)?.rate) {
     return {
-      rate: (data as any).rate,
-      expiresAt: (data as any).expires_at,
-      source: 'frozen' as const,
+      rate: Number((data as any).rate),
+      expiresAt: String((data as any).expires_at),
+      source: 'frozen',
     };
   }
   return null;
@@ -54,7 +60,7 @@ export async function GET(_request: NextRequest) {
     }
 
     // 1) Intento normal: freeze sobre la tasa activa.
-    let result = await tryFreezeRate(sessionId!);
+    let result: RateResult | null = await tryFreezeRate(sessionId!);
 
     // 2) Si falla, suele ser porque la tasa expiró. Refrescamos desde Binance
     //    automáticamente y reintentamos. Esto evita depender de un cron job

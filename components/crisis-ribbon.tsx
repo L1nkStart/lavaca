@@ -25,7 +25,7 @@ export function CrisisRibbon() {
             <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-center gap-2 text-center text-xs sm:text-sm font-medium">
                 <ShieldAlert className="h-4 w-4 shrink-0" />
                 <span>
-                    Modo crisis activo: LaVaca <strong>no cobra ninguna comisión</strong> por las campañas
+                    LaVaca <strong>no cobra ninguna comisión</strong> por las campañas
                     creadas. El 100% de tu aporte llega a quien lo necesita.
                 </span>
             </div>

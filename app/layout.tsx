@@ -5,6 +5,7 @@ import { Navbar } from '@/components/navbar'
 import './globals.css'
 import { Footer } from '@/components/footer'
 import { CrisisRibbon } from '@/components/crisis-ribbon'
+import { Toaster } from '@/components/ui/sonner'
 
 const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' });
 const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono' });
@@ -32,6 +33,9 @@ export default function RootLayout({
         {children}
         <Analytics />
         <Footer />
+        {/* Avisos breves (pago confirmado, cuenta guardada…). Sin esto, los
+            toast que ya usaban admin y garantes no se mostraban. */}
+        <Toaster position="top-center" richColors closeButton />
       </body>
     </html>
   )

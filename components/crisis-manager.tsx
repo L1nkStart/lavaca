@@ -1,29 +1,47 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, Plus, Trash2, CheckCircle2, XCircle, Wallet, ExternalLink, Clock } from 'lucide-react'
-import { formatBs, formatUsd } from '@/lib/fees'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+    Loader2,
+    Plus,
+    Trash2,
+    CheckCircle2,
+    XCircle,
+    Wallet,
+    ExternalLink,
+    HandHeart,
+    ChevronDown,
+    Copy,
+    Check,
+    FileText,
+    Bell,
+} from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
+import { es } from 'date-fns/locale'
+import { toast } from 'sonner'
+import { formatBs, formatUsd } from '@/lib/format'
+import { cn } from '@/lib/utils'
+import { ReceivingAccountForm, ReceivingAccountItem } from '@/components/receiving-account-form'
+import { RECEIVING_ACCOUNT_LABEL, receivingAccountSummary, type ReceivingAccountInput, type ReceivingAccountType } from '@/lib/venezuela'
 
-type CrisisAccount = {
+type CrisisAccount = ReceivingAccountInput & {
     id: string
-    account_type: 'pagomovil' | 'zelle' | 'transfer' | 'crypto'
-    account_holder_name: string
-    phone_number: string | null
-    ci_number: string | null
-    bank_name: string | null
-    email: string | null
-    account_number: string | null
-    crypto_wallet_address: string | null
-    crypto_network: string | null
     is_active: boolean
 }
 
@@ -40,50 +58,45 @@ type DirectDonation = {
     is_anonymous: boolean
     payment_status: string
     created_at: string
+    confirmed_at: string | null
+    crisis_account_id: string | null
 }
 
-const ACCOUNT_LABEL: Record<CrisisAccount['account_type'], string> = {
-    pagomovil: 'PagoMóvil',
-    zelle: 'Zelle',
-    transfer: 'Transferencia bancaria',
-    crypto: 'Cripto / Binance',
+interface CrisisManagerProps {
+    campaignId: string
+    isCrisis: boolean
+    /** Nombre del perfil para prellenar "Titular". */
+    defaultHolderName?: string
 }
 
-const EMPTY_FORM = {
-    account_type: 'pagomovil' as CrisisAccount['account_type'],
-    account_holder_name: '',
-    phone_number: '',
-    ci_number: '',
-    bank_name: '',
-    email: '',
-    account_number: '',
-    crypto_wallet_address: '',
-    crypto_network: '',
-    instructions: '',
-}
+const isImageUrl = (url: string) => /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url)
 
-export function CrisisManager({ campaignId, isCrisis }: { campaignId: string; isCrisis: boolean }) {
+export function CrisisManager({ campaignId, isCrisis, defaultHolderName = '' }: CrisisManagerProps) {
     const [accounts, setAccounts] = useState<CrisisAccount[]>([])
     const [donations, setDonations] = useState<DirectDonation[]>([])
     const [loading, setLoading] = useState(true)
-    const [form, setForm] = useState(EMPTY_FORM)
     const [saving, setSaving] = useState(false)
     const [processingId, setProcessingId] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
-    const [success, setSuccess] = useState<string | null>(null)
+    const [showAddForm, setShowAddForm] = useState(false)
+    const [rejectTarget, setRejectTarget] = useState<DirectDonation | null>(null)
+    const [deleteTarget, setDeleteTarget] = useState<CrisisAccount | null>(null)
+    const [historyOpen, setHistoryOpen] = useState(false)
+    const [copiedRef, setCopiedRef] = useState<string | null>(null)
 
     const load = async () => {
         try {
             const [accRes, donRes] = await Promise.all([
                 fetch(`/api/campaigns/${campaignId}/crisis-accounts`, { cache: 'no-store' }),
-                fetch(`/api/campaigns/${campaignId}/direct-donations?status=pending`, { cache: 'no-store' }),
+                fetch(`/api/campaigns/${campaignId}/direct-donations?status=all`, { cache: 'no-store' }),
             ])
             const accData = await accRes.json()
             const donData = await donRes.json()
             if (accRes.ok) setAccounts(accData.accounts || [])
             if (donRes.ok) setDonations(donData.donations || [])
+            if (!accRes.ok || !donRes.ok) setError(accData?.error || donData?.error || 'No se pudieron cargar los datos')
         } catch {
-            setError('No se pudieron cargar los datos')
+            setError('No se pudieron cargar los datos. Revisa tu conexión e intenta de nuevo.')
         } finally {
             setLoading(false)
         }
@@ -91,60 +104,86 @@ export function CrisisManager({ campaignId, isCrisis }: { campaignId: string; is
 
     useEffect(() => {
         load()
-    }, [])
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [campaignId])
 
-    const update = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }))
+    const pending = useMemo(() => donations.filter((d) => d.payment_status === 'pending'), [donations])
+    const history = useMemo(
+        () => donations.filter((d) => d.payment_status !== 'pending').slice(0, 15),
+        [donations]
+    )
+    const activeAccounts = accounts.filter((a) => a.is_active)
+    const accountById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
 
-    const addAccount = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const addAccount = async (account: ReceivingAccountInput) => {
         setError(null)
-        setSuccess(null)
         setSaving(true)
         try {
             const response = await fetch(`/api/campaigns/${campaignId}/crisis-accounts`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(form),
+                body: JSON.stringify(account),
             })
             const result = await response.json()
             if (!response.ok) throw new Error(result?.error || 'No se pudo agregar la cuenta')
-            setForm(EMPTY_FORM)
-            setSuccess('Cuenta agregada')
+            toast.success('Cuenta agregada', { description: 'Los donantes ya pueden verla en tu campaña.' })
+            setShowAddForm(false)
             await load()
         } catch (err: any) {
             setError(err.message)
+            throw err
         } finally {
             setSaving(false)
         }
     }
 
     const toggleActive = async (account: CrisisAccount) => {
-        await fetch(`/api/campaigns/${campaignId}/crisis-accounts/${account.id}`, {
+        // Optimista: el switch responde al toque, y si falla se revierte.
+        setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, is_active: !a.is_active } : a)))
+        const res = await fetch(`/api/campaigns/${campaignId}/crisis-accounts/${account.id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_active: !account.is_active }),
         })
+        if (!res.ok) {
+            setAccounts((prev) => prev.map((a) => (a.id === account.id ? { ...a, is_active: account.is_active } : a)))
+            toast.error('No se pudo cambiar la visibilidad de la cuenta')
+            return
+        }
+        toast.success(account.is_active ? 'Cuenta oculta a los donantes' : 'Cuenta visible para los donantes')
+    }
+
+    const deleteAccount = async () => {
+        if (!deleteTarget) return
+        const target = deleteTarget
+        setDeleteTarget(null)
+        const res = await fetch(`/api/campaigns/${campaignId}/crisis-accounts/${target.id}`, { method: 'DELETE' })
+        if (!res.ok) {
+            toast.error('No se pudo eliminar la cuenta')
+            return
+        }
+        toast.success('Cuenta eliminada')
         await load()
     }
 
-    const deleteAccount = async (account: CrisisAccount) => {
-        if (!confirm('¿Eliminar esta cuenta de recepción?')) return
-        await fetch(`/api/campaigns/${campaignId}/crisis-accounts/${account.id}`, { method: 'DELETE' })
-        await load()
-    }
-
-    const resolveDonation = async (donationId: string, action: 'confirm' | 'reject') => {
-        if (action === 'reject' && !confirm('¿Rechazar este pago? No sumará a la campaña.')) return
-        setProcessingId(donationId)
+    const resolveDonation = async (donation: DirectDonation, action: 'confirm' | 'reject') => {
+        setProcessingId(donation.id)
+        setError(null)
         try {
-            const response = await fetch(`/api/campaigns/${campaignId}/direct-donations/${donationId}`, {
+            const response = await fetch(`/api/campaigns/${campaignId}/direct-donations/${donation.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action }),
             })
             const result = await response.json()
             if (!response.ok) throw new Error(result?.error || 'No se pudo procesar')
-            setSuccess(action === 'confirm' ? 'Pago confirmado: sumó a tu campaña.' : 'Pago rechazado.')
+            if (action === 'confirm') {
+                toast.success(`Pago de ${money(donation)} confirmado`, {
+                    description: 'Ya suma a la barra de tu campaña.',
+                })
+            } else {
+                toast('Pago rechazado', { description: 'No sumará a la campaña.' })
+            }
             await load()
         } catch (err: any) {
             setError(err.message)
@@ -156,169 +195,394 @@ export function CrisisManager({ campaignId, isCrisis }: { campaignId: string; is
     const money = (d: DirectDonation) =>
         d.currency === 'BS' && d.amount_bs != null ? formatBs(Number(d.amount_bs)) : formatUsd(Number(d.amount_usd))
 
+    const secondaryMoney = (d: DirectDonation) =>
+        d.currency === 'BS' && d.amount_bs != null ? `≈ ${formatUsd(Number(d.amount_usd))}` : null
+
+    const copyRef = async (ref: string) => {
+        try {
+            await navigator.clipboard.writeText(ref)
+            setCopiedRef(ref)
+            setTimeout(() => setCopiedRef(null), 1500)
+        } catch {
+            // sin portapapeles: nada que hacer
+        }
+    }
+
+    const whereItLanded = (d: DirectDonation) => {
+        const acc = d.crisis_account_id ? accountById.get(d.crisis_account_id) : null
+        if (acc) return `${RECEIVING_ACCOUNT_LABEL[acc.account_type]} · ${receivingAccountSummary(acc)}`
+        return RECEIVING_ACCOUNT_LABEL[d.payment_method as ReceivingAccountType] || d.payment_method
+    }
+
+    const timeAgo = (iso: string) => {
+        try {
+            return formatDistanceToNow(new Date(iso), { addSuffix: true, locale: es })
+        } catch {
+            return ''
+        }
+    }
+
     if (loading) {
         return (
-            <div className="flex justify-center py-10">
+            <div className="flex justify-center py-10" role="status" aria-label="Cargando">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         )
     }
 
-    return (
-        <div className="space-y-6">
-            {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-            {success && <Alert><AlertDescription>{success}</AlertDescription></Alert>}
+    const noAccounts = accounts.length === 0
+    const noActiveAccounts = !noAccounts && activeAccounts.length === 0
 
-            {/* PAGOS POR CONFIRMAR */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Wallet className="h-5 w-5 text-orange-500" />
-                        Pagos por confirmar ({donations.length})
-                    </CardTitle>
-                    <CardDescription>
-                        Confirma los pagos que recibiste para que suban a la barra de tu campaña. Solo confirma
-                        los que de verdad llegaron a tu cuenta.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    {!isCrisis ? (
-                        <p className="text-sm text-muted-foreground">El pago directo se activa cuando la campaña está en modo crisis.</p>
-                    ) : donations.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">No tienes pagos pendientes por confirmar.</p>
-                    ) : (
-                        donations.map((d) => (
-                            <div key={d.id} className="rounded-lg border p-4 space-y-3">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                        <p className="font-semibold text-lg">{money(d)}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {d.is_anonymous ? 'Donante anónimo' : (d.donor_name || 'Donante')} · {d.email}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                            {ACCOUNT_LABEL[d.payment_method as CrisisAccount['account_type']] || d.payment_method}
-                                            {' · '}Ref: <span className="font-mono">{d.reference_number || '—'}</span>
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">{new Date(d.created_at).toLocaleString('es-VE')}</p>
-                                    </div>
-                                    {d.capture_url && (
-                                        <a href={d.capture_url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1 shrink-0">
-                                            Comprobante <ExternalLink className="h-3 w-3" />
-                                        </a>
-                                    )}
-                                </div>
-                                <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => resolveDonation(d.id, 'confirm')} disabled={processingId === d.id}>
-                                        {processingId === d.id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                                        Confirmar
-                                    </Button>
-                                    <Button size="sm" variant="outline" onClick={() => resolveDonation(d.id, 'reject')} disabled={processingId === d.id}>
-                                        <XCircle className="h-4 w-4 mr-2" />
-                                        Rechazar
-                                    </Button>
-                                </div>
-                            </div>
-                        ))
+    /* ---------------- Sección: cuentas ---------------- */
+    const accountsSection = (
+        <Card className={cn(noAccounts && isCrisis && 'border-accent/50')}>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <Wallet className="h-5 w-5 text-primary" />
+                    Mis cuentas para recibir
+                    {!noAccounts && (
+                        <Badge variant="secondary" className="ml-1">{activeAccounts.length} visible{activeAccounts.length === 1 ? '' : 's'}</Badge>
                     )}
-                </CardContent>
-            </Card>
-
-            {/* MIS CUENTAS PARA RECIBIR */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Mis cuentas para recibir</CardTitle>
-                    <CardDescription>
-                        Estos son los datos que verán los donantes para pagarte directo. Agrega solo cuentas tuyas y verificadas.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    {accounts.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Aún no agregaste cuentas para recibir.</p>
-                    ) : (
-                        <div className="space-y-2">
+                </CardTitle>
+                <CardDescription>
+                    Estos datos se muestran a los donantes para que te paguen directo. Agrega solo cuentas tuyas.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {noAccounts ? (
+                    <div className="rounded-lg border border-dashed border-accent/50 bg-accent/5 p-4">
+                        <p className="font-medium">Tu campaña todavía no puede recibir donaciones</p>
+                        <p className="mt-1 text-sm text-foreground/75">
+                            Nadie puede pagarte hasta que agregues al menos una cuenta. Empieza por PagoMóvil, es lo que
+                            más usan los donantes.
+                        </p>
+                    </div>
+                ) : (
+                    <>
+                        {noActiveAccounts && (
+                            <Alert className="border-accent/40 bg-accent/10">
+                                <AlertDescription className="text-foreground">
+                                    Todas tus cuentas están ocultas: los donantes no ven ninguna. Activa al menos una.
+                                </AlertDescription>
+                            </Alert>
+                        )}
+                        <ul className="space-y-2">
                             {accounts.map((a) => (
-                                <div key={a.id} className="rounded-lg border p-3 flex items-start justify-between gap-3">
-                                    <div className="text-sm">
-                                        <p className="font-medium flex items-center gap-2">
-                                            {ACCOUNT_LABEL[a.account_type]}
-                                            {!a.is_active && <Badge variant="secondary" className="text-[10px]"><Clock className="h-3 w-3 mr-1" /> Inactiva</Badge>}
+                                <li key={a.id}>
+                                    <ReceivingAccountItem
+                                        account={a}
+                                        copyable
+                                        actions={
+                                            <>
+                                                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <span className="hidden sm:inline">{a.is_active ? 'Visible' : 'Oculta'}</span>
+                                                    <Switch
+                                                        checked={a.is_active}
+                                                        onCheckedChange={() => toggleActive(a)}
+                                                        aria-label={a.is_active ? 'Ocultar cuenta a los donantes' : 'Mostrar cuenta a los donantes'}
+                                                    />
+                                                </label>
+                                                <Button
+                                                    size="sm"
+                                                    variant="ghost"
+                                                    className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive"
+                                                    onClick={() => setDeleteTarget(a)}
+                                                    aria-label="Eliminar cuenta"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            </>
+                                        }
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                    </>
+                )}
+
+                {noAccounts || showAddForm ? (
+                    <div className="rounded-lg border bg-muted/30 p-4">
+                        <div className="mb-3 flex items-center justify-between">
+                            <p className="text-sm font-medium">{noAccounts ? 'Agregar mi primera cuenta' : 'Nueva cuenta'}</p>
+                            {!noAccounts && (
+                                <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddForm(false)}>
+                                    Cancelar
+                                </Button>
+                            )}
+                        </div>
+                        <ReceivingAccountForm
+                            defaultHolderName={defaultHolderName}
+                            onAdd={addAccount}
+                            submitting={saving}
+                            submitLabel="Guardar cuenta"
+                        />
+                    </div>
+                ) : (
+                    <Button type="button" variant="outline" onClick={() => setShowAddForm(true)} className="min-h-[44px]">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Agregar otra cuenta
+                    </Button>
+                )}
+            </CardContent>
+        </Card>
+    )
+
+    /* ---------------- Sección: pagos por confirmar ---------------- */
+    const pendingSection = (
+        <Card className={cn(pending.length > 0 && 'border-orange-300 dark:border-orange-800')}>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    <HandHeart className="h-5 w-5 text-orange-500" />
+                    Pagos por confirmar
+                    {pending.length > 0 && (
+                        <Badge className="ml-1 bg-orange-500 text-white hover:bg-orange-500">{pending.length}</Badge>
+                    )}
+                </CardTitle>
+                <CardDescription>
+                    Cada pago que registra un donante aparece aquí. Revisa tu banco o tu app y confirma solo los que de verdad
+                    llegaron: al confirmar, el monto sube a la barra de tu campaña.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {!isCrisis ? (
+                    <p className="text-sm text-muted-foreground">
+                        El pago directo se activa cuando la campaña está en modo crisis.
+                    </p>
+                ) : pending.length === 0 ? (
+                    <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">
+                        <Bell className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div>
+                            <p className="font-medium">No tienes pagos pendientes</p>
+                            <p className="text-muted-foreground">
+                                Cuando alguien registre un pago te avisamos aquí y en la campana de notificaciones.
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    pending.map((d) => {
+                        const busy = processingId === d.id
+                        const hasImage = !!d.capture_url && isImageUrl(d.capture_url)
+                        return (
+                            <div key={d.id} className="rounded-lg border bg-card p-4">
+                                <div className="flex gap-4">
+                                    {/* Comprobante: la imagen a la vista, no un enlace escondido */}
+                                    {d.capture_url ? (
+                                        <a
+                                            href={d.capture_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="group relative block h-24 w-20 shrink-0 overflow-hidden rounded-md border bg-muted"
+                                            aria-label="Abrir comprobante en otra pestaña"
+                                        >
+                                            {hasImage ? (
+                                                // eslint-disable-next-line @next/next/no-img-element
+                                                <img
+                                                    src={d.capture_url}
+                                                    alt="Comprobante de pago"
+                                                    loading="lazy"
+                                                    className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                                                />
+                                            ) : (
+                                                <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground">
+                                                    <FileText className="h-6 w-6" />
+                                                    PDF
+                                                </span>
+                                            )}
+                                            <span className="absolute bottom-1 right-1 rounded bg-background/90 p-0.5">
+                                                <ExternalLink className="h-3 w-3" />
+                                            </span>
+                                        </a>
+                                    ) : (
+                                        <div className="flex h-24 w-20 shrink-0 items-center justify-center rounded-md border border-dashed bg-muted/40 text-center text-[10px] text-muted-foreground">
+                                            Sin comprobante
+                                        </div>
+                                    )}
+
+                                    <div className="min-w-0 flex-1 space-y-1">
+                                        <div className="flex flex-wrap items-baseline gap-x-2">
+                                            <p className="font-mono text-2xl font-bold leading-none text-primary">{money(d)}</p>
+                                            {secondaryMoney(d) && (
+                                                <p className="font-mono text-xs text-muted-foreground">{secondaryMoney(d)}</p>
+                                            )}
+                                        </div>
+                                        <p className="text-sm">
+                                            <span className="font-medium">{d.is_anonymous ? 'Donante anónimo' : (d.donor_name || 'Donante')}</span>
+                                            {d.email && <span className="text-muted-foreground"> · {d.email}</span>}
                                         </p>
-                                        <p className="text-xs text-muted-foreground">{a.account_holder_name}</p>
                                         <p className="text-xs text-muted-foreground">
-                                            {a.account_type === 'pagomovil' && `${a.bank_name || ''} · ${a.phone_number || ''} · ${a.ci_number || ''}`}
-                                            {a.account_type === 'zelle' && a.email}
-                                            {a.account_type === 'transfer' && `${a.bank_name || ''} · ${a.account_number || ''}`}
-                                            {a.account_type === 'crypto' && `${a.crypto_network || ''} · ${a.crypto_wallet_address || ''}`}
+                                            A tu <span className="font-medium text-foreground">{whereItLanded(d)}</span>
                                         </p>
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                                            <span className="inline-flex items-center gap-1">
+                                                Ref:{' '}
+                                                <span className="font-mono text-foreground">{d.reference_number || '—'}</span>
+                                                {d.reference_number && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => copyRef(d.reference_number!)}
+                                                        className="rounded p-0.5 hover:text-primary"
+                                                        aria-label="Copiar referencia"
+                                                    >
+                                                        {copiedRef === d.reference_number ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                                                    </button>
+                                                )}
+                                            </span>
+                                            <span title={new Date(d.created_at).toLocaleString('es-VE')}>{timeAgo(d.created_at)}</span>
+                                        </div>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        <Switch checked={a.is_active} onCheckedChange={() => toggleActive(a)} />
-                                        <Button size="sm" variant="ghost" onClick={() => deleteAccount(a)}>
-                                            <Trash2 className="h-4 w-4" />
+                                </div>
+
+                                <div className="mt-3 flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center">
+                                    <p className="text-sm text-foreground/80 sm:flex-1">¿Este pago llegó a tu cuenta?</p>
+                                    <div className="flex gap-2">
+                                        <Button
+                                            size="sm"
+                                            className="min-h-[44px] flex-1 sm:flex-none sm:min-w-[140px]"
+                                            onClick={() => resolveDonation(d, 'confirm')}
+                                            disabled={busy}
+                                        >
+                                            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                                            Sí, confirmar
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="min-h-[44px] flex-1 sm:flex-none"
+                                            onClick={() => setRejectTarget(d)}
+                                            disabled={busy}
+                                        >
+                                            <XCircle className="mr-2 h-4 w-4" />
+                                            No llegó
                                         </Button>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+                            </div>
+                        )
+                    })
+                )}
+            </CardContent>
+        </Card>
+    )
 
-                    {/* Form nueva cuenta */}
-                    <form onSubmit={addAccount} className="space-y-3 border-t pt-4">
-                        <p className="font-medium text-sm">Agregar cuenta</p>
-                        <div className="grid sm:grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                                <Label>Tipo</Label>
-                                <Select value={form.account_type} onValueChange={(v) => update('account_type', v)}>
-                                    <SelectTrigger><SelectValue /></SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="pagomovil">PagoMóvil</SelectItem>
-                                        <SelectItem value="zelle">Zelle</SelectItem>
-                                        <SelectItem value="transfer">Transferencia bancaria</SelectItem>
-                                        <SelectItem value="crypto">Cripto / Binance</SelectItem>
-                                    </SelectContent>
-                                </Select>
+    /* ---------------- Sección: historial ---------------- */
+    const historySection = history.length > 0 && (
+        <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
+            <Card>
+                <CollapsibleTrigger asChild>
+                    <button
+                        type="button"
+                        className="flex w-full items-center justify-between px-6 py-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl"
+                    >
+                        <span>
+                            <span className="font-semibold">Pagos ya revisados</span>
+                            <span className="ml-2 text-sm text-muted-foreground">últimos {history.length}</span>
+                        </span>
+                        <ChevronDown className={cn('h-4 w-4 transition-transform', historyOpen && 'rotate-180')} />
+                    </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                    <CardContent className="space-y-2 pt-0">
+                        {history.map((d) => (
+                            <div key={d.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm">
+                                <div className="min-w-0">
+                                    <p className="truncate">
+                                        <span className="font-mono font-semibold">{money(d)}</span>
+                                        <span className="text-muted-foreground"> · {d.is_anonymous ? 'Anónimo' : (d.donor_name || 'Donante')}</span>
+                                    </p>
+                                    <p className="truncate text-xs text-muted-foreground">
+                                        Ref: <span className="font-mono">{d.reference_number || '—'}</span> · {timeAgo(d.confirmed_at || d.created_at)}
+                                    </p>
+                                </div>
+                                {d.payment_status === 'completed' ? (
+                                    <Badge className="shrink-0 bg-primary">
+                                        <CheckCircle2 className="mr-1 h-3 w-3" /> Confirmado
+                                    </Badge>
+                                ) : (
+                                    <Badge variant="destructive" className="shrink-0">Rechazado</Badge>
+                                )}
                             </div>
-                            <div className="space-y-1">
-                                <Label>Titular</Label>
-                                <Input value={form.account_holder_name} onChange={(e) => update('account_holder_name', e.target.value)} placeholder="Nombre del titular" />
-                            </div>
-                        </div>
-
-                        {form.account_type === 'pagomovil' && (
-                            <div className="grid sm:grid-cols-3 gap-3">
-                                <div className="space-y-1"><Label>Banco</Label><Input value={form.bank_name} onChange={(e) => update('bank_name', e.target.value)} placeholder="0102 - Banco de Venezuela" /></div>
-                                <div className="space-y-1"><Label>Teléfono</Label><Input value={form.phone_number} onChange={(e) => update('phone_number', e.target.value)} placeholder="04121234567" /></div>
-                                <div className="space-y-1"><Label>Cédula</Label><Input value={form.ci_number} onChange={(e) => update('ci_number', e.target.value)} placeholder="V-12345678" /></div>
-                            </div>
-                        )}
-                        {form.account_type === 'zelle' && (
-                            <div className="space-y-1"><Label>Correo Zelle</Label><Input value={form.email} onChange={(e) => update('email', e.target.value)} placeholder="correo@ejemplo.com" /></div>
-                        )}
-                        {form.account_type === 'transfer' && (
-                            <div className="grid sm:grid-cols-2 gap-3">
-                                <div className="space-y-1"><Label>Banco</Label><Input value={form.bank_name} onChange={(e) => update('bank_name', e.target.value)} placeholder="Banco" /></div>
-                                <div className="space-y-1"><Label>Número de cuenta</Label><Input value={form.account_number} onChange={(e) => update('account_number', e.target.value)} placeholder="0102-..." /></div>
-                            </div>
-                        )}
-                        {form.account_type === 'crypto' && (
-                            <div className="grid sm:grid-cols-2 gap-3">
-                                <div className="space-y-1"><Label>Red</Label><Input value={form.crypto_network} onChange={(e) => update('crypto_network', e.target.value)} placeholder="USDT (TRC20)" /></div>
-                                <div className="space-y-1"><Label>Wallet</Label><Input value={form.crypto_wallet_address} onChange={(e) => update('crypto_wallet_address', e.target.value)} placeholder="Dirección de la wallet" /></div>
-                            </div>
-                        )}
-
-                        <div className="space-y-1">
-                            <Label>Instrucciones (opcional)</Label>
-                            <Textarea rows={2} value={form.instructions} onChange={(e) => update('instructions', e.target.value)} placeholder="Ej: coloca tu nombre en el concepto" />
-                        </div>
-
-                        <Button type="submit" disabled={saving}>
-                            {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plus className="h-4 w-4 mr-2" />}
-                            Agregar cuenta
-                        </Button>
-                    </form>
-                </CardContent>
+                        ))}
+                    </CardContent>
+                </CollapsibleContent>
             </Card>
+        </Collapsible>
+    )
+
+    return (
+        <div className="space-y-6">
+            {error && (
+                <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+
+            {/* Orden según lo que urge: sin cuentas → primero cuentas; con cuentas → primero pagos. */}
+            {noAccounts ? (
+                <>
+                    {accountsSection}
+                    {pendingSection}
+                </>
+            ) : (
+                <>
+                    {pendingSection}
+                    {accountsSection}
+                </>
+            )}
+            {historySection}
+
+            {/* Rechazar pago */}
+            <AlertDialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Rechazar este pago?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {rejectTarget && (
+                                <>
+                                    El pago de <strong>{money(rejectTarget)}</strong>
+                                    {rejectTarget.reference_number && <> (ref. {rejectTarget.reference_number})</>} no sumará a
+                                    tu campaña. Hazlo solo si revisaste tu cuenta y el dinero no llegó.
+                                </>
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Volver</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-destructive text-white hover:bg-destructive/90"
+                            onClick={() => {
+                                const target = rejectTarget
+                                setRejectTarget(null)
+                                if (target) resolveDonation(target, 'reject')
+                            }}
+                        >
+                            Sí, rechazar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Eliminar cuenta */}
+            <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar esta cuenta?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {deleteTarget && (
+                                <>
+                                    {RECEIVING_ACCOUNT_LABEL[deleteTarget.account_type]} · {receivingAccountSummary(deleteTarget)}.
+                                    Los donantes dejarán de verla. Si solo quieres pausarla, usa el interruptor "Visible".
+                                </>
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction className="bg-destructive text-white hover:bg-destructive/90" onClick={deleteAccount}>
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

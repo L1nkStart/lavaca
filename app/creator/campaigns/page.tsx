@@ -23,7 +23,8 @@ import {
   XCircle,
   Trophy,
   Camera,
-  ShieldAlert
+  Wallet,
+  HandHeart
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -122,6 +123,43 @@ export default async function CreatorCampaignsPage() {
   } catch {
     crisisEnabled = false
   }
+
+  // Estado de "recibir dinero" por campaña crisis: cuántas cuentas activas
+  // tiene y cuántos pagos directos esperan confirmación. Es lo que más se
+  // olvida, así que se muestra en la tarjeta y no escondido en otra pantalla.
+  const activeAccountsByCampaign = new Map<string, number>()
+  const pendingDirectByCampaign = new Map<string, number>()
+  const crisisCampaignIds = (campaigns || [])
+    .filter((c: Campaign) => c.campaign_type === 'crisis')
+    .map((c: Campaign) => c.id)
+  if (crisisCampaignIds.length > 0) {
+    try {
+      const adminSupabase = createAdminClient()
+      const [{ data: accountRows }, { data: pendingRows }] = await Promise.all([
+        adminSupabase
+          .from('campaign_crisis_accounts')
+          .select('campaign_id')
+          .in('campaign_id', crisisCampaignIds)
+          .eq('is_active', true),
+        adminSupabase
+          .from('donations')
+          .select('campaign_id')
+          .in('campaign_id', crisisCampaignIds)
+          .eq('is_direct', true)
+          .eq('payment_status', 'pending'),
+      ])
+      for (const row of accountRows || []) {
+        activeAccountsByCampaign.set(row.campaign_id, (activeAccountsByCampaign.get(row.campaign_id) || 0) + 1)
+      }
+      for (const row of pendingRows || []) {
+        pendingDirectByCampaign.set(row.campaign_id, (pendingDirectByCampaign.get(row.campaign_id) || 0) + 1)
+      }
+    } catch (e) {
+      console.error('[creator/campaigns] no se pudo leer cuentas/pagos directos:', e)
+    }
+  }
+  const totalPendingDirect = Array.from(pendingDirectByCampaign.values()).reduce((a, b) => a + b, 0)
+  const campaignsWithoutAccounts = crisisCampaignIds.filter((id) => !activeAccountsByCampaign.get(id))
 
   // Get campaign statistics
   const stats = {
@@ -280,11 +318,26 @@ export default async function CreatorCampaignsPage() {
             </Alert>
           )}
 
-          {crisisEnabled && (
-            <Alert className="border-accent/40 bg-accent/10">
+          {/* Lo urgente arriba: pagos esperando tu confirmación y campañas sin cuenta. */}
+          {totalPendingDirect > 0 && (
+            <Alert className="border-orange-300 bg-orange-50/70 dark:bg-orange-950/30 dark:border-orange-800">
+              <HandHeart className="h-4 w-4 text-orange-600" />
+              <AlertDescription className="text-foreground">
+                Tienes <strong>{totalPendingDirect} pago{totalPendingDirect === 1 ? '' : 's'} por confirmar</strong>.
+                Hasta que los confirmes no suman a la barra de tu campaña.{' '}
+                <Link href="/creator/donations?status=pending" className="underline font-medium">Confirmar ahora</Link>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {campaignsWithoutAccounts.length > 0 && (
+            <Alert className="border-accent/50 bg-accent/10">
               <AlertCircle className="h-4 w-4 text-accent" />
               <AlertDescription className="text-foreground">
-                Recuerda mantener tus cuentas de donaciones actualizadas para poder recibir tus fondos. (Haz click sobre "Verificar pagos" para ver tus cuentas.)
+                {campaignsWithoutAccounts.length === 1
+                  ? 'Una de tus campañas no tiene cuentas para recibir: nadie puede donarle hasta que agregues una.'
+                  : `${campaignsWithoutAccounts.length} de tus campañas no tienen cuentas para recibir: nadie puede donarles hasta que agregues una.`}{' '}
+                Busca el botón <strong>Agregar cuentas</strong> abajo.
               </AlertDescription>
             </Alert>
           )}
@@ -373,14 +426,39 @@ export default async function CreatorCampaignsPage() {
                                   Editar
                                 </Link>
                               </Button>
-                              {campaign.campaign_type === 'crisis' && (
-                                <Button size="sm" className="flex-1 md:flex-none bg-orange-500 hover:bg-orange-600 text-white" asChild>
-                                  <Link href={`/creator/campaigns/${campaign.id}/crisis`}>
-                                    <ShieldAlert className="h-4 w-4 mr-1" />
-                                    Verificar pagos
-                                  </Link>
-                                </Button>
-                              )}
+                              {campaign.campaign_type === 'crisis' && (() => {
+                                const pendingCount = pendingDirectByCampaign.get(campaign.id) || 0
+                                const accountCount = activeAccountsByCampaign.get(campaign.id) || 0
+                                // El botón dice lo que toca hacer: agregar cuentas, confirmar N pagos, o gestionar.
+                                if (accountCount === 0) {
+                                  return (
+                                    <Button size="sm" className="flex-1 md:flex-none" asChild>
+                                      <Link href={`/creator/campaigns/${campaign.id}/crisis`}>
+                                        <Wallet className="h-4 w-4 mr-1" />
+                                        Agregar cuentas
+                                      </Link>
+                                    </Button>
+                                  )
+                                }
+                                if (pendingCount > 0) {
+                                  return (
+                                    <Button size="sm" className="flex-1 md:flex-none bg-orange-500 hover:bg-orange-600 text-white" asChild>
+                                      <Link href={`/creator/campaigns/${campaign.id}/crisis`}>
+                                        <HandHeart className="h-4 w-4 mr-1" />
+                                        Confirmar {pendingCount} pago{pendingCount === 1 ? '' : 's'}
+                                      </Link>
+                                    </Button>
+                                  )
+                                }
+                                return (
+                                  <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
+                                    <Link href={`/creator/campaigns/${campaign.id}/crisis`}>
+                                      <Wallet className="h-4 w-4 mr-1" />
+                                      Pagos y cuentas
+                                    </Link>
+                                  </Button>
+                                )
+                              })()}
                               {campaign.status === 'active' && (
                                 <Button size="sm" variant="outline" className="flex-1 md:flex-none" asChild>
                                   <Link href={`/campaigns/${campaign.id}`} target="_blank">
@@ -458,14 +536,41 @@ export default async function CreatorCampaignsPage() {
                             {/* Saldos por moneda + retiros. Las campañas crisis
                                 no usan saldo ni retiros (reciben pago directo). */}
                             {crisisEnabled && campaign.campaign_type === 'crisis' ? (
-                              <Alert className="border-orange-200 bg-orange-50/50 dark:bg-orange-950/20 dark:border-orange-800">
-                                <ShieldAlert className="h-4 w-4 text-orange-600" />
-                                <AlertDescription className="text-sm">
-                                  Campaña en modo crisis: las donaciones llegan directo a tus cuentas, así que
-                                  no hay saldo en la plataforma ni retiros. Confirma los pagos en{' '}
-                                  <Link href={`/creator/campaigns/${campaign.id}/crisis`} className="underline font-medium">Modo crisis</Link>.
-                                </AlertDescription>
-                              </Alert>
+                              (() => {
+                                const accountCount = activeAccountsByCampaign.get(campaign.id) || 0
+                                const pendingCount = pendingDirectByCampaign.get(campaign.id) || 0
+                                if (accountCount === 0) {
+                                  return (
+                                    <Alert className="border-accent/50 bg-accent/10">
+                                      <AlertCircle className="h-4 w-4 text-accent" />
+                                      <AlertDescription className="text-sm text-foreground">
+                                        <strong>Sin cuentas para recibir.</strong> Los donantes no tienen dónde pagarte.{' '}
+                                        <Link href={`/creator/campaigns/${campaign.id}/crisis`} className="underline font-medium">
+                                          Agregar PagoMóvil, Zelle u otra cuenta
+                                        </Link>{' '}
+                                        toma un minuto.
+                                      </AlertDescription>
+                                    </Alert>
+                                  )
+                                }
+                                return (
+                                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-orange-200 bg-orange-50/50 px-3 py-2 text-sm dark:border-orange-800 dark:bg-orange-950/20">
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <Wallet className="h-4 w-4 text-orange-600" />
+                                      {accountCount} cuenta{accountCount === 1 ? '' : 's'} para recibir
+                                    </span>
+                                    <span className="inline-flex items-center gap-1.5">
+                                      <HandHeart className="h-4 w-4 text-orange-600" />
+                                      {pendingCount === 0
+                                        ? 'Sin pagos pendientes'
+                                        : `${pendingCount} pago${pendingCount === 1 ? '' : 's'} por confirmar`}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      Los pagos llegan directo a ti: no hay saldo ni retiros en la plataforma.
+                                    </span>
+                                  </div>
+                                )
+                              })()
                             ) : (
                               <CampaignBalancePanel
                                 campaignId={campaign.id}

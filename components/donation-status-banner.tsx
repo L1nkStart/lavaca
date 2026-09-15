@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { useSearchParams, useRouter, usePathname, useParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { SupportLavacaModal, shouldShowSupportModal } from "@/components/support-lavaca-modal";
+import { isLavacaCampaign } from "@/lib/lavaca-campaign";
 import {
     CheckCircle2,
     Clock,
@@ -32,9 +34,12 @@ export function DonationStatusBanner() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const pathname = usePathname();
+    const routeParams = useParams<{ id?: string }>();
     const [dismissed, setDismissed] = useState(false);
+    const [supportOpen, setSupportOpen] = useState(false);
 
     const status = (searchParams.get("donation") as Status) || null;
+    const campaignId = typeof routeParams?.id === "string" ? routeParams.id : null;
 
     useEffect(() => {
         // Si el usuario navega manualmente a otra URL sin el param, reseteamos
@@ -42,7 +47,20 @@ export function DonationStatusBanner() {
         if (!status) setDismissed(false);
     }, [status]);
 
-    if (!status || dismissed) return null;
+    // Justo después de donar (pago confirmado o en revisión) invitamos a
+    // apoyar a LaVaca, salvo que la donación fuera a la propia campaña de
+    // LaVaca. Una sola vez por donación aunque se recargue la página.
+    useEffect(() => {
+        if (status !== "success" && status !== "pending") return;
+        if (!campaignId || isLavacaCampaign(campaignId)) return;
+        if (!shouldShowSupportModal(`banner:${campaignId}:${status}`)) return;
+        const timer = setTimeout(() => setSupportOpen(true), 900);
+        return () => clearTimeout(timer);
+    }, [status, campaignId]);
+
+    const supportModal = <SupportLavacaModal open={supportOpen} onOpenChange={setSupportOpen} />;
+
+    if (!status || dismissed) return supportModal;
 
     const dismiss = () => {
         setDismissed(true);
@@ -55,6 +73,7 @@ export function DonationStatusBanner() {
 
     if (status === "success") {
         return (
+            <>
             <BannerShell
                 variant="success"
                 icon={<CheckCircle2 className="h-5 w-5" />}
@@ -71,11 +90,14 @@ export function DonationStatusBanner() {
                     .
                 </p>
             </BannerShell>
+            {supportModal}
+            </>
         );
     }
 
     if (status === "pending") {
         return (
+            <>
             <BannerShell
                 variant="pending"
                 icon={<Clock className="h-5 w-5" />}
@@ -118,6 +140,8 @@ export function DonationStatusBanner() {
                     </div>
                 </div>
             </BannerShell>
+            {supportModal}
+            </>
         );
     }
 
