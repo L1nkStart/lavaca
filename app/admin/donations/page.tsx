@@ -80,13 +80,13 @@ export default function AdminDonationsHistoryPage() {
     const money = (d: Donation) => d.currency === 'BS' && d.amount_bs != null ? fmtBs(Number(d.amount_bs)) : fmtUsd(Number(d.amount_usd))
 
     return (
-        <div className="flex min-h-screen bg-background">
+        <div className="flex flex-col md:flex-row min-h-screen bg-background">
             <AdminSidebar />
-            <main className="flex-1 overflow-auto">
-                <div className="border-b border-border bg-card sticky top-0 z-40">
+            <main className="flex-1 min-w-0 overflow-auto">
+                <div className="border-b border-border bg-card">
                     <div className="px-4 sm:px-8 py-4 sm:py-6">
-                        <h1 className="text-3xl font-bold">Historial de donaciones</h1>
-                        <p className="text-muted-foreground mt-1">
+                        <h1 className="text-2xl sm:text-3xl font-bold">Historial de donaciones</h1>
+                        <p className="text-sm sm:text-base text-muted-foreground mt-1">
                             Donaciones del método de plataforma (las que apruebas en Pagos manuales), con sus soportes.
                         </p>
                     </div>
@@ -117,14 +117,14 @@ export default function AdminDonationsHistoryPage() {
                     ) : (
                         visible.map((d) => (
                             <Card key={d.id}>
-                                <CardContent className="pt-6">
-                                    <div className="flex items-start justify-between gap-4">
-                                        <div className="space-y-1">
-                                            <p className="font-semibold text-lg flex items-center gap-2">
+                                <CardContent className="pt-6 px-4 sm:px-6">
+                                    <div className="flex flex-col-reverse sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+                                        <div className="min-w-0 space-y-1">
+                                            <p className="font-semibold text-lg flex flex-wrap items-center gap-2">
                                                 {money(d)}
                                                 <Badge variant="outline" className="text-[10px]">{d.payment_method}</Badge>
                                             </p>
-                                            <p className="text-sm text-muted-foreground">
+                                            <p className="text-sm text-muted-foreground break-words">
                                                 {d.campaigns?.title || 'Campaña'}
                                                 {d.campaigns?.slug && (
                                                     <a href={`/campaigns/${d.campaigns.slug}`} target="_blank" rel="noopener noreferrer" className="ml-2 inline-flex items-center gap-1 text-primary hover:underline">
@@ -132,11 +132,11 @@ export default function AdminDonationsHistoryPage() {
                                                     </a>
                                                 )}
                                             </p>
-                                            <p className="text-xs text-muted-foreground">
+                                            <p className="text-xs text-muted-foreground break-all">
                                                 {d.is_anonymous ? 'Donante anónimo' : (d.donor_name || 'Donante')} · {d.email}
                                             </p>
                                             <p className="text-xs text-muted-foreground">
-                                                Ref: <span className="font-mono">{d.reference_number || '—'}</span>
+                                                Ref: <span className="font-mono break-all">{d.reference_number || '—'}</span>
                                                 {' · '}{new Date(d.created_at).toLocaleString('es-VE')}
                                             </p>
                                             {d.capture_url && (
@@ -145,7 +145,7 @@ export default function AdminDonationsHistoryPage() {
                                                 </a>
                                             )}
                                         </div>
-                                        <div className="text-right space-y-1">
+                                        <div className="flex flex-wrap items-center gap-2 sm:block sm:text-right sm:space-y-1 sm:shrink-0">
                                             {statusBadge(d.payment_status)}
                                             {d.completed_at && <p className="text-xs text-muted-foreground">Aprobada: {new Date(d.completed_at).toLocaleDateString('es-VE')}</p>}
                                         </div>

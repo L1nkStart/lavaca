@@ -292,9 +292,9 @@ export default function AdminCampaignsPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen bg-background">
+            <div className="flex flex-col md:flex-row min-h-screen bg-background">
                 <AdminSidebar />
-                <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 min-w-0 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </main>
             </div>
@@ -303,9 +303,9 @@ export default function AdminCampaignsPage() {
 
     if (error) {
         return (
-            <div className="flex min-h-screen bg-background">
+            <div className="flex flex-col md:flex-row min-h-screen bg-background">
                 <AdminSidebar />
-                <main className="flex-1 p-8">
+                <main className="flex-1 min-w-0 p-4 sm:p-8">
                     <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertDescription>Error al cargar campañas: {error}</AlertDescription>
@@ -316,15 +316,15 @@ export default function AdminCampaignsPage() {
     }
 
     return (
-        <div className="flex min-h-screen bg-background">
+        <div className="flex flex-col md:flex-row min-h-screen bg-background">
             <AdminSidebar />
 
-            <main className="flex-1 overflow-auto">
+            <main className="flex-1 min-w-0 overflow-auto">
                 {/* Header */}
-                <div className="border-b border-border bg-card sticky top-0 z-40">
+                <div className="border-b border-border bg-card">
                     <div className="px-4 sm:px-8 py-4 sm:py-6">
-                        <h1 className="text-3xl font-bold">Gestión de Campañas</h1>
-                        <p className="text-muted-foreground mt-1">
+                        <h1 className="text-2xl sm:text-3xl font-bold">Gestión de Campañas</h1>
+                        <p className="text-sm sm:text-base text-muted-foreground mt-1">
                             {filteredCampaigns.length} de {campaigns.length} campañas
                         </p>
                     </div>
@@ -334,7 +334,7 @@ export default function AdminCampaignsPage() {
                     {/* Filters */}
                     <Card>
                         <CardContent className="pt-6">
-                            <div className="grid md:grid-cols-3 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
                                 {/* Search */}
                                 <div className="md:col-span-2">
                                     <div className="relative">
@@ -383,31 +383,31 @@ export default function AdminCampaignsPage() {
                         <div className="space-y-4">
                             {paginatedCampaigns.map((campaign) => (
                                 <Card key={campaign.id}>
-                                    <CardContent className="pt-6">
-                                        <div className="flex gap-4">
+                                    <CardContent className="pt-6 px-4 sm:px-6">
+                                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                                             {/* Image */}
                                             {campaign.main_image_url && (
                                                 <img
                                                     src={campaign.main_image_url}
                                                     alt={campaign.title}
-                                                    className="w-24 h-24 rounded-lg object-cover flex-shrink-0"
+                                                    className="w-full h-36 sm:w-24 sm:h-24 rounded-lg object-cover flex-shrink-0"
                                                 />
                                             )}
 
                                             {/* Content */}
-                                            <div className="flex-1 space-y-3">
+                                            <div className="flex-1 min-w-0 space-y-3">
                                                 {/* Title and Status */}
-                                                <div className="flex items-start justify-between gap-4">
-                                                    <div>
-                                                        <h3 className="font-bold text-lg">{campaign.title}</h3>
+                                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+                                                    <div className="min-w-0">
+                                                        <h3 className="font-bold text-base sm:text-lg break-words">{campaign.title}</h3>
                                                         <p className="text-sm text-muted-foreground">
                                                             Por {campaign.users?.full_name || 'Desconocido'}
                                                         </p>
-                                                        <p className="text-xs text-muted-foreground">
+                                                        <p className="text-xs text-muted-foreground break-all">
                                                             {campaign.users?.email}
                                                         </p>
                                                     </div>
-                                                    <div className="flex flex-col items-end gap-1">
+                                                    <div className="flex flex-row flex-wrap gap-1 sm:flex-col sm:items-end sm:shrink-0">
                                                         {getStatusBadge(campaign.status)}
                                                         {campaign.campaign_type === 'crisis' && (
                                                             <Badge className="bg-orange-500">Crisis</Badge>
@@ -423,7 +423,7 @@ export default function AdminCampaignsPage() {
 
                                                 {/* Progress */}
                                                 <div>
-                                                    <div className="flex justify-between text-sm mb-1">
+                                                    <div className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 text-sm mb-1">
                                                         <span className="font-medium">
                                                             ${campaign.current_amount_usd.toLocaleString()} recaudados
                                                         </span>

@@ -37,7 +37,11 @@ export async function GET() {
 
         const adminSupabase = createAdminClient()
 
-        const [verificationsResult, campaignsResult, paymentsResult, withdrawalsResult, mediaChangesResult] = await Promise.all([
+        // Pagos directos (modo crisis) pendientes hace más de 72 h: el organizador
+        // no ha respondido y LaVaca debería hacer seguimiento/mediar.
+        const staleCutoff = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString()
+
+        const [verificationsResult, campaignsResult, paymentsResult, withdrawalsResult, mediaChangesResult, directStaleResult] = await Promise.all([
             adminSupabase
                 .from("verification_requests")
                 .select("id", { count: "exact", head: true })
@@ -49,7 +53,10 @@ export async function GET() {
             adminSupabase
                 .from("donations")
                 .select("id", { count: "exact", head: true })
-                .eq("payment_status", "pending"),
+                .eq("payment_status", "pending")
+                // Los pagos directos de crisis los confirma el organizador, no
+                // el personal de LaVaca: no cuentan como "Pagos manuales".
+                .eq("is_direct", false),
             adminSupabase
                 .from("withdrawal_requests")
                 .select("id", { count: "exact", head: true })
@@ -58,6 +65,12 @@ export async function GET() {
                 .from("campaign_media_changes")
                 .select("id", { count: "exact", head: true })
                 .eq("status", "pending"),
+            adminSupabase
+                .from("donations")
+                .select("id", { count: "exact", head: true })
+                .eq("is_direct", true)
+                .eq("payment_status", "pending")
+                .lt("created_at", staleCutoff),
         ])
 
         return NextResponse.json({
@@ -66,6 +79,7 @@ export async function GET() {
             payments: paymentsResult.count || 0,
             withdrawals: withdrawalsResult.count || 0,
             mediaChanges: mediaChangesResult.count || 0,
+            directStale: directStaleResult.count || 0,
         })
     } catch (error: any) {
         console.error("Error fetching admin sidebar badges:", error)

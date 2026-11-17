@@ -70,7 +70,9 @@ export default function AdminDashboard() {
           .order('created_at', { ascending: false })
           .limit(3),
 
-        // Pending payments (donations waiting for approval)
+        // Pending payments (donations waiting for approval). Los pagos
+        // directos de modo crisis (is_direct) los confirma el organizador,
+        // no el personal de LaVaca, así que no cuentan como pendientes aquí.
         supabase.from('donations')
           .select(`
             *,
@@ -78,8 +80,9 @@ export default function AdminDashboard() {
               title,
               slug
             )
-          `)
+          `, { count: 'exact' })
           .eq('payment_status', 'pending')
+          .eq('is_direct', false)
           .order('created_at', { ascending: false })
           .limit(3),
 
@@ -103,7 +106,7 @@ export default function AdminDashboard() {
       const platformFees = totalDonationAmount * 0.02 // 2% platform fee
 
       const pendingVerifications = verificationsResult.data?.length || 0
-      const pendingPayments = paymentsResult.data?.length || 0
+      const pendingPayments = paymentsResult.count ?? paymentsResult.data?.length ?? 0
 
       setStats({
         totalUsers,
@@ -160,9 +163,9 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-background">
+      <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <AdminSidebar />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 min-w-0 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
         </main>
       </div>
@@ -170,15 +173,15 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col md:flex-row min-h-screen bg-background">
       <AdminSidebar />
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 min-w-0 overflow-auto">
         {/* Header */}
-        <div className="border-b border-border bg-card sticky top-0 z-40">
+        <div className="border-b border-border bg-card">
           <div className="px-4 sm:px-8 py-4 sm:py-6">
-            <h1 className="text-3xl font-bold">Panel de Administración</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold">Panel de Administración</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               Bienvenido. Aquí puedes gestionar la plataforma.
             </p>
           </div>
@@ -188,7 +191,7 @@ export default function AdminDashboard() {
           {/* Alert */}
           {stats && stats.pendingVerifications > 0 && (
             <Card className="border-yellow-200 bg-yellow-50 dark:bg-yellow-950 dark:border-yellow-800">
-              <CardContent className="pt-6 flex items-start gap-4">
+              <CardContent className="pt-6 flex items-start gap-3 sm:gap-4">
                 <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
                 <div>
                   <h3 className="font-semibold text-yellow-900 dark:text-yellow-100">
@@ -208,27 +211,27 @@ export default function AdminDashboard() {
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <Users className="w-4 h-4" />
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-2 leading-tight">
+                  <Users className="w-4 h-4 shrink-0" />
                   Usuarios totales
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{stats?.totalUsers.toLocaleString() || 0}</p>
+              <CardContent className="px-4 sm:px-6">
+                <p className="text-xl sm:text-2xl font-bold break-words">{stats?.totalUsers.toLocaleString() || 0}</p>
                 <p className="text-xs text-muted-foreground mt-1">Registrados</p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-2 leading-tight">
+                  <FileText className="w-4 h-4 shrink-0" />
                   Campañas activas
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">{stats?.activeCampaigns || 0}</p>
+              <CardContent className="px-4 sm:px-6">
+                <p className="text-xl sm:text-2xl font-bold break-words">{stats?.activeCampaigns || 0}</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   De {stats?.totalCampaigns || 0} totales
                 </p>
@@ -236,14 +239,14 @@ export default function AdminDashboard() {
             </Card>
 
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-2 leading-tight">
+                  <CreditCard className="w-4 h-4 shrink-0" />
                   Donaciones
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">
+              <CardContent className="px-4 sm:px-6">
+                <p className="text-xl sm:text-2xl font-bold break-words">
                   ${stats?.totalDonationAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || 0}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -253,14 +256,14 @@ export default function AdminDashboard() {
             </Card>
 
             <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4" />
+              <CardHeader className="pb-3 px-4 sm:px-6">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-2 leading-tight">
+                  <TrendingUp className="w-4 h-4 shrink-0" />
                   Comisión plataforma
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-bold">
+              <CardContent className="px-4 sm:px-6">
+                <p className="text-xl sm:text-2xl font-bold break-words">
                   ${stats?.platformFees.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || 0}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">2% de las donaciones</p>
@@ -274,12 +277,12 @@ export default function AdminDashboard() {
               <CardHeader>
                 <CardTitle>Actividad últimos días</CardTitle>
               </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+              <CardContent className="px-2 sm:px-6">
+                <ResponsiveContainer width="100%" height={260}>
                   <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
+                    <YAxis width={36} allowDecimals={false} tick={{ fontSize: 12 }} />
                     <Tooltip />
                     <Line
                       type="monotone"
@@ -299,7 +302,7 @@ export default function AdminDashboard() {
             {/* Verification Queue */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <CardTitle>Cola de Verificaciones</CardTitle>
                   <Badge className="bg-accent">{stats?.pendingVerifications || 0}</Badge>
                 </div>
@@ -310,15 +313,15 @@ export default function AdminDashboard() {
                     {recentVerifications.map((item, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                        className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0"
                       >
-                        <div>
-                          <p className="font-medium text-sm">{item.full_name}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{item.full_name}</p>
                           <p className="text-xs text-muted-foreground">
                             {item.verification_type === 'individual' ? 'Persona Natural' : 'Empresa'}
                           </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">{getTimeAgo(item.created_at)}</p>
+                        <p className="text-xs text-muted-foreground shrink-0">{getTimeAgo(item.created_at)}</p>
                       </div>
                     ))}
                     <Button variant="outline" className="w-full mt-4" asChild>
@@ -336,7 +339,7 @@ export default function AdminDashboard() {
             {/* Manual Payments Queue */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <CardTitle>Pagos Pendientes</CardTitle>
                   <Badge className="bg-accent">{stats?.pendingPayments || 0}</Badge>
                 </div>
@@ -347,15 +350,15 @@ export default function AdminDashboard() {
                     {recentPayments.map((item: any, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between py-2 border-b border-border last:border-0"
+                        className="flex items-center justify-between gap-3 py-2 border-b border-border last:border-0"
                       >
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-medium text-sm line-clamp-1">
                             {item.campaigns?.title || 'Campaña'}
                           </p>
                           <p className="text-xs text-muted-foreground">{getTimeAgo(item.created_at)}</p>
                         </div>
-                        <p className="font-bold text-primary text-sm">
+                        <p className="font-bold text-primary text-sm shrink-0 whitespace-nowrap">
                           {item.currency === 'BS' && item.amount_bs != null
                             ? `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(item.amount_bs))}`
                             : `$${item.amount_usd.toFixed(2)}`}

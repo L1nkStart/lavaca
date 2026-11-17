@@ -3,12 +3,22 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveExchangeRate } from '@/lib/exchange-rate'
 import { sanitizeRefCode } from '@/lib/lavaca-campaign'
+import {
+    DIRECT_PAYMENT_MAX_USD,
+    directDonationMoneyLabel,
+    isTrustedCaptureUrl,
+    normalizeReference,
+} from '@/lib/direct-payments'
 
 /**
  * POST /api/campaigns/[id]/direct-donation
  * El donante REGISTRA un pago que hizo directo a la cuenta del creador
  * (modo crisis). Queda pendiente hasta que el creador lo confirme. No genera
  * saldo retirable ni comisión: solo sube la barra cuando se confirma.
+ *
+ * Al registrarse se notifica al organizador (campana in-app) para que
+ * confirme. El personal de LaVaca NO confirma estos pagos: los ve en
+ * /admin/direct-payments solo para auditar y mediar.
  */
 export async function POST(
     request: NextRequest,
@@ -17,16 +27,17 @@ export async function POST(
     try {
         const supabase = await createClient()
         const { id } = await params
-        const body = await request.json()
+        const body = await request.json().catch(() => null)
 
         const amount = Number(body?.amount)
         const currency = body?.currency === 'BS' ? 'BS' : 'USD'
         const accountId = String(body?.accountId || '')
-        const reference = typeof body?.reference === 'string' ? body.reference.trim() : ''
-        const captureUrl = typeof body?.captureUrl === 'string' && body.captureUrl.startsWith('http') ? body.captureUrl : null
+        const reference = typeof body?.reference === 'string' ? body.reference.trim().replace(/\s+/g, ' ') : ''
+        // Solo comprobantes subidos a nuestro storage (no enlaces arbitrarios).
+        const captureUrl = typeof body?.captureUrl === 'string' && isTrustedCaptureUrl(body.captureUrl) ? body.captureUrl : null
         const isAnonymous = body?.isAnonymous === true
         const rawEmail = typeof body?.donorEmail === 'string' ? body.donorEmail.trim().toLowerCase() : ''
-        const rawName = typeof body?.donorName === 'string' ? body.donorName.trim().replace(/\s+/g, ' ') : ''
+        const rawName = typeof body?.donorName === 'string' ? body.donorName.trim().replace(/\s+/g, ' ').slice(0, 120) : ''
         // ?ref= del enlace por el que llegó el donante (solo medición).
         const referralCode = sanitizeRefCode(typeof body?.referralCode === 'string' ? body.referralCode : null)
 
@@ -38,6 +49,9 @@ export async function POST(
         }
         if (!reference) {
             return NextResponse.json({ error: 'La referencia del pago es obligatoria' }, { status: 400 })
+        }
+        if (reference.length > 100 || !normalizeReference(reference)) {
+            return NextResponse.json({ error: 'Revisa la referencia: copia solo el número que aparece en tu comprobante' }, { status: 400 })
         }
 
         const { data: { user } } = await supabase.auth.getUser()
@@ -69,6 +83,9 @@ export async function POST(
         }
 
         const rate = await getActiveExchangeRate()
+        if (!Number.isFinite(rate) || rate <= 0) {
+            return NextResponse.json({ error: 'No pudimos obtener la tasa de cambio. Intenta de nuevo en unos minutos.' }, { status: 503 })
+        }
         let amountUsd: number
         let amountBs: number
         if (currency === 'BS') {
@@ -77,6 +94,36 @@ export async function POST(
         } else {
             amountUsd = Math.round(amount * 100) / 100
             amountBs = Number((amountUsd * rate).toFixed(2))
+        }
+        if (amountUsd < 0.01) {
+            return NextResponse.json({ error: 'El monto es demasiado pequeño' }, { status: 400 })
+        }
+        if (amountUsd > DIRECT_PAYMENT_MAX_USD) {
+            return NextResponse.json({ error: 'Revisa el monto: parece demasiado alto para un solo pago' }, { status: 400 })
+        }
+
+        // Anti-duplicado: la misma referencia ya registrada en esta campaña (y
+        // no rechazada) es casi siempre un doble envío. La comparación ignora
+        // espacios, guiones y ceros a la izquierda.
+        const normalizedRef = normalizeReference(reference)
+        const { data: sameCampaignRefs } = await adminSupabase
+            .from('donations')
+            .select('id, reference_number, payment_status')
+            .eq('campaign_id', id)
+            .eq('is_direct', true)
+            .neq('payment_status', 'failed')
+            .limit(1000)
+        const duplicate = (sameCampaignRefs || []).find((d) => normalizeReference(d.reference_number) === normalizedRef)
+        if (duplicate) {
+            return NextResponse.json(
+                {
+                    error: duplicate.payment_status === 'completed'
+                        ? 'Este pago ya fue registrado y el organizador ya lo confirmó. ¡Gracias!'
+                        : 'Este pago ya fue registrado y está esperando la confirmación del organizador.',
+                    duplicate: true,
+                },
+                { status: 409 }
+            )
         }
 
         const { data: donation, error } = await adminSupabase
@@ -109,27 +156,30 @@ export async function POST(
         if (error) throw error
 
         // Notificar al organizador que tiene un pago directo POR CONFIRMAR
-        // (en modo crisis el creador es quien aprueba). Best-effort.
+        // (en modo crisis el creador es quien aprueba). Best-effort: supabase-js
+        // no lanza excepción, devuelve { error }, así que hay que revisarlo.
         try {
-            const amountLabel = currency === 'BS'
-                ? `Bs ${new Intl.NumberFormat('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amountBs)}`
-                : `$${amountUsd.toFixed(2)}`
+            const amountLabel = directDonationMoneyLabel({ currency, amount_bs: amountBs, amount_usd: amountUsd })
             const donorLabel = isAnonymous ? 'Alguien' : (rawName || 'Un donante')
-            await adminSupabase.from('notifications').insert({
+            const { error: notifyError } = await adminSupabase.from('notifications').insert({
                 user_id: campaign.creator_id,
                 type: 'donation_received',
                 title: 'Tienes un pago por confirmar',
-                message: `${donorLabel} registró un pago de ${amountLabel} en "${campaign.title}". Confírmalo para que sume a tu campaña.`,
+                message: `${donorLabel} registró un pago de ${amountLabel} (ref. ${reference}) en "${campaign.title}". Revisa tu cuenta y confírmalo para que sume a tu campaña.`,
                 link: `/creator/campaigns/${id}/crisis`,
                 campaign_id: id,
                 related_id: donation.id,
             })
+            if (notifyError) {
+                console.warn('[direct-donation] no se pudo crear la notificación:', notifyError.message)
+            }
         } catch (notifyError) {
             console.warn('[direct-donation] no se pudo crear la notificación:', notifyError)
         }
 
         return NextResponse.json({ ok: true, donationId: donation.id })
     } catch (error: any) {
+        console.error('[direct-donation] error:', error)
         return NextResponse.json({ error: error?.message || 'No se pudo registrar el pago' }, { status: 500 })
     }
 }

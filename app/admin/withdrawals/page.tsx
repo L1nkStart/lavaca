@@ -242,9 +242,9 @@ export default function AdminWithdrawalsPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen bg-background">
+            <div className="flex flex-col md:flex-row min-h-screen bg-background">
                 <AdminSidebar />
-                <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 min-w-0 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </main>
             </div>
@@ -252,14 +252,14 @@ export default function AdminWithdrawalsPage() {
     }
 
     return (
-        <div className="flex min-h-screen bg-background">
+        <div className="flex flex-col md:flex-row min-h-screen bg-background">
             <AdminSidebar />
 
-            <main className="flex-1 overflow-auto">
-                <div className="border-b border-border bg-card sticky top-0 z-40">
+            <main className="flex-1 min-w-0 overflow-auto">
+                <div className="border-b border-border bg-card">
                     <div className="px-4 sm:px-8 py-4 sm:py-6">
-                        <h1 className="text-3xl font-bold">Solicitudes de Retiro</h1>
-                        <p className="text-muted-foreground mt-1">
+                        <h1 className="text-2xl sm:text-3xl font-bold">Solicitudes de Retiro</h1>
+                        <p className="text-sm sm:text-base text-muted-foreground mt-1">
                             {visibleRequests.length} de {requests.length} solicitudes
                         </p>
                     </div>
@@ -327,28 +327,28 @@ export default function AdminWithdrawalsPage() {
 
                             return (
                                 <Card key={request.id}>
-                                    <CardContent className="pt-6 space-y-4">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="space-y-1">
-                                                <p className="font-semibold text-lg flex items-center gap-2">
-                                                    <Wallet className="h-5 w-5 text-primary" />
+                                    <CardContent className="pt-6 px-4 sm:px-6 space-y-4">
+                                        <div className="flex flex-col-reverse sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4">
+                                            <div className="min-w-0 space-y-1">
+                                                <p className="font-semibold text-lg flex flex-wrap items-center gap-2">
+                                                    <Wallet className="h-5 w-5 shrink-0 text-primary" />
                                                     {formatByCurrency(grossAmount, requestCurrency)}
                                                     <Badge variant={requestCurrency === 'BS' ? 'secondary' : 'outline'}>
                                                         {requestCurrency === 'BS' ? 'Bolívares' : 'Dólares'}
                                                     </Badge>
                                                 </p>
-                                                <p className="text-sm text-muted-foreground">
+                                                <p className="text-sm text-muted-foreground break-words">
                                                     Campaña: {request.campaigns?.title || 'Campaña'}
                                                 </p>
-                                                <p className="text-xs text-muted-foreground">
+                                                <p className="text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">
                                                     Creador: {request.users?.full_name || 'Usuario'} • {request.users?.email || 'sin email'}
                                                 </p>
-                                                <p className="text-xs text-muted-foreground">
+                                                <p className="text-xs text-muted-foreground break-words">
                                                     Destino: {formatAccountType(request.withdrawal_accounts?.account_type || 'cuenta')} • {request.withdrawal_accounts?.account_holder_name || 'Sin titular'}
                                                 </p>
                                             </div>
 
-                                            <div className="text-right space-y-1">
+                                            <div className="flex flex-wrap items-center gap-2 sm:block sm:text-right sm:space-y-1 sm:shrink-0">
                                                 {getStatusBadge(request.status)}
                                                 <p className="text-xs text-muted-foreground">{new Date(request.created_at).toLocaleString('es-VE')}</p>
                                             </div>
@@ -356,7 +356,7 @@ export default function AdminWithdrawalsPage() {
 
                                         {/* Desglose: cuánto transferir exactamente */}
                                         {hasBreakdown && (
-                                            <div className="rounded-lg border p-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                                            <div className="rounded-lg border p-3 grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-2 text-sm [&>div]:min-w-0 [&_p]:break-words">
                                                 <div>
                                                     <p className="text-xs text-muted-foreground">Bruto solicitado</p>
                                                     <p className="font-medium">{formatByCurrency(grossAmount, requestCurrency)}</p>
@@ -391,13 +391,13 @@ export default function AdminWithdrawalsPage() {
                                                     </p>
                                                 )}
                                                 {request.reference_number && (
-                                                    <p><strong>Referencia:</strong> {request.reference_number}</p>
+                                                    <p className="break-all"><strong>Referencia:</strong> {request.reference_number}</p>
                                                 )}
                                                 {request.processed_at && (
                                                     <p><strong>Procesado:</strong> {new Date(request.processed_at).toLocaleString('es-VE')}</p>
                                                 )}
                                                 {request.status === 'failed' && request.rejection_reason && (
-                                                    <p className="text-destructive"><strong>Motivo:</strong> {request.rejection_reason}</p>
+                                                    <p className="text-destructive break-words"><strong>Motivo:</strong> {request.rejection_reason}</p>
                                                 )}
                                             </div>
                                         )}
@@ -426,8 +426,8 @@ export default function AdminWithdrawalsPage() {
                                         )}
 
                                         {isSelected && isPending && (
-                                            <div className="rounded-lg border p-4 space-y-4 bg-muted/20">
-                                                <div className="grid md:grid-cols-2 gap-4">
+                                            <div className="rounded-lg border p-3 sm:p-4 space-y-4 bg-muted/20">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                     {requestCurrency === 'BS' && (
                                                         <div className="space-y-2">
                                                             <label className="text-sm font-medium">Tasa de cambio del retiro (Bs/USD)</label>

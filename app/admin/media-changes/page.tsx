@@ -76,9 +76,9 @@ export default function AdminMediaChangesPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen bg-background">
+            <div className="flex flex-col md:flex-row min-h-screen bg-background">
                 <AdminSidebar />
-                <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 min-w-0 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </main>
             </div>
@@ -86,13 +86,13 @@ export default function AdminMediaChangesPage() {
     }
 
     return (
-        <div className="flex min-h-screen bg-background">
+        <div className="flex flex-col md:flex-row min-h-screen bg-background">
             <AdminSidebar />
-            <main className="flex-1 overflow-auto">
-                <div className="border-b border-border bg-card sticky top-0 z-40">
+            <main className="flex-1 min-w-0 overflow-auto">
+                <div className="border-b border-border bg-card">
                     <div className="px-4 sm:px-8 py-4 sm:py-6">
-                        <h1 className="text-3xl font-bold">Moderar imágenes</h1>
-                        <p className="text-muted-foreground mt-1">
+                        <h1 className="text-2xl sm:text-3xl font-bold">Moderar imágenes</h1>
+                        <p className="text-sm sm:text-base text-muted-foreground mt-1">
                             {changes.length} cambio{changes.length !== 1 ? 's' : ''} de portada o galería en revisión
                         </p>
                     </div>
@@ -123,17 +123,17 @@ export default function AdminMediaChangesPage() {
 
                             return (
                                 <Card key={change.id}>
-                                    <CardContent className="pt-6 space-y-4">
+                                    <CardContent className="pt-6 px-4 sm:px-6 space-y-4">
                                         <div className="flex items-start justify-between gap-4">
-                                            <div className="space-y-1">
-                                                <p className="font-semibold flex items-center gap-2">
-                                                    <ImageIcon className="h-4 w-4 text-primary" />
+                                            <div className="min-w-0 space-y-1">
+                                                <p className="font-semibold flex flex-wrap items-center gap-2">
+                                                    <ImageIcon className="h-4 w-4 shrink-0 text-primary" />
                                                     {CHANGE_LABEL[change.change_type]}
                                                     <Badge variant={isRemove ? 'destructive' : 'secondary'}>
                                                         {isRemove ? 'Eliminación' : 'Nueva imagen'}
                                                     </Badge>
                                                 </p>
-                                                <p className="text-sm text-muted-foreground">
+                                                <p className="text-sm text-muted-foreground break-words">
                                                     Campaña: {change.campaigns?.title || 'Campaña'}
                                                     {change.campaigns?.slug && (
                                                         <a
@@ -146,22 +146,22 @@ export default function AdminMediaChangesPage() {
                                                         </a>
                                                     )}
                                                 </p>
-                                                <p className="text-xs text-muted-foreground">
+                                                <p className="text-xs text-muted-foreground break-words [overflow-wrap:anywhere]">
                                                     Solicitado por {change.users?.full_name || 'Usuario'} • {change.users?.email || ''} • {new Date(change.created_at).toLocaleString('es-VE')}
                                                 </p>
                                             </div>
                                         </div>
 
                                         {/* Comparación antes / después */}
-                                        <div className="grid grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-2 gap-2 sm:gap-4">
                                             <div>
                                                 <p className="text-xs text-muted-foreground mb-1">
                                                     {isRemove ? 'Imagen que se quitaría' : 'Actual'}
                                                 </p>
                                                 {beforeUrl ? (
-                                                    <img src={beforeUrl} alt="Antes" className="w-full h-40 object-cover rounded border" />
+                                                    <img src={beforeUrl} alt="Antes" className="w-full h-28 sm:h-40 object-cover rounded border" />
                                                 ) : (
-                                                    <div className="w-full h-40 rounded border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                                                    <div className="w-full h-28 sm:h-40 rounded border bg-muted flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                                                         Sin imagen
                                                     </div>
                                                 )}
@@ -171,9 +171,9 @@ export default function AdminMediaChangesPage() {
                                                     {isRemove ? 'Resultado' : 'Propuesta'}
                                                 </p>
                                                 {afterUrl ? (
-                                                    <img src={afterUrl} alt="Después" className="w-full h-40 object-cover rounded border" />
+                                                    <img src={afterUrl} alt="Después" className="w-full h-28 sm:h-40 object-cover rounded border" />
                                                 ) : (
-                                                    <div className="w-full h-40 rounded border bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                                                    <div className="w-full h-28 sm:h-40 rounded border bg-muted flex items-center justify-center p-2 text-center text-xs text-muted-foreground">
                                                         {isRemove ? 'Se elimina de la galería' : 'Sin imagen'}
                                                     </div>
                                                 )}

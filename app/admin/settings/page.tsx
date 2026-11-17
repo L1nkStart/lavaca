@@ -282,14 +282,14 @@ export default function AdminSettingsPage() {
     : "Sin registro previo";
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col md:flex-row min-h-screen bg-background">
       <AdminSidebar />
 
-      <main className="flex-1 overflow-auto">
-        <div className="border-b border-border bg-card sticky top-0 z-40">
+      <main className="flex-1 min-w-0 overflow-auto">
+        <div className="border-b border-border bg-card">
           <div className="px-4 sm:px-8 py-4 sm:py-6">
-            <h1 className="text-3xl font-bold">Configuración</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold">Configuración</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               Gestiona los parámetros de la plataforma
             </p>
           </div>
@@ -297,11 +297,11 @@ export default function AdminSettingsPage() {
 
         <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
           <Tabs defaultValue="exchange" className="space-y-4">
-            <TabsList>
-              <TabsTrigger value="exchange">Tasa de Cambio</TabsTrigger>
-              <TabsTrigger value="commission">Comisión</TabsTrigger>
-              <TabsTrigger value="crisis">Modo Crisis</TabsTrigger>
-              <TabsTrigger value="categories">Categorías</TabsTrigger>
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:inline-flex sm:h-9 sm:w-fit sm:gap-0">
+              <TabsTrigger value="exchange" className="py-1.5 sm:py-1">Tasa de Cambio</TabsTrigger>
+              <TabsTrigger value="commission" className="py-1.5 sm:py-1">Comisión</TabsTrigger>
+              <TabsTrigger value="crisis" className="py-1.5 sm:py-1">Modo Crisis</TabsTrigger>
+              <TabsTrigger value="categories" className="py-1.5 sm:py-1">Categorías</TabsTrigger>
             </TabsList>
 
             <TabsContent value="exchange">
@@ -332,8 +332,8 @@ export default function AdminSettingsPage() {
                         </p>
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border border-border p-3">
-                        <div>
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+                        <div className="min-w-0">
                           <p className="font-medium text-sm">Auto-refresco de la tasa oficial BCV</p>
                           <p className="text-xs text-muted-foreground">
                             Si está activo, un job programado puede actualizar la tasa
@@ -436,13 +436,13 @@ export default function AdminSettingsPage() {
 
                       <div className="space-y-2 pt-4 border-t border-border">
                         <h4 className="font-semibold">Comisión actual por donación:</h4>
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-3 gap-2 sm:gap-4">
                           {[10, 50, 100].map((amount) => (
-                            <div key={amount} className="bg-muted p-3 rounded">
+                            <div key={amount} className="bg-muted p-2 sm:p-3 rounded min-w-0">
                               <p className="text-xs text-muted-foreground">
                                 Donación ${amount}
                               </p>
-                              <p className="text-lg font-bold text-primary">
+                              <p className="text-base sm:text-lg font-bold text-primary break-words">
                                 ${((amount * (parseFloat(commission) || 0)) / 100).toFixed(2)}
                               </p>
                             </div>
@@ -477,8 +477,8 @@ export default function AdminSettingsPage() {
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : (
                     <>
-                      <div className="flex items-center justify-between rounded-lg border border-border p-4">
-                        <div className="pr-4">
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 sm:p-4">
+                        <div className="min-w-0 sm:pr-4">
                           <p className="font-medium text-sm">Habilitar campañas en modo crisis</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             Interruptor maestro. Si está apagado, nadie puede crear ni usar el modo
@@ -490,8 +490,8 @@ export default function AdminSettingsPage() {
                         <Switch checked={crisisEnabled} onCheckedChange={saveCrisisMode} disabled={savingCrisis} />
                       </div>
 
-                      <div className="flex items-center justify-between rounded-lg border border-orange-200 dark:border-orange-900 bg-orange-50/50 dark:bg-orange-950/20 p-4">
-                        <div className="pr-4">
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-orange-200 dark:border-orange-900 bg-orange-50/50 dark:bg-orange-950/20 p-3 sm:p-4">
+                        <div className="min-w-0 sm:pr-4">
                           <p className="font-medium text-sm">Forzar modo crisis en todas las campañas</p>
                           <p className="text-xs text-muted-foreground mt-1">
                             Si está encendido, <strong>todas las campañas nuevas se crean en modo crisis</strong>{' '}
@@ -538,14 +538,14 @@ export default function AdminSettingsPage() {
                       {categories.map((cat) => (
                         <div
                           key={cat.id}
-                          className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                          className="flex items-center justify-between gap-2 p-3 bg-muted rounded-lg"
                         >
-                          <div className="flex items-center gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
                             {cat.icon_emoji && (
                               <span className="text-xl">{cat.icon_emoji}</span>
                             )}
-                            <div>
-                              <p className="font-medium">{cat.name}</p>
+                            <div className="min-w-0">
+                              <p className="font-medium break-words">{cat.name}</p>
                               {cat.description && (
                                 <p className="text-xs text-muted-foreground">
                                   {cat.description}
@@ -556,6 +556,8 @@ export default function AdminSettingsPage() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            className="shrink-0"
+                            aria-label={`Eliminar categoría ${cat.name}`}
                             onClick={() => deleteCategory(cat.id)}
                           >
                             <Trash2 className="h-4 w-4" />

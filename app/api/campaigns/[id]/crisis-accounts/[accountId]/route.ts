@@ -45,7 +45,13 @@ export async function PATCH(
     }
 }
 
-/** DELETE — elimina una cuenta de recepción */
+/**
+ * DELETE — elimina una cuenta de recepción.
+ *
+ * Si la cuenta ya tiene pagos registrados NO se borra: se oculta
+ * (is_active = false). Esos pagos apuntan a ella (FK) y LaVaca necesita saber
+ * a qué cuenta pagó cada donante para auditar y mediar.
+ */
 export async function DELETE(
     _request: NextRequest,
     { params }: { params: Promise<{ id: string; accountId: string }> }
@@ -60,12 +66,31 @@ export async function DELETE(
         if ('error' in owned) return NextResponse.json({ error: owned.error }, { status: owned.status })
 
         const adminSupabase = createAdminClient()
+
+        const archive = async () => {
+            const { error: archiveError } = await adminSupabase
+                .from('campaign_crisis_accounts')
+                .update({ is_active: false })
+                .eq('id', accountId)
+                .eq('campaign_id', id)
+            if (archiveError) throw archiveError
+            return NextResponse.json({ ok: true, archived: true })
+        }
+
+        const { count } = await adminSupabase
+            .from('donations')
+            .select('id', { count: 'exact', head: true })
+            .eq('crisis_account_id', accountId)
+        if ((count || 0) > 0) return archive()
+
         const { error } = await adminSupabase
             .from('campaign_crisis_accounts')
             .delete()
             .eq('id', accountId)
             .eq('campaign_id', id)
 
+        // 23503 = violación de FK: entró un pago justo ahora. Ocultamos.
+        if (error?.code === '23503') return archive()
         if (error) throw error
         return NextResponse.json({ ok: true })
     } catch (error: any) {

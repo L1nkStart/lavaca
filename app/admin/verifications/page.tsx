@@ -238,9 +238,9 @@ export default function AdminVerificationsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-background">
+      <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <AdminSidebar />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 min-w-0 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin" />
         </main>
       </div>
@@ -249,9 +249,9 @@ export default function AdminVerificationsPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen bg-background">
+      <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <AdminSidebar />
-        <main className="flex-1 p-8">
+        <main className="flex-1 min-w-0 p-4 sm:p-8">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>Error al cargar verificaciones: {error}</AlertDescription>
@@ -264,15 +264,15 @@ export default function AdminVerificationsPage() {
   const pendingCount = verifications.filter(v => v.status === 'pending').length
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col md:flex-row min-h-screen bg-background">
       <AdminSidebar />
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 min-w-0 overflow-auto">
         {/* Header */}
-        <div className="border-b border-border bg-card sticky top-0 z-40">
+        <div className="border-b border-border bg-card">
           <div className="px-4 sm:px-8 py-4 sm:py-6">
-            <h1 className="text-3xl font-bold">Verificaciones KYC</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold">Verificaciones KYC</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               {pendingCount} verificación{pendingCount !== 1 ? 'es' : ''} pendiente{pendingCount !== 1 ? 's' : ''}
             </p>
           </div>
@@ -300,7 +300,7 @@ export default function AdminVerificationsPage() {
           ) : (
             verifications.map((verification) => (
               <Card key={verification.id}>
-                <CardContent className="pt-6">
+                <CardContent className="pt-6 px-4 sm:px-6">
                   {(() => {
                     const documentFrontUrl = verification.document_front_url
                     const documentBackUrl = verification.document_back_url
@@ -311,17 +311,17 @@ export default function AdminVerificationsPage() {
                     return (
                       <Tabs defaultValue="details" className="space-y-4">
                         {/* Header */}
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h3 className="font-bold text-lg">{verification.full_name}</h3>
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-4">
+                          <div className="min-w-0">
+                            <h3 className="font-bold text-lg break-words">{verification.full_name}</h3>
                             <p className="text-sm text-muted-foreground">
                               {verification.verification_type === 'individual' ? '👤 Persona Natural' : '🏢 Empresa'}
                             </p>
                             {verification.company_name && (
-                              <p className="text-sm font-medium mt-1">{verification.company_name}</p>
+                              <p className="text-sm font-medium mt-1 break-words">{verification.company_name}</p>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                             {getStatusBadge(verification.status)}
                             <Badge variant="secondary">
                               {getTimeAgo(verification.created_at)}
@@ -337,10 +337,10 @@ export default function AdminVerificationsPage() {
 
                         {/* Details Tab */}
                         <TabsContent value="details" className="space-y-4">
-                          <div className="grid md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                               <p className="text-xs text-muted-foreground">Email</p>
-                              <p className="font-medium">{verification.email}</p>
+                              <p className="font-medium break-all">{verification.email}</p>
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Teléfono</p>
@@ -352,11 +352,11 @@ export default function AdminVerificationsPage() {
                             </div>
                             <div>
                               <p className="text-xs text-muted-foreground">Número</p>
-                              <p className="font-medium">{verification.document_number}</p>
+                              <p className="font-medium break-all">{verification.document_number}</p>
                             </div>
                             <div className="md:col-span-2">
                               <p className="text-xs text-muted-foreground">Dirección</p>
-                              <p className="font-medium">{verification.address}</p>
+                              <p className="font-medium break-words">{verification.address}</p>
                               {verification.city && verification.state && (
                                 <p className="text-sm text-muted-foreground">
                                   {verification.city}, {verification.state}
@@ -380,9 +380,9 @@ export default function AdminVerificationsPage() {
 
                         {/* Documents Tab */}
                         <TabsContent value="documents" className="space-y-4">
-                          <div className="grid md:grid-cols-2 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Document Front */}
-                            <div className="border border-border rounded-lg p-4">
+                            <div className="border border-border rounded-lg p-3 sm:p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <ImageIcon className="w-4 h-4 text-primary" />
                                 <p className="font-medium text-sm">Documento (Frente)</p>
@@ -403,7 +403,7 @@ export default function AdminVerificationsPage() {
 
                             {/* Document Back */}
                             {documentBackUrl && (
-                              <div className="border border-border rounded-lg p-4">
+                              <div className="border border-border rounded-lg p-3 sm:p-4">
                                 <div className="flex items-center gap-2 mb-3">
                                   <ImageIcon className="w-4 h-4 text-primary" />
                                   <p className="font-medium text-sm">Documento (Reverso)</p>
@@ -424,7 +424,7 @@ export default function AdminVerificationsPage() {
                             )}
 
                             {/* Selfie */}
-                            <div className="border border-border rounded-lg p-4">
+                            <div className="border border-border rounded-lg p-3 sm:p-4">
                               <div className="flex items-center gap-2 mb-3">
                                 <ImageIcon className="w-4 h-4 text-primary" />
                                 <p className="font-medium text-sm">Selfie con Documento</p>
@@ -445,7 +445,7 @@ export default function AdminVerificationsPage() {
 
                             {/* Proof of Address */}
                             {proofOfAddressUrl && (
-                              <div className="border border-border rounded-lg p-4">
+                              <div className="border border-border rounded-lg p-3 sm:p-4">
                                 <div className="flex items-center gap-2 mb-3">
                                   <FileText className="w-4 h-4 text-primary" />
                                   <p className="font-medium text-sm">Comprobante de Domicilio</p>
@@ -467,7 +467,7 @@ export default function AdminVerificationsPage() {
 
                             {/* Company Registration */}
                             {companyRegistrationUrl && (
-                              <div className="border border-border rounded-lg p-4 md:col-span-2">
+                              <div className="border border-border rounded-lg p-3 sm:p-4 md:col-span-2">
                                 <div className="flex items-center gap-2 mb-3">
                                   <FileText className="w-4 h-4 text-primary" />
                                   <p className="font-medium text-sm">Registro Mercantil</p>
@@ -493,7 +493,7 @@ export default function AdminVerificationsPage() {
                         {verification.status === 'pending' && (
                           <div className="border-t border-border pt-4 space-y-3">
                             {selectedId !== verification.id ? (
-                              <div className="flex gap-3">
+                              <div className="flex flex-wrap gap-3">
                                 <Button
                                   size="sm"
                                   className="flex-1 bg-primary"
@@ -532,7 +532,7 @@ export default function AdminVerificationsPage() {
                                   onChange={(e) => setRejectionReason(e.target.value)}
                                   rows={3}
                                 />
-                                <div className="flex gap-3">
+                                <div className="flex flex-wrap gap-3">
                                   <Button
                                     size="sm"
                                     variant="outline"

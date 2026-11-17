@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import {
@@ -80,6 +81,7 @@ export function CrisisManager({ campaignId, isCrisis, defaultHolderName = '' }: 
     const [error, setError] = useState<string | null>(null)
     const [showAddForm, setShowAddForm] = useState(false)
     const [rejectTarget, setRejectTarget] = useState<DirectDonation | null>(null)
+    const [rejectReason, setRejectReason] = useState('')
     const [deleteTarget, setDeleteTarget] = useState<CrisisAccount | null>(null)
     const [historyOpen, setHistoryOpen] = useState(false)
     const [copiedRef, setCopiedRef] = useState<string | null>(null)
@@ -158,24 +160,38 @@ export function CrisisManager({ campaignId, isCrisis, defaultHolderName = '' }: 
         const target = deleteTarget
         setDeleteTarget(null)
         const res = await fetch(`/api/campaigns/${campaignId}/crisis-accounts/${target.id}`, { method: 'DELETE' })
+        const result = await res.json().catch(() => null)
         if (!res.ok) {
             toast.error('No se pudo eliminar la cuenta')
             return
         }
-        toast.success('Cuenta eliminada')
+        if (result?.archived) {
+            toast('Cuenta oculta', {
+                description: 'Ya tiene pagos registrados, así que la ocultamos en vez de borrarla para conservar el historial. Los donantes ya no la ven.',
+            })
+        } else {
+            toast.success('Cuenta eliminada')
+        }
         await load()
     }
 
-    const resolveDonation = async (donation: DirectDonation, action: 'confirm' | 'reject') => {
+    const resolveDonation = async (donation: DirectDonation, action: 'confirm' | 'reject', reason?: string) => {
         setProcessingId(donation.id)
         setError(null)
         try {
             const response = await fetch(`/api/campaigns/${campaignId}/direct-donations/${donation.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action }),
+                body: JSON.stringify({ action, reason: reason?.trim() || undefined }),
             })
             const result = await response.json()
+            // 409: ya estaba resuelto (otra pestaña, doble toque). Recargamos
+            // para mostrar el estado real en vez de un error.
+            if (response.status === 409) {
+                toast(result?.error || 'Este pago ya fue resuelto')
+                await load()
+                return
+            }
             if (!response.ok) throw new Error(result?.error || 'No se pudo procesar')
             if (action === 'confirm') {
                 toast.success(`Pago de ${money(donation)} confirmado`, {
@@ -531,7 +547,7 @@ export function CrisisManager({ campaignId, isCrisis, defaultHolderName = '' }: 
             {historySection}
 
             {/* Rechazar pago */}
-            <AlertDialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
+            <AlertDialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) { setRejectTarget(null); setRejectReason('') } }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Rechazar este pago?</AlertDialogTitle>
@@ -545,14 +561,25 @@ export function CrisisManager({ campaignId, isCrisis, defaultHolderName = '' }: 
                             )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+                    <Textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="Opcional: ¿qué pasó? Ej: no aparece en mi banco, el monto no coincide…"
+                        rows={3}
+                        maxLength={300}
+                        aria-label="Motivo del rechazo (opcional)"
+                    />
+                    <p className="text-xs text-muted-foreground">Si el donante tiene cuenta, le avisaremos para que pueda aclararlo.</p>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Volver</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-destructive text-white hover:bg-destructive/90"
                             onClick={() => {
                                 const target = rejectTarget
+                                const reason = rejectReason
                                 setRejectTarget(null)
-                                if (target) resolveDonation(target, 'reject')
+                                setRejectReason('')
+                                if (target) resolveDonation(target, 'reject', reason)
                             }}
                         >
                             Sí, rechazar

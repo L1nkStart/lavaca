@@ -78,6 +78,9 @@ export default function AdminPaymentsPage() {
           )
         `)
         .eq('payment_status', 'pending')
+        // Los pagos directos (modo crisis) los confirma el organizador, no el
+        // personal de LaVaca: viven en /admin/direct-payments para auditoría.
+        .eq('is_direct', false)
         .order('created_at', { ascending: false })
 
       if (fetchError) throw fetchError
@@ -198,9 +201,9 @@ export default function AdminPaymentsPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen bg-background">
+      <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <AdminSidebar />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 min-w-0 flex items-center justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin" />
         </main>
       </div>
@@ -209,9 +212,9 @@ export default function AdminPaymentsPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen bg-background">
+      <div className="flex flex-col md:flex-row min-h-screen bg-background">
         <AdminSidebar />
-        <main className="flex-1 p-8">
+        <main className="flex-1 min-w-0 p-4 sm:p-8">
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>Error al cargar pagos: {error}</AlertDescription>
@@ -222,21 +225,27 @@ export default function AdminPaymentsPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex flex-col md:flex-row min-h-screen bg-background">
       <AdminSidebar />
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 min-w-0 overflow-auto">
         {/* Header */}
-        <div className="border-b border-border bg-card sticky top-0 z-40">
+        <div className="border-b border-border bg-card">
           <div className="px-4 sm:px-8 py-4 sm:py-6">
-            <h1 className="text-3xl font-bold">Pagos Manuales</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-2xl sm:text-3xl font-bold">Pagos manuales</h1>
+            <p className="text-sm sm:text-base text-muted-foreground mt-1">
               {filteredPayments.length} pago{filteredPayments.length !== 1 ? 's' : ''} pendiente{filteredPayments.length !== 1 ? 's' : ''} de verificación
             </p>
           </div>
         </div>
 
         <div className="p-4 sm:p-8 space-y-4">
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Aquí solo están los pagos a las cuentas de LaVaca. Los pagos directos de campañas en modo crisis los confirma
+            el organizador; para auditarlos o mediar ve a{' '}
+            <Link href="/admin/direct-payments" className="font-medium text-primary hover:underline">Pagos directos</Link>.
+          </p>
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex flex-wrap gap-2">
@@ -299,29 +308,29 @@ export default function AdminPaymentsPage() {
           ) : (
             visiblePayments.map((payment) => (
               <Card key={payment.id}>
-                <CardContent className="pt-6 space-y-4">
+                <CardContent className="pt-6 px-4 sm:px-6 space-y-4">
                   {/* Header */}
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="font-bold text-lg mb-1">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-lg mb-1 break-words">
                         {payment.campaigns?.title || 'Campaña desconocida'}
                       </h3>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
                         <Badge variant="outline">{payment.payment_method}</Badge>
                         <span className="text-xs text-muted-foreground">
                           Enviado por {getDonorDisplayName(payment)}
                         </span>
                         {getDonorContactEmail(payment) && (
                           <>
-                            <span className="text-xs text-muted-foreground">•</span>
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground" aria-hidden>•</span>
+                            <span className="text-xs text-muted-foreground break-all">
                               {getDonorContactEmail(payment)}
                             </span>
                           </>
                         )}
                       </div>
                     </div>
-                    <div className="text-right">
+                    <div className="rounded-lg bg-muted/40 p-3 sm:bg-transparent sm:p-0 sm:text-right sm:shrink-0">
                       {(() => {
                         // El monto grande es lo que el donante PAGO realmente
                         // (donación + comisión si la cubrió): es lo que el
@@ -364,7 +373,7 @@ export default function AdminPaymentsPage() {
                   </div>
 
                   {/* Payment Details */}
-                  <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                  <div className="bg-muted/50 rounded-lg p-3 sm:p-4 space-y-3">
                     {payment.reference_number && (
                       <div>
                         <p className="text-xs text-muted-foreground">Referencia</p>
@@ -374,12 +383,12 @@ export default function AdminPaymentsPage() {
                       </div>
                     )}
 
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Nombre de contacto</p>
-                        <p className="font-medium">{payment.donor_name || payment.users?.full_name || 'No disponible'}</p>
+                        <p className="font-medium break-words">{payment.donor_name || payment.users?.full_name || 'No disponible'}</p>
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">Email de contacto</p>
                         <p className="font-medium break-all">{getDonorContactEmail(payment) || 'No disponible'}</p>
                       </div>
@@ -423,7 +432,7 @@ export default function AdminPaymentsPage() {
                       </div>
                     )}
 
-                    <div className="grid md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
                       <div>
                         <p className="text-xs text-muted-foreground">Método</p>
                         <p className="font-medium">{payment.payment_method}</p>
@@ -490,12 +499,13 @@ export default function AdminPaymentsPage() {
                         Escribe el monto exacto del comprobante/banco. El sistema recalcula
                         la comisión y el neto, y eso será lo acreditado a la campaña.
                       </p>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                         <Input
                           type="number"
+                          inputMode="decimal"
                           min="0.01"
                           step="0.01"
-                          className="max-w-[200px]"
+                          className="w-full sm:max-w-[200px]"
                           placeholder={payment.currency === 'BS' ? 'Ej: 950.00' : 'Ej: 9.50'}
                           value={correctedAmount}
                           onChange={(e) => setCorrectedAmount(e.target.value)}
@@ -529,7 +539,7 @@ export default function AdminPaymentsPage() {
                   )}
 
                   {/* Actions */}
-                  <div className="flex flex-wrap gap-3 border-t border-border pt-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 border-t border-border pt-4 [&>button]:min-h-11 sm:[&>button]:min-h-9">
                     {selectedId !== payment.id ? (
                       <>
                         <Button

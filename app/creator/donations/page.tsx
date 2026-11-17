@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
     AlertDialog,
@@ -71,6 +72,7 @@ export default function CreatorDonationsHistoryPage() {
     const [search, setSearch] = useState("")
     const [processingId, setProcessingId] = useState<string | null>(null)
     const [rejectTarget, setRejectTarget] = useState<Donation | null>(null)
+    const [rejectReason, setRejectReason] = useState("")
     const [initialized, setInitialized] = useState(false)
 
     // ?status=pending desde el panel o "Mis campañas" abre directo la cola de
@@ -105,15 +107,22 @@ export default function CreatorDonationsHistoryPage() {
     }, [status, initialized])
 
     // Confirmar / rechazar un pago directo (modo crisis) desde aquí.
-    const resolveDirect = async (d: Donation, action: 'confirm' | 'reject') => {
+    const resolveDirect = async (d: Donation, action: 'confirm' | 'reject', reason?: string) => {
         setProcessingId(d.id)
         try {
             const res = await fetch(`/api/campaigns/${d.campaign_id}/direct-donations/${d.id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action }),
+                body: JSON.stringify({ action, reason: reason?.trim() || undefined }),
             })
             const result = await res.json()
+            // 409: ya estaba resuelto (otra pestaña, doble toque). Recargamos
+            // para mostrar el estado real en vez de un error.
+            if (res.status === 409) {
+                toast(result?.error || 'Este pago ya fue resuelto')
+                await fetchDonations()
+                return
+            }
             if (!res.ok) throw new Error(result?.error || 'No se pudo procesar')
             if (action === 'confirm') {
                 toast.success(`Pago de ${money(d)} confirmado`, { description: `Ya suma a "${d.campaign_title}".` })
@@ -281,7 +290,7 @@ export default function CreatorDonationsHistoryPage() {
                 )}
             </div>
 
-            <AlertDialog open={!!rejectTarget} onOpenChange={(open) => !open && setRejectTarget(null)}>
+            <AlertDialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) { setRejectTarget(null); setRejectReason("") } }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Rechazar este pago?</AlertDialogTitle>
@@ -295,14 +304,25 @@ export default function CreatorDonationsHistoryPage() {
                             )}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
+                    <Textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="Opcional: ¿qué pasó? Ej: no aparece en mi banco, el monto no coincide…"
+                        rows={3}
+                        maxLength={300}
+                        aria-label="Motivo del rechazo (opcional)"
+                    />
+                    <p className="text-xs text-muted-foreground">Si el donante tiene cuenta, le avisaremos para que pueda aclararlo.</p>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Volver</AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-destructive text-white hover:bg-destructive/90"
                             onClick={() => {
                                 const target = rejectTarget
+                                const reason = rejectReason
                                 setRejectTarget(null)
-                                if (target) resolveDirect(target, 'reject')
+                                setRejectReason("")
+                                if (target) resolveDirect(target, 'reject', reason)
                             }}
                         >
                             Sí, rechazar

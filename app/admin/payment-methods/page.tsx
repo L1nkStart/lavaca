@@ -396,9 +396,9 @@ export default function AdminPaymentMethodsPage() {
 
     if (loading) {
         return (
-            <div className="flex min-h-screen bg-background">
+            <div className="flex flex-col md:flex-row min-h-screen bg-background">
                 <AdminSidebar />
-                <main className="flex-1 flex items-center justify-center">
+                <main className="flex-1 min-w-0 flex items-center justify-center">
                     <Loader2 className="h-8 w-8 animate-spin" />
                 </main>
             </div>
@@ -406,14 +406,14 @@ export default function AdminPaymentMethodsPage() {
     }
 
     return (
-        <div className="flex min-h-screen bg-background">
+        <div className="flex flex-col md:flex-row min-h-screen bg-background">
             <AdminSidebar />
 
-            <main className="flex-1 overflow-auto">
-                <div className="border-b border-border bg-card sticky top-0 z-40">
+            <main className="flex-1 min-w-0 overflow-auto">
+                <div className="border-b border-border bg-card">
                     <div className="px-4 sm:px-8 py-4 sm:py-6">
-                        <h1 className="text-3xl font-bold">Métodos de Pago</h1>
-                        <p className="text-muted-foreground mt-1">
+                        <h1 className="text-2xl sm:text-3xl font-bold">Métodos de Pago</h1>
+                        <p className="text-sm sm:text-base text-muted-foreground mt-1">
                             Activa, desactiva y configura los datos de cobro que verá el donante.
                         </p>
                     </div>
@@ -437,8 +437,8 @@ export default function AdminPaymentMethodsPage() {
                     {orderedMethods.map((method) => (
                         <Card key={method.code}>
                             <CardHeader className="pb-3">
-                                <div className="flex items-center justify-between gap-4">
-                                    <CardTitle>{method.name}</CardTitle>
+                                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                                    <CardTitle className="min-w-0 break-words">{method.name}</CardTitle>
                                     <div className="flex items-center gap-2">
                                         <Label htmlFor={`active-${method.code}`}>Activo</Label>
                                         <Switch
@@ -450,7 +450,7 @@ export default function AdminPaymentMethodsPage() {
                                 </div>
                             </CardHeader>
                             <CardContent className="space-y-4">
-                                <div className="grid md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <Label>Nombre mostrado</Label>
                                         <Input
@@ -478,7 +478,7 @@ export default function AdminPaymentMethodsPage() {
                                 </div>
 
                                 {method.code === "zelle" && (
-                                    <div className="grid md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <Label>Email de cobro Zelle</Label>
                                             <Input
@@ -500,7 +500,7 @@ export default function AdminPaymentMethodsPage() {
 
                                 {method.code === "pagomovil" && (
                                     <>
-                                        <div className="grid md:grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                             <div>
                                                 <Label>Banco receptor</Label>
                                                 <Input
@@ -568,7 +568,7 @@ export default function AdminPaymentMethodsPage() {
                                         Se descuenta de lo que acredita la campaña, salvo que el donante elija
                                         &quot;Cubrir comisiones&quot;. Deja 0 si el método no tiene costo.
                                     </p>
-                                    <div className="grid md:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <Label>Porcentaje (%)</Label>
                                             <Input
@@ -594,7 +594,7 @@ export default function AdminPaymentMethodsPage() {
                                 </div>
 
                                 <div className="flex justify-end">
-                                    <Button onClick={() => saveMethod(method.code)} disabled={savingMethodCode === method.code}>
+                                    <Button className="w-full sm:w-auto" onClick={() => saveMethod(method.code)} disabled={savingMethodCode === method.code}>
                                         {savingMethodCode === method.code ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                                         Guardar configuración
                                     </Button>
@@ -618,9 +618,9 @@ export default function AdminPaymentMethodsPage() {
                                 <p className="text-sm text-muted-foreground">No hay fees de retiro configurados.</p>
                             ) : (
                                 withdrawalFees.map((fee) => (
-                                    <div key={fee.account_type} className="border rounded-lg p-4 space-y-3">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <p className="font-medium">
+                                    <div key={fee.account_type} className="border rounded-lg p-3 sm:p-4 space-y-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+                                            <p className="font-medium min-w-0">
                                                 {WITHDRAWAL_ACCOUNT_LABELS[fee.account_type] || fee.account_type}
                                                 <span className="ml-2 text-xs text-muted-foreground">
                                                     ({fee.currency === "BS" ? "Bolívares" : "Dólares"})
@@ -635,7 +635,7 @@ export default function AdminPaymentMethodsPage() {
                                                 />
                                             </div>
                                         </div>
-                                        <div className="grid md:grid-cols-3 gap-3 items-end">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                                             <div>
                                                 <Label>Porcentaje (%)</Label>
                                                 <Input
@@ -684,8 +684,8 @@ export default function AdminPaymentMethodsPage() {
                                 <p className="text-sm text-muted-foreground">No hay cuentas creadas.</p>
                             ) : (
                                 transferAccounts.map((account) => (
-                                    <div key={account.id} className="border rounded-lg p-4 space-y-3">
-                                        <div className="grid md:grid-cols-3 gap-3">
+                                    <div key={account.id} className="border rounded-lg p-3 sm:p-4 space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                             <div>
                                                 <Label>Banco</Label>
                                                 <Input
@@ -709,7 +709,7 @@ export default function AdminPaymentMethodsPage() {
                                             </div>
                                         </div>
 
-                                        <div className="grid md:grid-cols-4 gap-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                             <div>
                                                 <Label>Tipo</Label>
                                                 <Input
@@ -741,7 +741,7 @@ export default function AdminPaymentMethodsPage() {
                                             </div>
                                         </div>
 
-                                        <div className="grid md:grid-cols-2 gap-3 items-end">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-end">
                                             <div>
                                                 <Label>Instrucciones</Label>
                                                 <Textarea
@@ -750,7 +750,7 @@ export default function AdminPaymentMethodsPage() {
                                                     onChange={(e) => setTransferAccounts((prev) => prev.map((item) => item.id === account.id ? { ...item, instructions: e.target.value } : item))}
                                                 />
                                             </div>
-                                            <div className="flex items-center justify-between gap-3">
+                                            <div className="flex flex-wrap items-center justify-between gap-3">
                                                 <div className="flex items-center gap-2">
                                                     <Label htmlFor={`active-account-${account.id}`}>Activa</Label>
                                                     <Switch
@@ -759,7 +759,7 @@ export default function AdminPaymentMethodsPage() {
                                                         onCheckedChange={(checked) => setTransferAccounts((prev) => prev.map((item) => item.id === account.id ? { ...item, is_active: checked } : item))}
                                                     />
                                                 </div>
-                                                <div className="flex gap-2">
+                                                <div className="flex flex-wrap gap-2">
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
@@ -787,7 +787,7 @@ export default function AdminPaymentMethodsPage() {
 
                             <div className="border-t pt-4 space-y-3">
                                 <h3 className="font-semibold">Agregar nueva cuenta</h3>
-                                <div className="grid md:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <Input
                                         placeholder="Banco"
                                         value={newAccount.bank_name}
@@ -804,7 +804,7 @@ export default function AdminPaymentMethodsPage() {
                                         onChange={(e) => setNewAccount((prev) => ({ ...prev, account_number: e.target.value }))}
                                     />
                                 </div>
-                                <div className="grid md:grid-cols-4 gap-3">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                     <Input
                                         placeholder="Tipo de cuenta"
                                         value={newAccount.account_type}
@@ -834,7 +834,7 @@ export default function AdminPaymentMethodsPage() {
                                     onChange={(e) => setNewAccount((prev) => ({ ...prev, instructions: e.target.value }))}
                                 />
                                 <div className="flex justify-end">
-                                    <Button onClick={createTransferAccount} disabled={creatingAccount}>
+                                    <Button className="w-full sm:w-auto" onClick={createTransferAccount} disabled={creatingAccount}>
                                         {creatingAccount ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Plus className="w-4 h-4 mr-2" />}
                                         Agregar cuenta
                                     </Button>

@@ -80,12 +80,25 @@ export async function POST(
         // Buscar el donation antes de tocarlo (para idempotencia + auditoría).
         const { data: donation, error: fetchError } = await adminSupabase
             .from("donations")
-            .select("id, payment_status, campaign_id, amount_usd, amount_bs, currency, payment_method, fee_covered_by_donor, donor_id, email")
+            .select("id, payment_status, campaign_id, amount_usd, amount_bs, currency, payment_method, fee_covered_by_donor, donor_id, email, is_direct")
             .eq("id", id)
             .single();
 
         if (fetchError || !donation) {
             return NextResponse.json({ error: "Donación no encontrada" }, { status: 404 });
+        }
+
+        // Pago directo (modo crisis): el dinero llegó a la cuenta del
+        // organizador, así que SOLO él puede confirmarlo o rechazarlo. LaVaca
+        // audita y media desde /admin/direct-payments.
+        if (donation.is_direct) {
+            return NextResponse.json(
+                {
+                    error:
+                        "Este es un pago directo al organizador (modo crisis): solo el organizador puede confirmarlo. Para auditarlo o mediar usa Pagos directos.",
+                },
+                { status: 409 },
+            );
         }
 
         // Idempotencia: si ya está completado o fallado, no rompemos nada.
@@ -181,6 +194,7 @@ export async function POST(
                 .from("donations")
                 .update(updatePayload)
                 .eq("id", id)
+                .eq("is_direct", false)
                 .neq("payment_status", "completed")
                 .select("id, payment_status, amount_usd, amount_bs, campaign_id")
                 .single();
@@ -231,6 +245,7 @@ export async function POST(
                 admin_notes: rejectionReason,
             })
             .eq("id", id)
+            .eq("is_direct", false)
             .neq("payment_status", "completed")
             .select("id, payment_status, amount_usd, campaign_id")
             .single();
